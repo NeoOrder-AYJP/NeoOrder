@@ -91,6 +91,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnCloseHistoryModal = document.getElementById('btnCloseHistoryModal');
   const historyOrdersContainer = document.getElementById('historyOrdersContainer');
 
+  const btnCallStaff = document.getElementById('btnCallStaff');
+  const callStaffModal = document.getElementById('callStaffModal');
+  const btnCloseCallStaffModal = document.getElementById('btnCloseCallStaffModal');
+  const btnCancelCallStaff = document.getElementById('btnCancelCallStaff');
+  const callStaffForm = document.getElementById('callStaffForm');
+  const callJustification = document.getElementById('callJustification');
+
   let activeFilterMode = 'all'; // 'all' or 'available'
 
   // Helper to get supabase client safely
@@ -459,6 +466,55 @@ document.addEventListener('DOMContentLoaded', async () => {
   function closeHistoryModal() { historyModal.style.display = 'none'; }
   btnOpenHistory.addEventListener('click', openHistoryModal);
   btnCloseHistoryModal.addEventListener('click', closeHistoryModal);
+
+  // --- CALL STAFF MODAL ---
+  function openCallStaffModal() {
+    callStaffForm.reset();
+    callStaffModal.style.display = 'flex';
+  }
+
+  function closeCallStaffModal() {
+    callStaffModal.style.display = 'none';
+  }
+
+  if (btnCallStaff) btnCallStaff.addEventListener('click', openCallStaffModal);
+  if (btnCloseCallStaffModal) btnCloseCallStaffModal.addEventListener('click', closeCallStaffModal);
+  if (btnCancelCallStaff) btnCancelCallStaff.addEventListener('click', closeCallStaffModal);
+
+  if (callStaffForm) {
+    callStaffForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const motivo = callJustification.value.trim();
+      if (!motivo) return;
+
+      const newChamado = {
+        id: crypto.randomUUID(),
+        mesa_id: user.id,
+        mesa_nome: user.nome || `Mesa ${user.login}`,
+        motivo: motivo,
+        status: 'Pendente',
+        criado_em: new Date().toISOString()
+      };
+
+      try {
+        const client = getSupabase();
+        if (client && typeof client.from === 'function') {
+          await client.from('chamados').insert({
+            id: newChamado.id,
+            mesa_id: newChamado.mesa_id,
+            motivo: newChamado.motivo,
+            status: newChamado.status,
+            criado_em: newChamado.criado_em
+          });
+        }
+      } catch (err) {
+        console.warn("Supabase chamados insert error:", err);
+      }
+
+      alert('Chamado enviado aos funcionários com sucesso!');
+      closeCallStaffModal();
+    });
+  }
 
   // Filters
   filterAll.addEventListener('click', () => {

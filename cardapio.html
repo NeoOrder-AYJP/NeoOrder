@@ -23,6 +23,11 @@
           <span id="mesaTitle">Mesa --</span>
         </div>
 
+        <button type="button" id="btnCallStaff" class="btn btn-secondary" style="padding: 6px 14px; min-height: 36px; border-color: var(--primary); color: var(--primary);">
+          <span class="material-symbols-outlined" style="font-size: 18px;">notifications_active</span>
+          <span>Chamar Funcionário</span>
+        </button>
+
         <button type="button" id="btnOpenHistory" class="btn btn-secondary" style="padding: 6px 14px; min-height: 36px;">
           <span class="material-symbols-outlined" style="font-size: 18px;">receipt_long</span>
           <span>Meus Pedidos</span>
@@ -108,6 +113,43 @@
           <span>Enviar Pedido para a Cozinha</span>
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- Call Staff Modal -->
+  <div id="callStaffModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="material-symbols-outlined" style="color: var(--primary);">notifications_active</span>
+          <h3 class="modal-title">Chamar Funcionário</h3>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseCallStaffModal">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <form id="callStaffForm">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: var(--space-md);">
+          Informe o motivo do chamado para que a nossa equipe possa lhe atender da melhor forma.
+        </p>
+
+        <div class="input-group" style="margin-bottom: var(--space-lg);">
+          <label class="input-label" for="callJustification">Motivo / Justificativa</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">edit_note</span>
+            <input type="text" id="callJustification" class="input-field" placeholder="Ex: Preciso de mais água / Trocar prato" required>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: var(--space-sm);">
+          <button type="button" id="btnCancelCallStaff" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" id="btnSubmitCallStaff" class="btn btn-primary">
+            <span class="material-symbols-outlined">send</span>
+            <span>Enviar Chamado</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
