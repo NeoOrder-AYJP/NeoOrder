@@ -501,8 +501,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   btnCloseHistoryModal.addEventListener('click', closeHistoryModal);
 
   // --- CALL STAFF MODAL ---
+  const callSelectReason = document.getElementById('callSelectReason');
+  const callOtherGroup = document.getElementById('callOtherGroup');
+
+  if (callSelectReason) {
+    callSelectReason.addEventListener('change', () => {
+      if (callSelectReason.value === 'Outro') {
+        callOtherGroup.style.display = 'block';
+        if (callJustification) callJustification.required = true;
+      } else {
+        callOtherGroup.style.display = 'none';
+        if (callJustification) callJustification.required = false;
+      }
+    });
+  }
+
   function openCallStaffModal() {
-    callStaffForm.reset();
+    if (callStaffForm) callStaffForm.reset();
+    if (callOtherGroup) callOtherGroup.style.display = 'none';
+    if (callJustification) callJustification.required = false;
     callStaffModal.style.display = 'flex';
   }
 
@@ -517,7 +534,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (callStaffForm) {
     callStaffForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const motivo = callJustification.value.trim();
+      let motivo = callSelectReason ? callSelectReason.value : '';
+      if (motivo === 'Outro' && callJustification) {
+        motivo = callJustification.value.trim() || 'Outro';
+      }
       if (!motivo) return;
 
       const newChamado = {
