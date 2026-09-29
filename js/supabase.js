@@ -8,7 +8,14 @@ const SUPABASE_ANON_KEY = "sb_publishable_e97hOiDRJhMbrF4smXlKWA_mV3it-Ef";
 let supabaseClient = null;
 
 if (window.supabase && window.supabase.createClient) {
-  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    }
+  });
 } else {
   console.error("Supabase SDK CDN not loaded on window.");
 }

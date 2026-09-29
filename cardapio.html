@@ -134,11 +134,26 @@
           Informe o motivo do chamado para que a nossa equipe possa lhe atender da melhor forma.
         </p>
 
-        <div class="input-group" style="margin-bottom: var(--space-lg);">
-          <label class="input-label" for="callJustification">Motivo / Justificativa</label>
+        <div class="input-group" style="margin-bottom: var(--space-md);">
+          <label class="input-label" for="callSelectReason">Motivo do Chamado</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">list</span>
+            <select id="callSelectReason" class="input-field" style="padding-left: 38px;" required>
+              <option value="Pedir a conta">Pedir a conta</option>
+              <option value="Tirar dúvida do menu">Tirar dúvida do menu</option>
+              <option value="Solicitar talheres/copos">Solicitar talheres/copos</option>
+              <option value="Trocar item do pedido">Trocar item do pedido</option>
+              <option value="Limpeza da mesa">Limpeza da mesa</option>
+              <option value="Outro">Outro Motivo...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="input-group" id="callOtherGroup" style="display: none; margin-bottom: var(--space-lg);">
+          <label class="input-label" for="callJustification">Especifique o Motivo</label>
           <div class="input-wrapper">
             <span class="material-symbols-outlined input-icon">edit_note</span>
-            <input type="text" id="callJustification" class="input-field" placeholder="Ex: Preciso de mais água / Trocar prato" required>
+            <input type="text" id="callJustification" class="input-field" placeholder="Digite o motivo do chamado...">
           </div>
         </div>
 
