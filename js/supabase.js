@@ -1,8 +1,7 @@
 // js/supabase.js - Supabase Client Initialization
 
-// Get credentials from environment or runtime window object
-const SUPABASE_URL = "https://nurnxrtxdcasrjcwxvky.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_e97hOiDRJhMbrF4smXlKWA_mV3it-Ef";
+const SUPABASE_URL = (window.CONFIG && window.CONFIG.SUPABASE_URL) || "https://nurnxrtxdcasrjcwxvky.supabase.co";
+const SUPABASE_ANON_KEY = (window.CONFIG && window.CONFIG.SUPABASE_ANON_KEY) || "sb_publishable_e97hOiDRJhMbrF4smXlKWA_mV3it-Ef";
 
 // Initialize Supabase client via global supabase object loaded from CDN
 let supabaseClient = null;
