@@ -204,11 +204,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       const avail = calculateAvailability(dish.id);
       const isAvailable = avail.isAvailable;
 
+      const cartItem = cart.find(item => item.dishId === dish.id);
+      const cartQty = cartItem ? cartItem.quantidade : 0;
+
       const badge = isAvailable
         ? `<span class="status-badge status-active">Disponível (${avail.portions === Infinity ? '∞' : avail.portions})</span>`
         : `<span class="status-badge status-inactive">Indisponível</span>`;
 
       const imgUrl = dish.imagem || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80';
+
+      const actionButtonHtml = cartQty > 0
+        ? `
+          <div style="display: flex; align-items: center; gap: 6px; background: var(--surface-container-low); padding: 2px 6px; border-radius: 8px; border: 1px solid var(--border-subtle);">
+            <button type="button" class="btn btn-secondary btn-dish-qty-dec" data-id="${dish.id}" style="padding: 2px 10px; min-height: 32px; font-size: 16px; font-weight: 700;">-</button>
+            <span style="font-weight: 700; font-size: 15px; min-width: 20px; text-align: center; color: var(--text-main);">${cartQty}</span>
+            <button type="button" class="btn btn-primary btn-dish-qty-inc" data-id="${dish.id}" ${!isAvailable ? 'disabled' : ''} style="padding: 2px 10px; min-height: 32px; font-size: 16px; font-weight: 700;">+</button>
+          </div>
+        `
+        : `
+          <button type="button" class="btn btn-primary btn-add-cart" data-id="${dish.id}" ${!isAvailable ? 'disabled' : ''} style="padding: 6px 12px; min-height: 36px;">
+            <span class="material-symbols-outlined" style="font-size: 18px;">add_shopping_cart</span>
+            <span>Adicionar</span>
+          </button>
+        `;
 
       return `
         <div class="card flex-col" style="overflow: hidden; padding: 0; position: relative;">
@@ -227,10 +245,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 R$ ${parseFloat(dish.preco).toFixed(2).replace('.', ',')}
               </span>
 
-              <button type="button" class="btn btn-primary btn-add-cart" data-id="${dish.id}" ${!isAvailable ? 'disabled' : ''} style="padding: 6px 12px; min-height: 36px;">
-                <span class="material-symbols-outlined" style="font-size: 18px;">add_shopping_cart</span>
-                <span>Adicionar</span>
-              </button>
+              ${actionButtonHtml}
             </div>
           </div>
         </div>
@@ -242,6 +257,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.addEventListener('click', (e) => {
         const id = e.currentTarget.dataset.id;
         addToCart(id);
+      });
+    });
+
+    // Attach Stepper Listeners
+    dishesGrid.querySelectorAll('.btn-dish-qty-dec').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.dataset.id;
+        updateCartQuantity(id, -1);
+      });
+    });
+
+    dishesGrid.querySelectorAll('.btn-dish-qty-inc').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.dataset.id;
+        updateCartQuantity(id, 1);
       });
     });
   }
@@ -283,6 +313,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Badge
     const totalCount = cart.reduce((acc, curr) => acc + curr.quantidade, 0);
     cartBadge.textContent = totalCount;
+
+    // Refresh dishes grid to sync stepper - 1 + buttons directly in menu
+    renderDishes();
 
     if (cart.length === 0) {
       cartItemsContainer.innerHTML = `
@@ -533,6 +566,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   inputSearchDish.addEventListener('input', () => renderDishes());
 
+  // Realtime Subscription
+  function setupRealtime() {
+    const client = getSupabase();
+    if (client && typeof client.channel === 'function') {
+      client
+        .channel('cardapio-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+          loadData();
+        })
+        .subscribe();
+    }
+  }
+
   // Initialize
   await loadData();
+  setupRealtime();
 });

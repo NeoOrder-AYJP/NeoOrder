@@ -507,8 +507,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderOrdersKanban();
   });
 
+  // Realtime Subscription
+  function setupRealtime() {
+    const client = getSupabase();
+    if (client && typeof client.channel === 'function') {
+      client
+        .channel('atendimento-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+          fetchAllData();
+        })
+        .subscribe();
+    }
+  }
+
   // Initialize and Set Polling Interval (every 5 seconds)
   await loadStockAndRecipes();
   await fetchAllData();
+  setupRealtime();
   setInterval(fetchAllData, 5000);
 });
