@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Operação & Atendimento — NeoOrder</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <!-- Header / Navbar -->
+  <header class="header">
+    <div class="container header-container">
+      <a href="index.html" class="logo-brand">
+        <span class="material-symbols-outlined">restaurant_menu</span>
+        <span>NeoOrder</span>
+      </a>
+
+      <nav class="nav-links">
+        <a href="atendimento.html" class="nav-link active">Atendimento</a>
+        <a href="estoque.html" class="nav-link">Estoque & Cardápio</a>
+        <a href="contas.html" class="nav-link">Contas</a>
+      </nav>
+
+      <div class="nav-actions">
+        <div style="display: flex; align-items: center; gap: 6px; background: var(--surface-container-low); padding: 4px 12px; border-radius: 20px; font-weight: 500; font-size: 14px; color: var(--text-main);">
+          <span class="material-symbols-outlined" style="font-size: 18px; color: var(--primary);">badge</span>
+          <span id="userInfo">Carregando...</span>
+        </div>
+
+        <button type="button" id="btnLogout" class="btn btn-danger" style="padding: 6px 10px; min-height: 36px;" title="Encerrar Sessão">
+          <span class="material-symbols-outlined" style="font-size: 18px;">logout</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="container" style="margin-top: var(--space-xl); margin-bottom: var(--space-2xl);">
+    <!-- Header Controls & Audio Toggle -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl); flex-wrap: wrap; gap: var(--space-md);">
+      <div>
+        <h1 class="section-title" style="margin-bottom: 4px;">
+          <span class="material-symbols-outlined" style="color: var(--primary);">support_agent</span>
+          <span>Operação & Atendimento</span>
+        </h1>
+        <p style="color: var(--text-muted); font-size: 14px;">Acompanhamento em tempo real de chamados de mesa e gestão dos pedidos da cozinha.</p>
+      </div>
+
+      <button type="button" id="btnAudioToggle" class="btn btn-secondary" style="padding: 8px 16px;">
+        <span class="material-symbols-outlined" id="audioIcon" style="color: var(--primary);">notifications_active</span>
+        <span id="audioLabel">Ativar Alertas Sonoros</span>
+      </button>
+    </div>
+
+    <!-- Section 1: Active Table Calls (RF-28, RF-29, RF-30, RF-31) -->
+    <div style="margin-bottom: var(--space-2xl);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="material-symbols-outlined" style="color: var(--danger); font-size: 24px;">notifications_active</span>
+          <h2 style="font-size: 20px; font-weight: 600; color: var(--text-main);">Chamados de Mesas</h2>
+          <span id="badgePendingCalls" class="status-badge" style="background: rgba(157, 2, 8, 0.15); color: var(--danger); font-weight: 600;">0 pendentes</span>
+        </div>
+        <span style="font-size: 13px; color: var(--text-muted);">Ação requerida imediata</span>
+      </div>
+
+      <div id="callsContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--space-md);">
+        <div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: var(--space-xl); background: var(--surface-card); border-radius: 12px; border: 1px solid var(--border-subtle);">
+          Nenhum chamado pendente no momento.
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Live Orders Workflow (Kanban: Recebido, Em Preparo, Pronto/Entregue) -->
+    <div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+        <div>
+          <h2 style="font-size: 20px; font-weight: 600; color: var(--text-main);">Fluxo de Pedidos das Mesas</h2>
+          <p style="font-size: 13px; color: var(--text-muted);">Acompanhamento de status de pedidos em tempo real com estorno automático no estoque ao cancelar.</p>
+        </div>
+      </div>
+
+      <!-- 3 Columns Kanban -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-lg); align-items: start;">
+        <!-- COLUMN 1: RECEBIDO / PENDENTE -->
+        <div style="background: var(--surface-container-low); border-radius: 12px; padding: var(--space-md); min-height: 480px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border-subtle); margin-bottom: var(--space-md);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--primary);"></span>
+              <span style="font-weight: 600; color: var(--text-main); font-size: 15px;">Recebidos</span>
+              <span id="countReceived" class="status-badge" style="background: var(--border-subtle); color: var(--text-main);">0</span>
+            </div>
+            <span style="font-size: 12px; color: var(--text-muted);">Aguardando Preparo</span>
+          </div>
+          <div id="colReceived" class="flex-col" style="gap: var(--space-md);">
+            <!-- Cards appended dynamically -->
+          </div>
+        </div>
+
+        <!-- COLUMN 2: EM PREPARO -->
+        <div style="background: var(--surface-container-low); border-radius: 12px; padding: var(--space-md); min-height: 480px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border-subtle); margin-bottom: var(--space-md);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="width: 10px; height: 10px; border-radius: 50%; background: #D97706;"></span>
+              <span style="font-weight: 600; color: var(--text-main); font-size: 15px;">Em Preparo</span>
+              <span id="countInPrep" class="status-badge" style="background: var(--border-subtle); color: var(--text-main);">0</span>
+            </div>
+            <span style="font-size: 12px; color: var(--text-muted);">Cozinha Ativa</span>
+          </div>
+          <div id="colInPrep" class="flex-col" style="gap: var(--space-md);">
+            <!-- Cards appended dynamically -->
+          </div>
+        </div>
+
+        <!-- COLUMN 3: PRONTO / ENTREGUE -->
+        <div style="background: var(--surface-container-low); border-radius: 12px; padding: var(--space-md); min-height: 480px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border-subtle); margin-bottom: var(--space-md);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--success);"></span>
+              <span style="font-weight: 600; color: var(--text-main); font-size: 15px;">Pronto / Entregue</span>
+              <span id="countDone" class="status-badge" style="background: var(--border-subtle); color: var(--text-main);">0</span>
+            </div>
+            <span style="font-size: 12px; color: var(--text-muted);">Finalizados</span>
+          </div>
+          <div id="colDone" class="flex-col" style="gap: var(--space-md);">
+            <!-- Cards appended dynamically -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Cancel & Restock Modal (RN-04) -->
+  <div id="cancelModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 450px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px; color: var(--danger);">
+          <span class="material-symbols-outlined">warning</span>
+          <h3 class="modal-title" style="color: var(--danger);">Cancelar Pedido & Estornar</h3>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseCancelModal">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <p style="font-size: 14px; color: var(--text-main); margin-bottom: var(--space-md);">
+        Você está prestes a cancelar o pedido <strong id="modalOrderId">#--</strong> da <strong id="modalOrderMesa">Mesa --</strong>.
+      </p>
+
+      <div style="background: var(--surface-container-low); padding: var(--space-md); border-radius: 8px; margin-bottom: var(--space-md); font-size: 13px; color: var(--text-main);" class="flex-col">
+        <span style="font-weight: 600; margin-bottom: 4px;">Ações automáticas (RN-04):</span>
+        <span style="color: var(--success);">✔ Estorno dos insumos consumidos de volta ao estoque.</span>
+        <span style="color: var(--text-muted);">✔ O valor do pedido não será contabilizado no faturamento.</span>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: var(--space-sm);">
+        <button type="button" id="btnCancelModalBack" class="btn btn-secondary">Voltar</button>
+        <button type="button" id="btnConfirmCancelOrder" class="btn btn-danger">Confirmar Cancelamento</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>© 2026 NeoOrder — Módulo de Atendimento & Operação</p>
+    </div>
+  </footer>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/atendimento.js"></script>
+</body>
+</html>
