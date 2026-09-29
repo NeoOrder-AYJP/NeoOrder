@@ -338,6 +338,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     reader.readAsText(file);
   });
 
+  // Realtime Subscription
+  function setupRealtime() {
+    const client = getSupabase();
+    if (client && typeof client.channel === 'function') {
+      client
+        .channel('faturamento-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+          loadData();
+        })
+        .subscribe();
+    }
+  }
+
   // Initialize
   await loadData();
+  setupRealtime();
 });

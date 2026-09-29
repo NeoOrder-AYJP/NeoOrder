@@ -63,7 +63,19 @@ let allDishes = [];
 document.addEventListener('DOMContentLoaded', async () => {
   await loadMenuData();
   setupCarouselControls();
+  setupRealtimeSubscription();
 });
+
+function setupRealtimeSubscription() {
+  if (supabaseClient && typeof supabaseClient.channel === 'function') {
+    supabaseClient
+      .channel('app-landing-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pratos' }, () => {
+        loadMenuData();
+      })
+      .subscribe();
+  }
+}
 
 async function loadMenuData() {
   try {

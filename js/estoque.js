@@ -628,6 +628,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderDishesTable();
   }
 
+  // Realtime Subscription
+  function setupRealtime() {
+    const client = getSupabase();
+    if (client && typeof client.channel === 'function') {
+      client
+        .channel('estoque-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+          loadData();
+        })
+        .subscribe();
+    }
+  }
+
   // Initialize
   await loadData();
+  setupRealtime();
 });
