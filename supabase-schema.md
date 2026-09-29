@@ -118,6 +118,7 @@
 
 | Policy | Command | Roles | Action | USING | WITH CHECK |
 |--------|---------|-------|--------|-------|------------|
+| `Leitura publica para verificacao de login` | SELECT | public | PERMISSIVE | `(ativo = true)` | — |
 | `Funcionarios visualizam dados de usuarios` | SELECT | public | PERMISSIVE | `eh_funcionario()` | — |
 | `Gerente possui controle total de usuarios` | ALL | public | PERMISSIVE | `eh_gerente()` | — |
 

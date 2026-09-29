@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerenciamento de Contas — NeoOrder</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header class="header">
+    <div class="container header-container">
+      <a href="index.html" class="logo-brand">
+        <span class="material-symbols-outlined">restaurant_menu</span>
+        <span>NeoOrder</span>
+      </a>
+      <div class="nav-actions">
+        <span id="userInfo" style="font-size: 14px; font-weight: 500; color: var(--text-main);"></span>
+        <a href="index.html" class="btn btn-secondary" style="padding: 6px 14px; min-height: 36px;">
+          <span class="material-symbols-outlined" style="font-size: 18px;">home</span>
+          <span>Início</span>
+        </a>
+        <button type="button" id="btnLogout" class="btn btn-danger" style="padding: 6px 14px; min-height: 36px;">
+          <span class="material-symbols-outlined" style="font-size: 18px;">logout</span>
+          <span>Sair</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="margin-top: var(--space-xl); margin-bottom: var(--space-2xl);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); flex-wrap: wrap; gap: var(--space-md);">
+      <div>
+        <h1 class="section-title" style="margin-bottom: 4px;">
+          <span class="material-symbols-outlined" style="color: var(--primary);">manage_accounts</span>
+          <span>Gerenciamento de Contas</span>
+        </h1>
+        <p style="color: var(--text-muted); font-size: 14px;">Crie e gerencie acessos de mesas e colaboradores do restaurante.</p>
+      </div>
+
+      <button type="button" id="btnNewAccount" class="btn btn-primary">
+        <span class="material-symbols-outlined">add</span>
+        <span>Nova Conta</span>
+      </button>
+    </div>
+
+    <!-- Segmented Tab Filter -->
+    <div class="segmented-control" style="max-width: 400px; margin-bottom: var(--space-lg);">
+      <button type="button" class="tab-btn active" id="tabFilterAll">
+        <span>Todas as Contas</span>
+      </button>
+      <button type="button" class="tab-btn" id="tabFilterMesas">
+        <span>Mesas</span>
+      </button>
+      <button type="button" class="tab-btn" id="tabFilterStaff">
+        <span>Funcionários</span>
+      </button>
+    </div>
+
+    <!-- Accounts Table -->
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Nome / Identificação</th>
+            <th>Login</th>
+            <th>Tipo / Perfil</th>
+            <th>Status</th>
+            <th style="text-align: right;">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="accountsTableBody">
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">Carregando contas...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Account Modal (Create / Edit) -->
+  <div id="accountModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalTitle">Nova Conta</h3>
+        <button type="button" class="modal-close" id="btnCloseModal">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <form id="accountForm" class="flex-col">
+        <input type="hidden" id="accountId" name="accountId">
+
+        <div class="form-group">
+          <label for="accountTipo" class="form-label">Tipo de Conta</label>
+          <select id="accountTipo" class="input-field" style="padding-left: 14px;" required>
+            <option value="mesa">Mesa (Cliente)</option>
+            <option value="funcionario">Funcionário</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="accountNome" class="form-label">Nome / Identificação</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">badge</span>
+            <input type="text" id="accountNome" class="input-field" placeholder="Ex: Mesa 05 ou Carlos Silva" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="accountLogin" class="form-label">Login de Acesso</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">person</span>
+            <input type="text" id="accountLogin" class="input-field" placeholder="Ex: Mesa 05 ou carlos.atendente" required>
+          </div>
+        </div>
+
+        <div class="form-group" id="groupPerfil" style="display: none;">
+          <label for="accountPerfil" class="form-label">Perfil de Permissão</label>
+          <select id="accountPerfil" class="input-field" style="padding-left: 14px;">
+            <option value="atendente">Atendente</option>
+            <option value="gerente">Gerente</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="accountStatus" class="form-label">Status da Conta</label>
+          <select id="accountStatus" class="input-field" style="padding-left: 14px;">
+            <option value="true">Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
+        </div>
+
+        <div style="display: flex; gap: var(--space-md); margin-top: var(--space-md); justify-content: flex-end;">
+          <button type="button" id="btnCancelModal" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Conta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <p>© 2026 NeoOrder — Módulo de Gerenciamento de Contas</p>
+    </div>
+  </footer>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/contas.js"></script>
+</body>
+</html>

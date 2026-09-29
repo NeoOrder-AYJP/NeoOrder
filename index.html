@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeoOrder — Gastronomia e Gestão</title>
+
+  <!-- Google Fonts: Poppins -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Design System CSS -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Supabase JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- Navigation Header -->
+  <header class="header">
+    <div class="container header-container">
+      <a href="index.html" class="logo-brand">
+        <i class="fas fa-utensils"></i>
+        <span>NeoOrder</span>
+      </a>
+      <div class="nav-actions">
+        <a href="login.html?type=client" class="btn btn-primary" id="btn-fazer-pedido">
+          <i class="fas fa-qrcode"></i> Fazer Pedido
+        </a>
+        <a href="login.html?type=staff" class="btn btn-secondary" id="btn-area-funcionario">
+          <i class="fas fa-user-tie"></i> Área do Funcionário
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Shell -->
+  <main class="container">
+
+    <!-- Hero Section: Featured Dishes Carousel -->
+    <section class="hero-section">
+      <div class="carousel-container">
+        <button class="carousel-btn prev" id="carousel-prev" aria-label="Slide anterior">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+
+        <div id="carousel-slides" style="width: 100%;">
+          <!-- Carousel slides rendered dynamically via js/app.js -->
+        </div>
+
+        <button class="carousel-btn next" id="carousel-next" aria-label="Próximo slide">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+
+        <div class="carousel-indicators" id="carousel-indicators">
+          <!-- Indicators rendered dynamically via js/app.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Menu Section: Complete Menu Grid -->
+    <section id="cardapio">
+      <h2 class="section-title">
+        <i class="fas fa-book-open" style="color: var(--primary);"></i>
+        Nosso Cardápio Completo
+      </h2>
+
+      <div class="menu-grid" id="menu-grid">
+        <!-- Menu cards rendered dynamically via js/app.js -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2026 NeoOrder — Sistema de Gerenciamento de Pedidos. Todos os direitos reservados.</p>
+    </div>
+  </footer>
+
+  <!-- Supabase & App Script -->
+  <script src="js/supabase.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

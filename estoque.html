@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estoque e Cardápio — NeoOrder</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header class="header">
+    <div class="container header-container">
+      <a href="index.html" class="logo-brand">
+        <span class="material-symbols-outlined">restaurant_menu</span>
+        <span>NeoOrder</span>
+      </a>
+      <div class="nav-actions">
+        <a href="contas.html" class="btn btn-secondary" style="padding: 6px 14px; min-height: 36px;" id="navContas">
+          <span class="material-symbols-outlined" style="font-size: 18px;">manage_accounts</span>
+          <span>Contas</span>
+        </a>
+        <span id="userInfo" style="font-size: 14px; font-weight: 500; color: var(--text-main);"></span>
+        <a href="index.html" class="btn btn-secondary" style="padding: 6px 14px; min-height: 36px;">
+          <span class="material-symbols-outlined" style="font-size: 18px;">home</span>
+          <span>Início</span>
+        </a>
+        <button type="button" id="btnLogout" class="btn btn-danger" style="padding: 6px 14px; min-height: 36px;">
+          <span class="material-symbols-outlined" style="font-size: 18px;">logout</span>
+          <span>Sair</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="margin-top: var(--space-xl); margin-bottom: var(--space-2xl);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); flex-wrap: wrap; gap: var(--space-md);">
+      <div>
+        <h1 class="section-title" style="margin-bottom: 4px;">
+          <span class="material-symbols-outlined" style="color: var(--primary);">inventory_2</span>
+          <span>Gestão de Estoque e Cardápio</span>
+        </h1>
+        <p style="color: var(--text-muted); font-size: 14px;">Controle o saldo de insumos e configure os pratos oferecidos no cardápio.</p>
+      </div>
+
+      <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+        <button type="button" id="btnNewIngredient" class="btn btn-secondary">
+          <span class="material-symbols-outlined">add</span>
+          <span>Novo Insumo</span>
+        </button>
+        <button type="button" id="btnNewDish" class="btn btn-primary">
+          <span class="material-symbols-outlined">restaurant</span>
+          <span>Novo Prato</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI Cards Summary -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-xl);">
+      <div style="background: var(--surface-card); padding: var(--space-md); border-radius: 12px; box-shadow: var(--shadow-sm); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Total de Insumos</span>
+          <div style="font-size: 28px; font-weight: 600; color: var(--text-main);" id="kpiTotalIngredientes">0</div>
+        </div>
+        <span class="material-symbols-outlined" style="font-size: 32px; color: var(--primary);">inventory</span>
+      </div>
+
+      <div style="background: var(--surface-card); padding: var(--space-md); border-radius: 12px; box-shadow: var(--shadow-sm); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Insumos em Alerta / Esgotados</span>
+          <div style="font-size: 28px; font-weight: 600; color: #D97706;" id="kpiAlertaIngredientes">0</div>
+        </div>
+        <span class="material-symbols-outlined" style="font-size: 32px; color: #D97706;">warning</span>
+      </div>
+
+      <div style="background: var(--surface-card); padding: var(--space-md); border-radius: 12px; box-shadow: var(--shadow-sm); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Total de Pratos</span>
+          <div style="font-size: 28px; font-weight: 600; color: var(--text-main);" id="kpiTotalPratos">0</div>
+        </div>
+        <span class="material-symbols-outlined" style="font-size: 32px; color: var(--success);">restaurant_menu</span>
+      </div>
+    </div>
+
+    <!-- Section Switcher Tabs -->
+    <div class="segmented-control" style="max-width: 440px; margin-bottom: var(--space-lg);">
+      <button type="button" class="tab-btn active" id="tabViewEstoque">
+        <span class="material-symbols-outlined" style="font-size: 18px;">inventory_2</span>
+        <span>Estoque de Insumos</span>
+      </button>
+      <button type="button" class="tab-btn" id="tabViewPratos">
+        <span class="material-symbols-outlined" style="font-size: 18px;">menu_book</span>
+        <span>Pratos do Cardápio</span>
+      </button>
+    </div>
+
+    <!-- Panel 1: Ingredients Stock Table -->
+    <div id="panelEstoque">
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ingrediente</th>
+              <th style="text-align: right;">Quantidade em Estoque</th>
+              <th style="text-align: center;">Unidade</th>
+              <th>Status</th>
+              <th style="text-align: right;">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="ingredientsTableBody">
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">Carregando estoque de ingredientes...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Panel 2: Dishes List & Recipes -->
+    <div id="panelPratos" style="display: none;">
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Prato</th>
+              <th>Preço</th>
+              <th>Destaque (Hero Carousel)</th>
+              <th>Disponibilidade Calculada</th>
+              <th>Status</th>
+              <th style="text-align: right;">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="dishesTableBody">
+            <tr>
+              <td colspan="6" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">Carregando pratos...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal Ingredient (Create / Edit) -->
+  <div id="ingredientModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="ingredientModalTitle">Novo Insumo</h3>
+        <button type="button" class="modal-close" id="btnCloseIngredientModal">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <form id="ingredientForm" class="flex-col">
+        <input type="hidden" id="ingredientId">
+
+        <div class="form-group">
+          <label for="ingredientNome" class="form-label">Nome do Insumo</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">inventory_2</span>
+            <input type="text" id="ingredientNome" class="input-field" placeholder="Ex: Filé Mignon Bovino" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="ingredientUnidade" class="form-label">Unidade de Medida</label>
+          <select id="ingredientUnidade" class="input-field" style="padding-left: 14px;" required>
+            <option value="kg">Quilograma (kg)</option>
+            <option value="g">Grama (g)</option>
+            <option value="un">Unidade (un)</option>
+            <option value="l">Litro (l)</option>
+            <option value="ml">Mililitro (ml)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="ingredientQuantidade" class="form-label">Quantidade em Estoque</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">pin</span>
+            <input type="number" id="ingredientQuantidade" class="input-field" step="0.001" min="0" placeholder="Ex: 15.5" required>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: var(--space-md); margin-top: var(--space-md); justify-content: flex-end;">
+          <button type="button" id="btnCancelIngredientModal" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Insumo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Dish (Create / Edit + Recipe Binding) -->
+  <div id="dishModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="dishModalTitle">Novo Prato</h3>
+        <button type="button" class="modal-close" id="btnCloseDishModal">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <form id="dishForm" class="flex-col">
+        <input type="hidden" id="dishId">
+
+        <div class="form-group">
+          <label for="dishNome" class="form-label">Nome do Prato</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">restaurant</span>
+            <input type="text" id="dishNome" class="input-field" placeholder="Ex: Risoto de Cogumelos" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="dishDescricao" class="form-label">Descrição Breve</label>
+          <textarea id="dishDescricao" class="input-field" style="padding: 10px 14px; min-height: 70px; font-family: inherit;" placeholder="Ex: Arroz arbóreo italiano com cogumelos frescos Paris e Shimeji..."></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+          <div class="form-group">
+            <label for="dishPreco" class="form-label">Preço (R$)</label>
+            <div class="input-wrapper">
+              <span class="material-symbols-outlined input-icon">attach_money</span>
+              <input type="number" id="dishPreco" class="input-field" step="0.01" min="0" placeholder="89.90" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="dishImagem" class="form-label">URL da Imagem</label>
+            <div class="input-wrapper">
+              <span class="material-symbols-outlined input-icon">image</span>
+              <input type="url" id="dishImagem" class="input-field" placeholder="https://...">
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: var(--space-lg); margin-top: var(--space-xs);">
+          <label style="display: flex; align-items: center; gap: var(--space-xs); font-size: 14px; cursor: pointer;">
+            <input type="checkbox" id="dishDestaque">
+            <span>Destacar no Hero Carousel (Landing Page)</span>
+          </label>
+
+          <label style="display: flex; align-items: center; gap: var(--space-xs); font-size: 14px; cursor: pointer;">
+            <input type="checkbox" id="dishAtivo" checked>
+            <span>Prato Ativo no Cardápio</span>
+          </label>
+        </div>
+
+        <!-- Recipe / Ingredients Binding Section -->
+        <div style="margin-top: var(--space-md); border-top: 1px solid var(--border-subtle); padding-top: var(--space-md);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);">
+            <span style="font-weight: 600; font-size: 14px; color: var(--text-main);">Receita (Insumos consumidos por porção)</span>
+            <button type="button" id="btnAddRecipeRow" class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px; min-height: 30px;">
+              <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+              <span>Adicionar Insumo</span>
+            </button>
+          </div>
+
+          <div id="recipeContainer" class="flex-col" style="gap: var(--space-xs);">
+            <!-- Recipe rows dynamically inserted here -->
+          </div>
+        </div>
+
+        <div style="display: flex; gap: var(--space-md); margin-top: var(--space-lg); justify-content: flex-end;">
+          <button type="button" id="btnCancelDishModal" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Prato</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <p>© 2026 NeoOrder — Módulo de Estoque e Cardápio</p>
+    </div>
+  </footer>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/estoque.js"></script>
+</body>
+</html>
