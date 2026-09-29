@@ -1,0 +1,176 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><meta content="web_blank" name="shell-type"><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"success":"#2A9D8F","primary-fixed":"#ffdbcd","inverse-surface":"#33302b","secondary-fixed-dim":"#ffb4a8","on-primary-fixed-variant":"#7c2e00","on-secondary-container":"#fffbff","tertiary":"#785600","outline-variant":"#e1bfb2","tertiary-fixed-dim":"#ffbb12","on-error-container":"#93000a","surface-variant":"#e8e1da","text-muted":"#8D99AE","on-secondary-fixed":"#410000","earth-brown":"#6F4E37","primary":"#9f3d00","primary-fixed-dim":"#ffb596","disabled-bg":"#E5E5E5","surface-container":"#f4ede5","on-primary-fixed":"#360f00","tertiary-fixed":"#ffdea6","surface-tint":"#a33e00","on-tertiary-fixed":"#271900","tertiary-container":"#986d00","on-tertiary-container":"#fffbff","on-surface":"#1e1b17","danger":"#9D0208","on-secondary":"#ffffff","inverse-primary":"#ffb596","surface-dim":"#dfd9d1","surface-card":"#FFFFFF","inverse-on-surface":"#f7f0e8","outline":"#8d7165","primary-hover":"#C44A03","text-main":"#2B2D42","surface-container-lowest":"#ffffff","border-subtle":"#EEEEEE","on-primary":"#ffffff","row-alt":"#FAF8F5","on-tertiary-fixed-variant":"#5d4200","disabled-input-bg":"#F0F0F0","surface":"#fff8f1","surface-container-high":"#eee7df","on-tertiary":"#ffffff","surface-container-low":"#f9f3eb","on-primary-container":"#fffbff","surface-container-highest":"#e8e1da","border-input":"#DDDDDD","secondary-container":"#e51c10","error":"#ba1a1a","primary-container":"#c74e00","surface-bright":"#fff8f1","error-container":"#ffdad6","danger-hover":"#7A0106","on-background":"#1e1b17","secondary-fixed":"#ffdad4","on-secondary-fixed-variant":"#930000","on-error":"#ffffff","secondary":"#bc0000","on-surface-variant":"#594137","background":"#fff8f1"},borderRadius:{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},spacing:{"gutter-desktop":"1.5rem","space-2xl":"3rem","space-3xl":"4rem","margin-desktop":"3rem","space-xl":"2rem","space-md":"1rem","margin":"1rem","space-lg":"1.5rem","gutter":"1rem","space-sm":"0.5rem","margin-tablet":"1.5rem","space-xs":"0.25rem"},fontFamily:{"label-md":["Poppins"],"headline-md":["Poppins"],"headline-lg":["Poppins"],"headline-xl-mobile":["Poppins"],"headline-xl":["Poppins"],"body-lg":["Poppins"],"headline-lg-mobile":["Poppins"],"body-sm":["Poppins"],"label-sm":["Poppins"],"input-text":["Poppins"]},fontSize:{"label-md":["15px",{"lineHeight":"15px","letterSpacing":"0px","fontWeight":"500"}],"headline-md":["18px",{"lineHeight":"25px","letterSpacing":"0px","fontWeight":"500"}],"headline-lg":["24px",{"lineHeight":"31px","letterSpacing":"-0.25px","fontWeight":"600"}],"headline-xl-mobile":["26px",{"lineHeight":"32px","letterSpacing":"-0.3px","fontWeight":"600"}],"headline-xl":["32px",{"lineHeight":"38px","letterSpacing":"-0.5px","fontWeight":"600"}],"body-lg":["16px",{"lineHeight":"26px","letterSpacing":"0px","fontWeight":"400"}],"headline-lg-mobile":["20px",{"lineHeight":"26px","letterSpacing":"0px","fontWeight":"600"}],"body-sm":["14px",{"lineHeight":"22px","letterSpacing":"0px","fontWeight":"400"}],"label-sm":["13px",{"lineHeight":"20px","letterSpacing":"0px","fontWeight":"400"}],"input-text":["15px",{"lineHeight":"15px","letterSpacing":"0px","fontWeight":"400"}]}}}};</script></head><body class="bg-surface font-body-sm text-body-sm text-on-surface antialiased min-h-screen flex items-center justify-center p-space-md"><main class="w-full max-w-md"><div class="flex flex-col w-full">
+<div class="relative w-full overflow-hidden bg-surface-card rounded-xl shadow-sm p-space-lg flex flex-col gap-space-lg">
+<!-- Top Bar: Status System & Theme Toggle -->
+<div class="flex items-center justify-end w-full"><button aria-label="Alternar tema visual" class="w-8 h-8 rounded-full flex items-center justify-center bg-surface-container text-on-surface-variant hover:text-primary transition-colors duration-200" id="themeToggleBtn" type="button"><span class="material-symbols-outlined text-[18px]">light_mode</span></button></div>
+<!-- GastroGest Brand Header -->
+<div class="flex flex-col items-center text-center gap-space-xs">
+<div class="w-12 h-12 rounded-xl bg-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-on-primary text-[28px]" style="font-variation-settings: 'FILL' 1;">restaurant_menu</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-text-main tracking-tight mt-space-xs">GastroGest</h1>
+<p class="font-body-sm text-body-sm text-text-muted">Sistema de Gestão &amp; Atendimento Integrado</p>
+</div>
+<!-- Segmented Tab Switcher -->
+<div class="grid grid-cols-2 p-1 bg-surface-container rounded-lg gap-1">
+<button class="py-2.5 px-3 rounded-lg font-label-md text-label-md transition-all duration-200 bg-surface-card text-primary shadow-sm flex items-center justify-center gap-1.5" id="tabClientBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">table_bar</span>
+<span class="">Acesso por Mesa</span>
+</button>
+<button class="py-2.5 px-3 rounded-lg font-label-md text-label-md transition-all duration-200 bg-transparent text-text-muted hover:text-text-main flex items-center justify-center gap-1.5" id="tabStaffBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">badge</span>
+<span class="">Acesso da Equipe</span>
+</button>
+</div>
+<!-- TAB 1: Mesa (Cliente) -->
+<div class="flex flex-col gap-space-md" id="clientTabContent">
+<!-- QR Scanner Simulated Frame -->
+<div class="relative bg-surface-container-low rounded-xl p-space-md flex flex-col items-center justify-center gap-space-sm"><div class="relative w-36 h-36 bg-surface-card rounded-lg flex items-center justify-center shadow-sm"><div class="absolute inset-2 flex flex-col justify-between pointer-events-none"><div class="flex justify-between"><span class="w-4 h-4 border-t-2 border-l-2 border-primary"></span><span class="w-4 h-4 border-t-2 border-r-2 border-primary"></span></div><div class="flex justify-between"><span class="w-4 h-4 border-b-2 border-l-2 border-primary"></span><span class="w-4 h-4 border-b-2 border-r-2 border-primary"></span></div></div><div class="flex flex-col items-center justify-center text-center p-2"><span class="material-symbols-outlined text-primary text-[36px] animate-pulse">qr_code_scanner</span></div></div><p class="font-body-sm text-body-sm text-text-muted text-center max-w-xs">Aponte a câmera para o QR Code da sua mesa</p></div>
+<!-- Divider -->
+<div class="flex items-center gap-2">
+<div class="flex-1 h-px bg-surface-container-high"></div>
+<span class="font-label-sm text-label-sm text-text-muted uppercase tracking-wider">ou digite o código</span>
+<div class="flex-1 h-px bg-surface-container-high"></div>
+</div>
+<!-- Token Input Form -->
+<form class="flex flex-col gap-space-md" id="clientForm" onsubmit="event.preventDefault();">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-text-main" for="tableToken">Código da Mesa</label>
+<div class="relative flex items-center">
+<span class="absolute left-3.5 material-symbols-outlined text-text-muted text-[20px]">pin</span>
+<input class="w-full bg-surface text-text-main font-input-text text-input-text uppercase tracking-widest pl-11 pr-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary shadow-sm" id="tableToken" maxlength="10" name="tableToken" placeholder="ex: MESA-4082" required="" type="text">
+</div>
+</div>
+<!-- Security Pill Info -->
+
+<!-- Action Button -->
+<button class="w-full py-3.5 px-6 rounded-lg bg-primary hover:bg-primary-hover text-on-primary font-headline-md text-headline-md shadow-sm transition-all duration-200 flex items-center justify-center gap-2 mt-space-xs" id="btnTableSubmit" type="submit">
+<span class="">Iniciar Sessão da Mesa</span>
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</form>
+</div>
+<!-- TAB 2: Equipe (Funcionário & Gerência) -->
+<div class="hidden flex flex-col gap-space-md" id="staffTabContent">
+<form class="flex flex-col gap-space-md" id="staffForm" onsubmit="event.preventDefault();">
+<!-- Identity Field -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-text-main" for="staffEmail">E-mail Institucional ou Usuário</label>
+<div class="relative flex items-center">
+<span class="absolute left-3.5 material-symbols-outlined text-text-muted text-[20px]">alternate_email</span>
+<input class="w-full bg-surface text-text-main font-input-text text-input-text pl-11 pr-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary shadow-sm" id="staffEmail" name="staffEmail" placeholder="operador@gastrogest.com" required="" type="text">
+</div>
+</div>
+<!-- Password Field -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<label class="font-label-md text-label-md text-text-main" for="staffPassword">Senha de Acesso</label>
+<a class="font-label-sm text-label-sm text-primary hover:text-primary-hover transition-colors" href="javascript:void(0)">Esqueceu a senha?</a>
+</div>
+<div class="relative flex items-center">
+<span class="absolute left-3.5 material-symbols-outlined text-text-muted text-[20px]">lock</span>
+<input class="w-full bg-surface text-text-main font-input-text text-input-text pl-11 pr-11 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary shadow-sm" id="staffPassword" name="staffPassword" placeholder="••••••••••••" required="" type="password">
+<button class="absolute right-3.5 text-text-muted hover:text-text-main transition-colors flex items-center" id="togglePasswordBtn" type="button">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+</div>
+</div>
+<!-- Role & Unit Selection -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-text-main" for="staffUnit">Unidade / Terminal</label>
+<div class="relative flex items-center">
+<span class="absolute left-3.5 material-symbols-outlined text-text-muted text-[20px]">storefront</span>
+<select class="w-full bg-surface text-text-main font-input-text text-input-text pl-11 pr-10 py-3 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-primary shadow-sm cursor-pointer" id="staffUnit" name="staffUnit">
+<option value="matriz">Unidade Matriz - Salão Principal</option>
+<option value="varanda">Unidade Matriz - Deck &amp; Bar</option>
+<option value="cozinha">Terminal de Produção KDS (Cozinha)</option>
+<option value="gestao">Administração Central &amp; Auditoria</option>
+</select>
+<span class="absolute right-3.5 material-symbols-outlined text-text-muted pointer-events-none text-[20px]">expand_more</span>
+</div>
+</div>
+<!-- Security Guard Prompt -->
+
+<!-- Action Button -->
+<button class="w-full py-3.5 px-6 rounded-lg bg-primary hover:bg-primary-hover text-on-primary font-headline-md text-headline-md shadow-sm transition-all duration-200 flex items-center justify-center gap-2 mt-space-xs" id="btnStaffSubmit" type="submit">
+<span class="">Acessar Painel Operacional</span>
+<span class="material-symbols-outlined text-[20px]">login</span>
+</button>
+</form>
+</div>
+<!-- Security & Compliance Footer -->
+<div class="pt-space-xs flex flex-col items-center gap-1 text-center"><p class="font-label-sm text-label-sm text-text-muted opacity-80">GastroGest • Atendimento Digital</p></div>
+</div>
+</div>
+<script>
+  (function initGastroGestAuth() {
+    const tabClient = document.getElementById('tabClientBtn');
+    const tabStaff = document.getElementById('tabStaffBtn');
+    const contentClient = document.getElementById('clientTabContent');
+    const contentStaff = document.getElementById('staffTabContent');
+    const togglePass = document.getElementById('togglePasswordBtn');
+    const passInput = document.getElementById('staffPassword');
+    const themeBtn = document.getElementById('themeToggleBtn');
+    const tableInput = document.getElementById('tableToken');
+
+    // Switch between Client & Staff modes
+    function activateTab(target) {
+      if (target === 'client') {
+        tabClient.className = 'py-2.5 px-3 rounded-lg font-label-md text-label-md transition-all duration-200 bg-surface-card text-primary shadow-sm flex items-center justify-center gap-1.5';
+        tabStaff.className = 'py-2.5 px-3 rounded-lg font-label-md text-label-md transition-all duration-200 bg-transparent text-text-muted hover:text-text-main flex items-center justify-center gap-1.5';
+        contentClient.classList.remove('hidden');
+        contentStaff.classList.add('hidden');
+      } else {
+        tabStaff.className = 'py-2.5 px-3 rounded-lg font-label-md text-label-md transition-all duration-200 bg-surface-card text-primary shadow-sm flex items-center justify-center gap-1.5';
+        tabClient.className = 'py-2.5 px-3 rounded-lg font-label-md text-label-md transition-all duration-200 bg-transparent text-text-muted hover:text-text-main flex items-center justify-center gap-1.5';
+        contentStaff.classList.remove('hidden');
+        contentClient.classList.add('hidden');
+      }
+    }
+
+    if (tabClient && tabStaff) {
+      tabClient.addEventListener('click', () => activateTab('client'));
+      tabStaff.addEventListener('click', () => activateTab('staff'));
+    }
+
+    // Toggle Password Visibility
+    if (togglePass && passInput) {
+      togglePass.addEventListener('click', () => {
+        const isPassword = passInput.getAttribute('type') === 'password';
+        passInput.setAttribute('type', isPassword ? 'text' : 'password');
+        const iconSpan = togglePass.querySelector('.material-symbols-outlined');
+        if (iconSpan) {
+          iconSpan.textContent = isPassword ? 'visibility_off' : 'visibility';
+        }
+      });
+    }
+
+    // Theme Toggle Handler
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => {
+        const html = document.documentElement;
+        const icon = themeBtn.querySelector('.material-symbols-outlined');
+        if (html.classList.contains('dark')) {
+          html.classList.remove('dark');
+          if (icon) icon.textContent = 'light_mode';
+        } else {
+          html.classList.add('dark');
+          if (icon) icon.textContent = 'dark_mode';
+        }
+      });
+    }
+
+    // Auto-formatting for Table Token (e.g., MESA-XXXX)
+    if (tableInput) {
+      tableInput.addEventListener('input', (e) => {
+        let val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+        if (val.length === 4 && !val.includes('-')) {
+          val = val + '-';
+        }
+        e.target.value = val;
+      });
+    }
+  })();
+</script></main>
+
+</body></html>
