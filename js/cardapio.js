@@ -210,6 +210,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const imgUrl = dish.imagem && dish.imagem.trim() !== '' ? dish.imagem : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80';
 
+      const cartItem = cart.find(item => item.dishId === dish.id);
+      const itemQty = cartItem ? cartItem.quantidade : 0;
+
+      const actionButtonHtml = itemQty > 0
+        ? `
+          <div class="dish-qty-control" style="display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.04); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 2px 6px;">
+            <button type="button" class="btn btn-secondary btn-card-qty-adj" data-id="${dish.id}" data-delta="-1" style="padding: 2px 8px; min-height: 32px; font-weight: 700;">-</button>
+            <span style="font-weight: 700; font-size: 14px; min-width: 18px; text-align: center; color: var(--primary);">${itemQty}</span>
+            <button type="button" class="btn btn-secondary btn-card-qty-adj" data-id="${dish.id}" data-delta="1" style="padding: 2px 8px; min-height: 32px; font-weight: 700;">+</button>
+          </div>
+        `
+        : `
+          <button type="button" class="btn btn-primary btn-add-cart" data-id="${dish.id}" ${!isAvailable ? 'disabled' : ''} style="padding: 6px 12px; min-height: 36px;">
+            <span class="material-symbols-outlined" style="font-size: 18px;">add_shopping_cart</span>
+            <span>Adicionar</span>
+          </button>
+        `;
+
       return `
         <div class="card flex-col" style="overflow: hidden; padding: 0; position: relative;">
           <div style="height: 160px; background-image: url('${imgUrl}'); background-size: cover; background-position: center; position: relative;">
@@ -227,10 +245,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 R$ ${parseFloat(dish.preco).toFixed(2).replace('.', ',')}
               </span>
 
-              <button type="button" class="btn btn-primary btn-add-cart" data-id="${dish.id}" ${!isAvailable ? 'disabled' : ''} style="padding: 6px 12px; min-height: 36px;">
-                <span class="material-symbols-outlined" style="font-size: 18px;">add_shopping_cart</span>
-                <span>Adicionar</span>
-              </button>
+              ${actionButtonHtml}
             </div>
           </div>
         </div>
@@ -242,6 +257,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.addEventListener('click', (e) => {
         const id = e.currentTarget.dataset.id;
         addToCart(id);
+      });
+    });
+
+    // Attach Quantity Adjustment Listeners on Dish Cards
+    dishesGrid.querySelectorAll('.btn-card-qty-adj').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.dataset.id;
+        const delta = parseInt(e.currentTarget.dataset.delta, 10);
+        updateCartQuantity(id, delta);
       });
     });
   }
@@ -283,6 +307,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Badge
     const totalCount = cart.reduce((acc, curr) => acc + curr.quantidade, 0);
     cartBadge.textContent = totalCount;
+
+    // Synchronize Dish Card Controls
+    renderDishes();
 
     if (cart.length === 0) {
       cartItemsContainer.innerHTML = `
