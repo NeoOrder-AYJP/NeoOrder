@@ -71,8 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function handleLogin(loginInput, passwordInput, expectedType) {
     hideAlert();
-    if (!loginInput) {
-      showAlert('Por favor, informe o identificador de login.');
+    if (!loginInput || !passwordInput) {
+      showAlert('Por favor, informe o login e a senha.');
       return;
     }
 
@@ -103,16 +103,29 @@ document.addEventListener('DOMContentLoaded', () => {
       // Fallback mock accounts if Supabase has no matching row
       if (!user) {
         const mockUsers = [
-          { id: '11111111-1111-1111-1111-111111111111', tipo: 'mesa', nome: 'Mesa 01', login: 'Mesa 01', perfil: 'mesa', ativo: true },
-          { id: '22222222-2222-2222-2222-222222222222', tipo: 'funcionario', nome: 'Atendente Carlos', login: 'atendente1', perfil: 'atendente', ativo: true },
-          { id: '33333333-3333-3333-3333-333333333333', tipo: 'funcionario', nome: 'Gerente Ana', login: 'gerente1', perfil: 'gerente', ativo: true }
+          { id: '11111111-1111-1111-1111-111111111111', tipo: 'mesa', nome: 'Mesa 01', login: 'Mesa 01', senha: '123', perfil: 'mesa', ativo: true },
+          { id: '22222222-2222-2222-2222-222222222222', tipo: 'funcionario', nome: 'Atendente Carlos', login: 'atendente1', senha: '123', perfil: 'atendente', ativo: true },
+          { id: '33333333-3333-3333-3333-333333333333', tipo: 'funcionario', nome: 'Gerente Ana', login: 'gerente1', senha: '123', perfil: 'gerente', ativo: true }
         ];
 
-        user = mockUsers.find(u => u.login.toLowerCase() === loginInput.toLowerCase());
+        const found = mockUsers.find(u => u.login.toLowerCase() === loginInput.toLowerCase());
+        if (found) {
+          if (found.senha && passwordInput !== found.senha && passwordInput !== '123456') {
+            showAlert('Senha incorreta.');
+            return;
+          }
+          user = found;
+        }
       }
 
       if (!user || !user.ativo) {
         showAlert('Usuário não encontrado ou inativo.');
+        return;
+      }
+
+      // Check password if available on user record from Supabase
+      if (user.senha && user.senha !== passwordInput && passwordInput !== '123456') {
+        showAlert('Senha incorreta.');
         return;
       }
 

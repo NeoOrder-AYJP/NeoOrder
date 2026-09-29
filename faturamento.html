@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faturamento & Gestão Financeira — NeoOrder</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <!-- Header / Navbar -->
+  <header class="header">
+    <div class="container header-container">
+      <a href="index.html" class="logo-brand">
+        <span class="material-symbols-outlined">restaurant_menu</span>
+        <span>NeoOrder</span>
+      </a>
+
+      <nav class="nav-links">
+        <a href="atendimento.html" class="nav-link">Atendimento</a>
+        <a href="estoque.html" class="nav-link">Estoque & Cardápio</a>
+        <a href="contas.html" class="nav-link">Contas</a>
+        <a href="faturamento.html" class="nav-link active">Faturamento & Backup</a>
+      </nav>
+
+      <div class="nav-actions">
+        <div style="display: flex; align-items: center; gap: 6px; background: var(--surface-container-low); padding: 4px 12px; border-radius: 20px; font-weight: 500; font-size: 14px; color: var(--text-main);">
+          <span class="material-symbols-outlined" style="font-size: 18px; color: var(--primary);">badge</span>
+          <span id="userInfo">Carregando...</span>
+        </div>
+
+        <button type="button" id="btnLogout" class="btn btn-danger" style="padding: 6px 10px; min-height: 36px;" title="Encerrar Sessão">
+          <span class="material-symbols-outlined" style="font-size: 18px;">logout</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="container" style="margin-top: var(--space-xl); margin-bottom: var(--space-2xl);">
+    <!-- Header Title & Period Filters -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl); flex-wrap: wrap; gap: var(--space-md);">
+      <div>
+        <div style="font-size: 12px; font-weight: 600; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;">
+          Painel Exclusivo da Gerência (RF-32 a RF-36)
+        </div>
+        <h1 class="section-title" style="margin-bottom: 4px;">
+          <span class="material-symbols-outlined" style="color: var(--primary);">analytics</span>
+          <span>Faturamento & Indicadores Financeiros</span>
+        </h1>
+      </div>
+
+      <!-- Filter Controls & Backup Actions -->
+      <div style="display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap;">
+        <div class="segmented-control" style="max-width: 380px;">
+          <button type="button" class="tab-btn active" id="filterToday">Hoje</button>
+          <button type="button" class="tab-btn" id="filterWeek">Esta Semana</button>
+          <button type="button" class="tab-btn" id="filterMonth">Este Mês</button>
+        </div>
+
+        <button type="button" id="btnExportJson" class="btn btn-primary" style="padding: 8px 14px;">
+          <span class="material-symbols-outlined">download</span>
+          <span>Exportar Backup (JSON)</span>
+        </button>
+
+        <label for="importJsonInput" class="btn btn-secondary" style="padding: 8px 14px; cursor: pointer;">
+          <span class="material-symbols-outlined">upload</span>
+          <span>Importar Backup</span>
+        </label>
+        <input type="file" id="importJsonInput" accept=".json" style="display: none;">
+      </div>
+    </div>
+
+    <!-- 4 KPI Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-2xl);">
+      <div class="card flex-col" style="border-left: 4px solid var(--primary);">
+        <div style="font-size: 13px; color: var(--text-muted); font-weight: 500; margin-bottom: 4px;">Faturamento Total</div>
+        <div style="font-size: 26px; font-weight: 700; color: var(--text-main);" id="kpiTotalRevenue">R$ 0,00</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Somente pedidos entregues (RN-08)</div>
+      </div>
+
+      <div class="card flex-col" style="border-left: 4px solid var(--success);">
+        <div style="font-size: 13px; color: var(--text-muted); font-weight: 500; margin-bottom: 4px;">Pedidos Concluídos</div>
+        <div style="font-size: 26px; font-weight: 700; color: var(--text-main);" id="kpiCompletedOrders">0</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Status 'Entregue' no período</div>
+      </div>
+
+      <div class="card flex-col" style="border-left: 4px solid #D97706;">
+        <div style="font-size: 13px; color: var(--text-muted); font-weight: 500; margin-bottom: 4px;">Ticket Médio</div>
+        <div style="font-size: 26px; font-weight: 700; color: var(--text-main);" id="kpiAverageTicket">R$ 0,00</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Faturamento / Pedidos (RN-09)</div>
+      </div>
+
+      <div class="card flex-col" style="border-left: 4px solid var(--danger);">
+        <div style="font-size: 13px; color: var(--text-muted); font-weight: 500; margin-bottom: 4px;">Pedidos Cancelados</div>
+        <div style="font-size: 26px; font-weight: 700; color: var(--danger);" id="kpiCancelledOrders">0</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Desconsiderados na receita (RN-04)</div>
+      </div>
+    </div>
+
+    <!-- Top Selling Dishes Section -->
+    <div style="margin-bottom: var(--space-2xl);">
+      <h2 style="font-size: 18px; font-weight: 600; color: var(--text-main); margin-bottom: var(--space-md); display: flex; align-items: center; gap: 8px;">
+        <span class="material-symbols-outlined" style="color: var(--primary);">local_fire_department</span>
+        <span>Pratos Mais Vendidos</span>
+      </h2>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Prato</th>
+              <th style="text-align: center;">Quantidade Vendida</th>
+              <th style="text-align: right;">Receita Gerada</th>
+            </tr>
+          </thead>
+          <tbody id="topDishesTableBody">
+            <tr>
+              <td colspan="3" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
+                Carregando relatório financeiro...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Sales Log Table -->
+    <div>
+      <h2 style="font-size: 18px; font-weight: 600; color: var(--text-main); margin-bottom: var(--space-md); display: flex; align-items: center; gap: 8px;">
+        <span class="material-symbols-outlined" style="color: var(--primary);">receipt</span>
+        <span>Consolidação de Pedidos Faturados</span>
+      </h2>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID Pedido</th>
+              <th>Mesa</th>
+              <th>Horário</th>
+              <th>Status</th>
+              <th style="text-align: right;">Valor Total</th>
+            </tr>
+          </thead>
+          <tbody id="salesLogTableBody">
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
+                Carregando extrato de vendas...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>© 2026 NeoOrder — Módulo de Faturamento Exclusivo para Gerência</p>
+    </div>
+  </footer>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/faturamento.js"></script>
+</body>
+</html>
