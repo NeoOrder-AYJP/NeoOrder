@@ -13,4 +13,7 @@ if (window.supabase && window.supabase.createClient) {
   console.error("Supabase SDK CDN not loaded on window.");
 }
 
-export { supabaseClient, SUPABASE_URL, SUPABASE_ANON_KEY };
+// Make client available globally for non-module scripts
+window.supabaseClient = supabaseClient;
+window.SUPABASE_URL = SUPABASE_URL;
+window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
