@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (user.perfil === 'atendente') {
         window.location.href = 'index.html?logged=true';
       } else {
-        window.location.href = 'index.html?logged=true';
+        window.location.href = 'cardapio.html';
       }
 
     } catch (err) {

@@ -112,25 +112,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     panelEstoque.style.display = 'none';
   });
 
+  // Helper to get supabase client safely
+  function getSupabase() {
+    return window.supabaseClient || window.supabase;
+  }
+
   // Load All Data
   async function loadData() {
     try {
-      if (window.supabase) {
-        const { data: ingData, error: ingErr } = await window.supabase.from('estoque').select('*').order('nome');
+      const client = getSupabase();
+      if (client && typeof client.from === 'function') {
+        const { data: ingData, error: ingErr } = await client.from('estoque').select('*').order('nome');
         if (!ingErr && ingData && ingData.length > 0) {
           ingredients = ingData;
         } else {
           ingredients = [...mockIngredients];
         }
 
-        const { data: dishData, error: dishErr } = await window.supabase.from('pratos').select('*').order('nome');
+        const { data: dishData, error: dishErr } = await client.from('pratos').select('*').order('nome');
         if (!dishErr && dishData && dishData.length > 0) {
           dishes = dishData;
         } else {
           dishes = [...mockDishes];
         }
 
-        const { data: piData, error: piErr } = await window.supabase.from('prato_ingredientes').select('*');
+        const { data: piData, error: piErr } = await client.from('prato_ingredientes').select('*');
         if (!piErr && piData && piData.length > 0) {
           pratoIngredientesMap = {};
           piData.forEach(row => {
@@ -368,8 +374,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const newQte = Math.max(0, parseFloat(ing.quantidade) + delta);
     ing.quantidade = newQte;
 
-    if (window.supabase) {
-      window.supabase.from('estoque').update({ quantidade: newQte, atualizado_em: new Date().toISOString() }).eq('id', id).then();
+    const client = getSupabase();
+    if (client && typeof client.from === 'function') {
+      client.from('estoque').update({ quantidade: newQte, atualizado_em: new Date().toISOString() }).eq('id', id).then();
     }
 
     renderKPIs();
@@ -414,6 +421,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     closeIngredientModal();
 
+    const client = getSupabase();
     if (id) {
       const ing = ingredients.find(i => i.id === id);
       if (ing) {
@@ -421,8 +429,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         ing.unidade = unidade;
         ing.quantidade = quantidade;
 
-        if (window.supabase) {
-          window.supabase.from('estoque').update({ nome, unidade, quantidade, atualizado_em: new Date().toISOString() }).eq('id', id).then();
+        if (client && typeof client.from === 'function') {
+          client.from('estoque').update({ nome, unidade, quantidade, atualizado_em: new Date().toISOString() }).eq('id', id).then();
         }
       }
     } else {
@@ -435,8 +443,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
       ingredients.push(newIng);
 
-      if (window.supabase) {
-        window.supabase.from('estoque').insert(newIng).then();
+      if (client && typeof client.from === 'function') {
+        client.from('estoque').insert(newIng).then();
       }
     }
 
@@ -449,8 +457,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!confirm('Deseja realmente remover este insumo do estoque?')) return;
 
     ingredients = ingredients.filter(i => i.id !== id);
-    if (window.supabase) {
-      window.supabase.from('estoque').delete().eq('id', id).then();
+    const client = getSupabase();
+    if (client && typeof client.from === 'function') {
+      client.from('estoque').delete().eq('id', id).then();
     }
 
     renderKPIs();
@@ -549,6 +558,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     let dishId = id;
+    const client = getSupabase();
 
     if (id) {
       const dish = dishes.find(d => d.id === id);
@@ -560,8 +570,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         dish.destaque = destaque;
         dish.ativo = ativo;
 
-        if (window.supabase) {
-          window.supabase.from('pratos').update({ nome, descricao, preco, imagem, destaque, ativo }).eq('id', id).then();
+        if (client && typeof client.from === 'function') {
+          client.from('pratos').update({ nome, descricao, preco, imagem, destaque, ativo }).eq('id', id).then();
         }
       }
     } else {
@@ -578,22 +588,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
       dishes.push(newDish);
 
-      if (window.supabase) {
-        window.supabase.from('pratos').insert(newDish).then();
+      if (client && typeof client.from === 'function') {
+        client.from('pratos').insert(newDish).then();
       }
     }
 
     pratoIngredientesMap[dishId] = newRecipes;
 
-    if (window.supabase) {
-      window.supabase.from('prato_ingredientes').delete().eq('prato_id', dishId).then(() => {
+    if (client && typeof client.from === 'function') {
+      client.from('prato_ingredientes').delete().eq('prato_id', dishId).then(() => {
         if (newRecipes.length > 0) {
           const piInserts = newRecipes.map(r => ({
             prato_id: dishId,
             ingrediente_id: r.ingrediente_id,
             quantidade: r.quantidade
           }));
-          window.supabase.from('prato_ingredientes').insert(piInserts).then();
+          client.from('prato_ingredientes').insert(piInserts).then();
         }
       });
     }
@@ -608,9 +618,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     dishes = dishes.filter(d => d.id !== id);
     delete pratoIngredientesMap[id];
 
-    if (window.supabase) {
-      window.supabase.from('prato_ingredientes').delete().eq('prato_id', id).then();
-      window.supabase.from('pratos').delete().eq('id', id).then();
+    const client = getSupabase();
+    if (client && typeof client.from === 'function') {
+      client.from('prato_ingredientes').delete().eq('prato_id', id).then();
+      client.from('pratos').delete().eq('id', id).then();
     }
 
     renderKPIs();
