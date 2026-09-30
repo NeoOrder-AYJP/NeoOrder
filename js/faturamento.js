@@ -2,6 +2,11 @@
  * NeoOrder - Faturamento & Backup (Gerente)
  */
 
+const db = window.supabaseClient;
+if (!db) {
+  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Ensure user is authenticated and is a Gerente (RF-36)
   const user = NeoAuth.requireAuth(['gerente']);
@@ -20,7 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Helper to get Supabase client
   function getSupabase() {
-    return window.supabaseClient || window.supabase;
+    return window.supabaseClient || db || window.supabase;
   }
 
   // State
@@ -45,15 +50,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const importJsonInput = document.getElementById('importJsonInput');
 
   // Tab switching for period filters
-  filterToday.addEventListener('click', () => setPeriod('today'));
-  filterWeek.addEventListener('click', () => setPeriod('week'));
-  filterMonth.addEventListener('click', () => setPeriod('month'));
+  if (filterToday) filterToday.addEventListener('click', () => setPeriod('today'));
+  if (filterWeek) filterWeek.addEventListener('click', () => setPeriod('week'));
+  if (filterMonth) filterMonth.addEventListener('click', () => setPeriod('month'));
 
   function setPeriod(period) {
     selectedPeriod = period;
-    filterToday.classList.toggle('active', period === 'today');
-    filterWeek.classList.toggle('active', period === 'week');
-    filterMonth.classList.toggle('active', period === 'month');
+    if (filterToday) filterToday.classList.toggle('active', period === 'today');
+    if (filterWeek) filterWeek.classList.toggle('active', period === 'week');
+    if (filterMonth) filterMonth.classList.toggle('active', period === 'month');
     calculateAndRenderMetrics();
   }
 
@@ -165,10 +170,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cancelledCount = cancelledOrders.length;
 
     // Render KPIs
-    kpiTotalRevenue.textContent = `R$ ${totalRevenue.toFixed(2).replace('.', ',')}`;
-    kpiCompletedOrders.textContent = completedCount;
-    kpiAverageTicket.textContent = `R$ ${avgTicket.toFixed(2).replace('.', ',')}`;
-    kpiCancelledOrders.textContent = cancelledCount;
+    if (kpiTotalRevenue) kpiTotalRevenue.textContent = `R$ ${totalRevenue.toFixed(2).replace('.', ',')}`;
+    if (kpiCompletedOrders) kpiCompletedOrders.textContent = completedCount;
+    if (kpiAverageTicket) kpiAverageTicket.textContent = `R$ ${avgTicket.toFixed(2).replace('.', ',')}`;
+    if (kpiCancelledOrders) kpiCancelledOrders.textContent = cancelledCount;
 
     // 4. Compute Top Selling Dishes
     const dishSalesMap = {}; // dishName -> { count: number, totalRevenue: number }
@@ -195,148 +200,156 @@ document.addEventListener('DOMContentLoaded', async () => {
       }))
       .sort((a, b) => b.count - a.count);
 
-    if (topDishes.length === 0) {
-      topDishesTableBody.innerHTML = `
-        <tr>
-          <td colspan="3" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
-            Nenhum prato faturado no período selecionado.
-          </td>
-        </tr>`;
-    } else {
-      topDishesTableBody.innerHTML = topDishes.map((dish, index) => `
-        <tr>
-          <td>
-            <div style="font-weight: 600; color: var(--text-main);">${index + 1}. ${dish.nome}</div>
-          </td>
-          <td style="text-align: center; font-weight: 600; color: var(--text-main);">
-            ${dish.count}
-          </td>
-          <td style="text-align: right; font-weight: 700; color: var(--primary);">
-            R$ ${dish.totalRevenue.toFixed(2).replace('.', ',')}
-          </td>
-        </tr>
-      `).join('');
+    if (topDishesTableBody) {
+      if (topDishes.length === 0) {
+        topDishesTableBody.innerHTML = `
+          <tr>
+            <td colspan="3" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
+              Nenhum prato faturado no período selecionado.
+            </td>
+          </tr>`;
+      } else {
+        topDishesTableBody.innerHTML = topDishes.map((dish, index) => `
+          <tr>
+            <td>
+              <div style="font-weight: 600; color: var(--text-main);">${index + 1}. ${dish.nome}</div>
+            </td>
+            <td style="text-align: center; font-weight: 600; color: var(--text-main);">
+              ${dish.count}
+            </td>
+            <td style="text-align: right; font-weight: 700; color: var(--primary);">
+              R$ ${dish.totalRevenue.toFixed(2).replace('.', ',')}
+            </td>
+          </tr>
+        `).join('');
+      }
     }
 
     // 5. Render Sales Log
-    if (periodOrders.length === 0) {
-      salesLogTableBody.innerHTML = `
-        <tr>
-          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
-            Nenhum registro encontrado no período selecionado.
-          </td>
-        </tr>`;
-    } else {
-      salesLogTableBody.innerHTML = periodOrders.map(ord => {
-        const timeStr = new Date(ord.criado_em).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-        let badgeStyle = 'background: rgba(42, 157, 143, 0.15); color: #2A9D8F;';
-        if (ord.status === 'Cancelado') badgeStyle = 'background: rgba(157, 2, 8, 0.15); color: #9D0208;';
-        else if (ord.status === 'Recebido') badgeStyle = 'background: rgba(232, 93, 4, 0.15); color: #E85D04;';
-
-        return `
+    if (salesLogTableBody) {
+      if (periodOrders.length === 0) {
+        salesLogTableBody.innerHTML = `
           <tr>
-            <td style="font-family: monospace; font-weight: 600;">#${ord.id.substring(0, 8)}</td>
-            <td style="font-weight: 500;">${ord.mesa_nome}</td>
-            <td style="color: var(--text-muted); font-size: 13px;">${timeStr}</td>
-            <td><span class="status-badge" style="${badgeStyle}">${ord.status}</span></td>
-            <td style="text-align: right; font-weight: 700; color: var(--text-main);">
-              R$ ${parseFloat(ord.valor_total || 0).toFixed(2).replace('.', ',')}
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
+              Nenhum registro encontrado no período selecionado.
             </td>
-          </tr>
-        `;
-      }).join('');
+          </tr>`;
+      } else {
+        salesLogTableBody.innerHTML = periodOrders.map(ord => {
+          const timeStr = new Date(ord.criado_em).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+          let badgeStyle = 'background: rgba(42, 157, 143, 0.15); color: #2A9D8F;';
+          if (ord.status === 'Cancelado') badgeStyle = 'background: rgba(157, 2, 8, 0.15); color: #9D0208;';
+          else if (ord.status === 'Recebido') badgeStyle = 'background: rgba(232, 93, 4, 0.15); color: #E85D04;';
+
+          return `
+            <tr>
+              <td style="font-family: monospace; font-weight: 600;">#${ord.id.substring(0, 8)}</td>
+              <td style="font-weight: 500;">${ord.mesa_nome}</td>
+              <td style="color: var(--text-muted); font-size: 13px;">${timeStr}</td>
+              <td><span class="status-badge" style="${badgeStyle}">${ord.status}</span></td>
+              <td style="text-align: right; font-weight: 700; color: var(--text-main);">
+                R$ ${parseFloat(ord.valor_total || 0).toFixed(2).replace('.', ',')}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
     }
   }
 
-  // --- TASK-07: JSON BACKUP EXPORT & IMPORT ---
+  // --- JSON BACKUP EXPORT & IMPORT ---
 
-  btnExportJson.addEventListener('click', async () => {
-    btnExportJson.disabled = true;
-    btnExportJson.innerHTML = `<span>Exportando...</span>`;
+  if (btnExportJson) {
+    btnExportJson.addEventListener('click', async () => {
+      btnExportJson.disabled = true;
+      btnExportJson.innerHTML = `<span>Exportando...</span>`;
 
-    const backupData = {
-      exportDate: new Date().toISOString(),
-      systemVersion: 'NeoOrder 1.0',
-      tables: {}
-    };
+      const backupData = {
+        exportDate: new Date().toISOString(),
+        systemVersion: 'NeoOrder 1.0',
+        tables: {}
+      };
 
-    const tablesToExport = ['usuarios', 'pratos', 'estoque', 'prato_ingredientes', 'pedidos', 'pedido_itens', 'chamados'];
+      const tablesToExport = ['usuarios', 'pratos', 'estoque', 'prato_ingredientes', 'pedidos', 'pedido_itens', 'chamados'];
 
-    try {
-      const client = getSupabase();
-      if (client && typeof client.from === 'function') {
-        for (const table of tablesToExport) {
-          const { data, error } = await client.from(table).select('*');
-          backupData.tables[table] = (!error && data) ? data : [];
-        }
-      } else {
-        backupData.tables = {
-          usuarios: [],
-          pratos: rawDishes,
-          pedidos: rawOrders
-        };
-      }
-
-      const jsonStr = JSON.stringify(backupData, null, 2);
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `neoorder_backup_${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      alert('Backup do sistema exportado com sucesso!');
-    } catch (err) {
-      console.error("Export backup error:", err);
-      alert('Erro ao exportar backup.');
-    } finally {
-      btnExportJson.disabled = false;
-      btnExportJson.innerHTML = `<span class="material-symbols-outlined">download</span><span>Exportar Backup (JSON)</span>`;
-    }
-  });
-
-  importJsonInput.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!confirm('ATENÇÃO: A importação de backup atualizará os dados no sistema. Deseja prosseguir?')) {
-      importJsonInput.value = '';
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
       try {
-        const backupData = JSON.parse(event.target.result);
-        if (!backupData || !backupData.tables) {
-          throw new Error('Formato de arquivo de backup inválido.');
-        }
-
         const client = getSupabase();
         if (client && typeof client.from === 'function') {
-          for (const tableName of Object.keys(backupData.tables)) {
-            const rows = backupData.tables[tableName];
-            if (Array.isArray(rows) && rows.length > 0) {
-              await client.from(tableName).upsert(rows);
-            }
+          for (const table of tablesToExport) {
+            const { data, error } = await client.from(table).select('*');
+            backupData.tables[table] = (!error && data) ? data : [];
           }
+        } else {
+          backupData.tables = {
+            usuarios: [],
+            pratos: rawDishes,
+            pedidos: rawOrders
+          };
         }
 
-        alert('Backup importado e restaurado com sucesso!');
-        await loadData();
+        const jsonStr = JSON.stringify(backupData, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `neoorder_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        alert('Backup do sistema exportado com sucesso!');
       } catch (err) {
-        console.error("Import backup error:", err);
-        alert(`Erro ao importar backup: ${err.message}`);
+        console.error("Export backup error:", err);
+        alert('Erro ao exportar backup.');
       } finally {
-        importJsonInput.value = '';
+        btnExportJson.disabled = false;
+        btnExportJson.innerHTML = `<span class="material-symbols-outlined">download</span><span>Exportar Backup (JSON)</span>`;
       }
-    };
-    reader.readAsText(file);
-  });
+    });
+  }
+
+  if (importJsonInput) {
+    importJsonInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (!confirm('ATENÇÃO: A importação de backup atualizará os dados no sistema. Deseja prosseguir?')) {
+        importJsonInput.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const backupData = JSON.parse(event.target.result);
+          if (!backupData || !backupData.tables) {
+            throw new Error('Formato de arquivo de backup inválido.');
+          }
+
+          const client = getSupabase();
+          if (client && typeof client.from === 'function') {
+            for (const tableName of Object.keys(backupData.tables)) {
+              const rows = backupData.tables[tableName];
+              if (Array.isArray(rows) && rows.length > 0) {
+                await client.from(tableName).upsert(rows);
+              }
+            }
+          }
+
+          alert('Backup importado e restaurado com sucesso!');
+          await loadData();
+        } catch (err) {
+          console.error("Import backup error:", err);
+          alert(`Erro ao importar backup: ${err.message}`);
+        } finally {
+          importJsonInput.value = '';
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
 
   // Realtime Subscription
   function setupRealtime() {

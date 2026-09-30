@@ -2,6 +2,11 @@
  * NeoOrder - Estoque e Cardápio (Gerente)
  */
 
+const db = window.supabaseClient;
+if (!db) {
+  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Ensure user is authenticated and is a Gerente
   const user = NeoAuth.requireAuth(['gerente']);
@@ -98,23 +103,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   const recipeContainer = document.getElementById('recipeContainer');
 
   // Tab Switching Handler
-  tabViewEstoque.addEventListener('click', () => {
-    tabViewEstoque.classList.add('active');
-    tabViewPratos.classList.remove('active');
-    panelEstoque.style.display = 'block';
-    panelPratos.style.display = 'none';
-  });
+  if (tabViewEstoque) {
+    tabViewEstoque.addEventListener('click', () => {
+      tabViewEstoque.classList.add('active');
+      if (tabViewPratos) tabViewPratos.classList.remove('active');
+      if (panelEstoque) panelEstoque.style.display = 'block';
+      if (panelPratos) panelPratos.style.display = 'none';
+    });
+  }
 
-  tabViewPratos.addEventListener('click', () => {
-    tabViewPratos.classList.add('active');
-    tabViewEstoque.classList.remove('active');
-    panelPratos.style.display = 'block';
-    panelEstoque.style.display = 'none';
-  });
+  if (tabViewPratos) {
+    tabViewPratos.addEventListener('click', () => {
+      tabViewPratos.classList.add('active');
+      if (tabViewEstoque) tabViewEstoque.classList.remove('active');
+      if (panelPratos) panelPratos.style.display = 'block';
+      if (panelEstoque) panelEstoque.style.display = 'none';
+    });
+  }
 
   // Helper to get supabase client safely
   function getSupabase() {
-    return window.supabaseClient || window.supabase;
+    return window.supabaseClient || db || window.supabase;
   }
 
   // Load All Data
@@ -194,13 +203,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (parseFloat(ing.quantidade) <= 2.0) alertCount++;
     });
 
-    kpiTotalIngredientes.textContent = ingredients.length;
-    kpiAlertaIngredientes.textContent = alertCount;
-    kpiTotalPratos.textContent = dishes.length;
+    if (kpiTotalIngredientes) kpiTotalIngredientes.textContent = ingredients.length;
+    if (kpiAlertaIngredientes) kpiAlertaIngredientes.textContent = alertCount;
+    if (kpiTotalPratos) kpiTotalPratos.textContent = dishes.length;
   }
 
   // Render Ingredients Table
   function renderIngredientsTable() {
+    if (!ingredientsTableBody) return;
+
     if (ingredients.length === 0) {
       ingredientsTableBody.innerHTML = `
         <tr>
@@ -299,6 +310,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Render Dishes Table
   function renderDishesTable() {
+    if (!dishesTableBody) return;
+
     if (dishes.length === 0) {
       dishesTableBody.innerHTML = `
         <tr>
@@ -385,7 +398,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function openIngredientModal(id = null) {
-    ingredientForm.reset();
+    if (ingredientForm) ingredientForm.reset();
     document.getElementById('ingredientId').value = '';
 
     if (id) {
@@ -401,57 +414,59 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('ingredientModalTitle').textContent = 'Novo Insumo';
     }
 
-    ingredientModal.style.display = 'flex';
+    if (ingredientModal) ingredientModal.style.display = 'flex';
   }
 
   function closeIngredientModal() {
-    ingredientModal.style.display = 'none';
+    if (ingredientModal) ingredientModal.style.display = 'none';
   }
 
-  btnNewIngredient.addEventListener('click', () => openIngredientModal());
-  btnCloseIngredientModal.addEventListener('click', closeIngredientModal);
-  btnCancelIngredientModal.addEventListener('click', closeIngredientModal);
+  if (btnNewIngredient) btnNewIngredient.addEventListener('click', () => openIngredientModal());
+  if (btnCloseIngredientModal) btnCloseIngredientModal.addEventListener('click', closeIngredientModal);
+  if (btnCancelIngredientModal) btnCancelIngredientModal.addEventListener('click', closeIngredientModal);
 
-  ingredientForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('ingredientId').value;
-    const nome = document.getElementById('ingredientNome').value.trim();
-    const unidade = document.getElementById('ingredientUnidade').value;
-    const quantidade = parseFloat(document.getElementById('ingredientQuantidade').value);
+  if (ingredientForm) {
+    ingredientForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('ingredientId').value;
+      const nome = document.getElementById('ingredientNome').value.trim();
+      const unidade = document.getElementById('ingredientUnidade').value;
+      const quantidade = parseFloat(document.getElementById('ingredientQuantidade').value);
 
-    closeIngredientModal();
+      closeIngredientModal();
 
-    const client = getSupabase();
-    if (id) {
-      const ing = ingredients.find(i => i.id === id);
-      if (ing) {
-        ing.nome = nome;
-        ing.unidade = unidade;
-        ing.quantidade = quantidade;
+      const client = getSupabase();
+      if (id) {
+        const ing = ingredients.find(i => i.id === id);
+        if (ing) {
+          ing.nome = nome;
+          ing.unidade = unidade;
+          ing.quantidade = quantidade;
+
+          if (client && typeof client.from === 'function') {
+            client.from('estoque').update({ nome, unidade, quantidade, atualizado_em: new Date().toISOString() }).eq('id', id).then();
+          }
+        }
+      } else {
+        const newIng = {
+          id: crypto.randomUUID(),
+          nome,
+          unidade,
+          quantidade,
+          criado_em: new Date().toISOString()
+        };
+        ingredients.push(newIng);
 
         if (client && typeof client.from === 'function') {
-          client.from('estoque').update({ nome, unidade, quantidade, atualizado_em: new Date().toISOString() }).eq('id', id).then();
+          client.from('estoque').insert(newIng).then();
         }
       }
-    } else {
-      const newIng = {
-        id: crypto.randomUUID(),
-        nome,
-        unidade,
-        quantidade,
-        criado_em: new Date().toISOString()
-      };
-      ingredients.push(newIng);
 
-      if (client && typeof client.from === 'function') {
-        client.from('estoque').insert(newIng).then();
-      }
-    }
-
-    renderKPIs();
-    renderIngredientsTable();
-    renderDishesTable();
-  });
+      renderKPIs();
+      renderIngredientsTable();
+      renderDishesTable();
+    });
+  }
 
   async function deleteIngredient(id) {
     if (!confirm('Deseja realmente remover este insumo do estoque?')) return;
@@ -470,6 +485,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --- DISH & RECIPE ACTIONS ---
 
   function addRecipeRow(ingredienteId = '', quantidade = '') {
+    if (!recipeContainer) return;
     const row = document.createElement('div');
     row.className = 'recipe-row';
     row.style.cssText = 'display: flex; gap: var(--space-xs); align-items: center;';
@@ -498,11 +514,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     recipeContainer.appendChild(row);
   }
 
-  btnAddRecipeRow.addEventListener('click', () => addRecipeRow());
+  if (btnAddRecipeRow) btnAddRecipeRow.addEventListener('click', () => addRecipeRow());
 
   function openDishModal(id = null) {
-    dishForm.reset();
-    recipeContainer.innerHTML = '';
+    if (dishForm) dishForm.reset();
+    if (recipeContainer) recipeContainer.innerHTML = '';
     document.getElementById('dishId').value = '';
 
     if (id) {
@@ -524,93 +540,95 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('dishModalTitle').textContent = 'Novo Prato';
     }
 
-    dishModal.style.display = 'flex';
+    if (dishModal) dishModal.style.display = 'flex';
   }
 
   function closeDishModal() {
-    dishModal.style.display = 'none';
+    if (dishModal) dishModal.style.display = 'none';
   }
 
-  btnNewDish.addEventListener('click', () => openDishModal());
-  btnCloseDishModal.addEventListener('click', closeDishModal);
-  btnCancelDishModal.addEventListener('click', closeDishModal);
+  if (btnNewDish) btnNewDish.addEventListener('click', () => openDishModal());
+  if (btnCloseDishModal) btnCloseDishModal.addEventListener('click', closeDishModal);
+  if (btnCancelDishModal) btnCancelDishModal.addEventListener('click', closeDishModal);
 
-  dishForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('dishId').value;
-    const nome = document.getElementById('dishNome').value.trim();
-    const descricao = document.getElementById('dishDescricao').value.trim();
-    const preco = parseFloat(document.getElementById('dishPreco').value);
-    const imagem = document.getElementById('dishImagem').value.trim();
-    const destaque = document.getElementById('dishDestaque').checked;
-    const ativo = document.getElementById('dishAtivo').checked;
+  if (dishForm) {
+    dishForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('dishId').value;
+      const nome = document.getElementById('dishNome').value.trim();
+      const descricao = document.getElementById('dishDescricao').value.trim();
+      const preco = parseFloat(document.getElementById('dishPreco').value);
+      const imagem = document.getElementById('dishImagem').value.trim();
+      const destaque = document.getElementById('dishDestaque').checked;
+      const ativo = document.getElementById('dishAtivo').checked;
 
-    closeDishModal();
+      closeDishModal();
 
-    const recipeRows = recipeContainer.querySelectorAll('.recipe-row');
-    const newRecipes = [];
-    recipeRows.forEach(row => {
-      const ingId = row.querySelector('.recipe-ing-select').value;
-      const qte = parseFloat(row.querySelector('.recipe-ing-qte').value);
-      if (ingId && qte > 0) {
-        newRecipes.push({ ingrediente_id: ingId, quantidade: qte });
-      }
-    });
-
-    let dishId = id;
-    const client = getSupabase();
-
-    if (id) {
-      const dish = dishes.find(d => d.id === id);
-      if (dish) {
-        dish.nome = nome;
-        dish.descricao = descricao;
-        dish.preco = preco;
-        dish.imagem = imagem;
-        dish.destaque = destaque;
-        dish.ativo = ativo;
-
-        if (client && typeof client.from === 'function') {
-          client.from('pratos').update({ nome, descricao, preco, imagem, destaque, ativo }).eq('id', id).then();
-        }
-      }
-    } else {
-      dishId = crypto.randomUUID();
-      const newDish = {
-        id: dishId,
-        nome,
-        descricao,
-        preco,
-        imagem,
-        destaque,
-        ativo,
-        criado_em: new Date().toISOString()
-      };
-      dishes.push(newDish);
-
-      if (client && typeof client.from === 'function') {
-        client.from('pratos').insert(newDish).then();
-      }
-    }
-
-    pratoIngredientesMap[dishId] = newRecipes;
-
-    if (client && typeof client.from === 'function') {
-      client.from('prato_ingredientes').delete().eq('prato_id', dishId).then(() => {
-        if (newRecipes.length > 0) {
-          const piInserts = newRecipes.map(r => ({
-            prato_id: dishId,
-            ingrediente_id: r.ingrediente_id,
-            quantidade: r.quantidade
-          }));
-          client.from('prato_ingredientes').insert(piInserts).then();
+      const recipeRows = recipeContainer ? recipeContainer.querySelectorAll('.recipe-row') : [];
+      const newRecipes = [];
+      recipeRows.forEach(row => {
+        const ingId = row.querySelector('.recipe-ing-select').value;
+        const qte = parseFloat(row.querySelector('.recipe-ing-qte').value);
+        if (ingId && qte > 0) {
+          newRecipes.push({ ingrediente_id: ingId, quantidade: qte });
         }
       });
-    }
 
-    renderKPIs();
-    renderDishesTable();
-  });
+      let dishId = id;
+      const client = getSupabase();
+
+      if (id) {
+        const dish = dishes.find(d => d.id === id);
+        if (dish) {
+          dish.nome = nome;
+          dish.descricao = descricao;
+          dish.preco = preco;
+          dish.imagem = imagem;
+          dish.destaque = destaque;
+          dish.ativo = ativo;
+
+          if (client && typeof client.from === 'function') {
+            client.from('pratos').update({ nome, descricao, preco, imagem, destaque, ativo }).eq('id', id).then();
+          }
+        }
+      } else {
+        dishId = crypto.randomUUID();
+        const newDish = {
+          id: dishId,
+          nome,
+          descricao,
+          preco,
+          imagem,
+          destaque,
+          ativo,
+          criado_em: new Date().toISOString()
+        };
+        dishes.push(newDish);
+
+        if (client && typeof client.from === 'function') {
+          client.from('pratos').insert(newDish).then();
+        }
+      }
+
+      pratoIngredientesMap[dishId] = newRecipes;
+
+      if (client && typeof client.from === 'function') {
+        client.from('prato_ingredientes').delete().eq('prato_id', dishId).then(() => {
+          if (newRecipes.length > 0) {
+            const piInserts = newRecipes.map(r => ({
+              prato_id: dishId,
+              ingrediente_id: r.ingrediente_id,
+              quantidade: r.quantidade
+            }));
+            client.from('prato_ingredientes').insert(piInserts).then();
+          }
+        });
+      }
+
+      renderKPIs();
+      renderDishesTable();
+    });
+  }
 
   async function deleteDish(id) {
     if (!confirm('Deseja realmente remover este prato do cardápio?')) return;
