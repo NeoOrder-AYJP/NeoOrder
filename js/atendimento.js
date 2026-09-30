@@ -2,6 +2,11 @@
  * NeoOrder - Operação e Atendimento (Atendente & Gerente)
  */
 
+const db = window.supabaseClient;
+if (!db) {
+  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Auth check: Allow atendente or gerente
   const user = NeoAuth.requireAuth(['atendente', 'gerente']);
@@ -43,7 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnAudioToggle.style.color = '#FFFFFF';
       audioIcon.style.color = '#FFFFFF';
       audioLabel.textContent = 'Alertas Sonoros Ativos';
-      playSampleBeep(880, 0.15); // Feedback sound
+      playSampleBeep(880, 0.15);
     } else {
       btnAudioToggle.style.background = 'var(--surface-card)';
       btnAudioToggle.style.color = 'var(--text-main)';
@@ -76,7 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Helper for Supabase Client
   function getSupabase() {
-    return window.supabaseClient || window.supabase;
+    return window.supabaseClient || db || window.supabase;
   }
 
   // Data State
@@ -241,7 +246,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Render Calls
   function renderCalls() {
-    badgePendingCalls.textContent = `${calls.length} pendente${calls.length === 1 ? '' : 's'}`;
+    if (badgePendingCalls) badgePendingCalls.textContent = `${calls.length} pendente${calls.length === 1 ? '' : 's'}`;
+
+    if (!callsContainer) return;
 
     if (calls.length === 0) {
       callsContainer.innerHTML = `
@@ -343,13 +350,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const inPrepList = orders.filter(o => o.status === 'Em preparo');
     const doneList = orders.filter(o => o.status === 'Pronto' || o.status === 'Entregue');
 
-    countReceived.textContent = receivedList.length;
-    countInPrep.textContent = inPrepList.length;
-    countDone.textContent = doneList.length;
+    if (countReceived) countReceived.textContent = receivedList.length;
+    if (countInPrep) countInPrep.textContent = inPrepList.length;
+    if (countDone) countDone.textContent = doneList.length;
 
-    colReceived.innerHTML = renderOrderCardsGroup(receivedList, 'Recebido');
-    colInPrep.innerHTML = renderOrderCardsGroup(inPrepList, 'Em preparo');
-    colDone.innerHTML = renderOrderCardsGroup(doneList, 'Pronto');
+    if (colReceived) colReceived.innerHTML = renderOrderCardsGroup(receivedList, 'Recebido');
+    if (colInPrep) colInPrep.innerHTML = renderOrderCardsGroup(inPrepList, 'Em preparo');
+    if (colDone) colDone.innerHTML = renderOrderCardsGroup(doneList, 'Pronto');
 
     attachOrderActionListeners();
   }
@@ -453,59 +460,60 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Cancel & Restock (RN-04)
   function openCancelModal(orderId, mesaName) {
     selectedCancelOrderId = orderId;
-    modalOrderId.textContent = `#${orderId.substring(0, 8)}`;
-    modalOrderMesa.textContent = mesaName;
-    cancelModal.style.display = 'flex';
+    if (modalOrderId) modalOrderId.textContent = `#${orderId.substring(0, 8)}`;
+    if (modalOrderMesa) modalOrderMesa.textContent = mesaName;
+    if (cancelModal) cancelModal.style.display = 'flex';
   }
 
   function closeCancelModal() {
-    cancelModal.style.display = 'none';
+    if (cancelModal) cancelModal.style.display = 'none';
     selectedCancelOrderId = null;
   }
 
-  btnCloseCancelModal.addEventListener('click', closeCancelModal);
-  btnCancelModalBack.addEventListener('click', closeCancelModal);
+  if (btnCloseCancelModal) btnCloseCancelModal.addEventListener('click', closeCancelModal);
+  if (btnCancelModalBack) btnCancelModalBack.addEventListener('click', closeCancelModal);
 
-  btnConfirmCancelOrder.addEventListener('click', async () => {
-    if (!selectedCancelOrderId) return;
+  if (btnConfirmCancelOrder) {
+    btnConfirmCancelOrder.addEventListener('click', async () => {
+      if (!selectedCancelOrderId) return;
 
-    const ord = orders.find(o => o.id === selectedCancelOrderId);
-    if (ord) {
-      ord.status = 'Cancelado';
+      const ord = orders.find(o => o.id === selectedCancelOrderId);
+      if (ord) {
+        ord.status = 'Cancelado';
 
-      // Perform stock reversal (RN-04)
-      if (ord.pedido_itens && ord.pedido_itens.length > 0) {
-        const client = getSupabase();
-        ord.pedido_itens.forEach(pi => {
-          const recipes = pratoIngredientesMap[pi.prato_id] || [];
-          recipes.forEach(r => {
-            const totalEstorno = parseFloat(r.quantidade) * pi.quantidade;
-            // Update stock in memory and database
-            const ing = ingredients.find(i => i.id === r.ingrediente_id);
-            if (ing) {
-              ing.quantidade = parseFloat(ing.quantidade) + totalEstorno;
-              if (client && typeof client.from === 'function') {
-                client.from('estoque').update({ quantidade: ing.quantidade, atualizado_em: new Date().toISOString() }).eq('id', ing.id).then();
+        // Perform stock reversal (RN-04)
+        if (ord.pedido_itens && ord.pedido_itens.length > 0) {
+          const client = getSupabase();
+          ord.pedido_itens.forEach(pi => {
+            const recipes = pratoIngredientesMap[pi.prato_id] || [];
+            recipes.forEach(r => {
+              const totalEstorno = parseFloat(r.quantidade) * pi.quantidade;
+              const ing = ingredients.find(i => i.id === r.ingrediente_id);
+              if (ing) {
+                ing.quantidade = parseFloat(ing.quantidade) + totalEstorno;
+                if (client && typeof client.from === 'function') {
+                  client.from('estoque').update({ quantidade: ing.quantidade, atualizado_em: new Date().toISOString() }).eq('id', ing.id).then();
+                }
               }
-            }
+            });
           });
-        });
-      }
-
-      // Update order status in Supabase
-      try {
-        const client = getSupabase();
-        if (client && typeof client.from === 'function') {
-          await client.from('pedidos').update({ status: 'Cancelado' }).eq('id', selectedCancelOrderId);
         }
-      } catch (e) {
-        console.warn("Cancel order error:", e);
-      }
-    }
 
-    closeCancelModal();
-    renderOrdersKanban();
-  });
+        // Update order status in Supabase
+        try {
+          const client = getSupabase();
+          if (client && typeof client.from === 'function') {
+            await client.from('pedidos').update({ status: 'Cancelado' }).eq('id', selectedCancelOrderId);
+          }
+        } catch (e) {
+          console.warn("Cancel order error:", e);
+        }
+      }
+
+      closeCancelModal();
+      renderOrdersKanban();
+    });
+  }
 
   // Realtime Subscription
   function setupRealtime() {

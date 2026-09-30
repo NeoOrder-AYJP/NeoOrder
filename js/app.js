@@ -1,5 +1,9 @@
 // js/app.js - Landing Page Logic for NeoOrder
-import { supabaseClient } from './supabase.js';
+
+const db = window.supabaseClient;
+if (!db) {
+  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
+}
 
 // Fallback mock dishes if database is empty initially
 const MOCK_DISHES = [
@@ -67,8 +71,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function setupRealtimeSubscription() {
-  if (supabaseClient && typeof supabaseClient.channel === 'function') {
-    supabaseClient
+  const client = window.supabaseClient || db;
+  if (client && typeof client.channel === 'function') {
+    client
       .channel('app-landing-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pratos' }, () => {
         loadMenuData();
@@ -80,9 +85,10 @@ function setupRealtimeSubscription() {
 async function loadMenuData() {
   try {
     let dishes = [];
+    const client = window.supabaseClient || db;
 
-    if (supabaseClient) {
-      const { data, error } = await supabaseClient
+    if (client) {
+      const { data, error } = await client
         .from('pratos')
         .select('*')
         .eq('ativo', true);
@@ -191,7 +197,7 @@ function renderMenuGrid(dishes) {
       <p class="card-dish-desc">${escapeHtml(dish.descricao || '')}</p>
       <div class="card-dish-footer">
         <span class="card-dish-price">${formattedPrice}</span>
-        <a href="#login-mesa" class="btn btn-secondary btn-sm" style="padding: 8px 16px; font-size: 13px;">
+        <a href="login.html?type=client" class="btn btn-secondary btn-sm" style="padding: 8px 16px; font-size: 13px;">
           Peça na Mesa
         </a>
       </div>
@@ -255,7 +261,7 @@ function startCarouselAutoRotate() {
   clearInterval(carouselTimer);
   carouselTimer = setInterval(() => {
     nextSlide();
-  }, 5000); // RF-06 / RNF-06: 5 seconds rotation
+  }, 5000);
 }
 
 function resetCarouselTimer() {

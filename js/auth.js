@@ -1,5 +1,10 @@
 // Authentication Logic for NeoOrder
 
+const db = window.supabaseClient;
+if (!db) {
+  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const tabClientBtn = document.getElementById('tabClientBtn');
   const tabStaffBtn = document.getElementById('tabStaffBtn');
@@ -78,26 +83,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       let user = null;
+      const client = window.supabaseClient || db;
 
       // Try fetching from Supabase with a quick timeout fallback
-      try {
-        const supabasePromise = supabaseClient
-          .from('usuarios')
-          .select('*')
-          .eq('login', loginInput)
-          .eq('ativo', true)
-          .maybeSingle();
+      if (client && typeof client.from === 'function') {
+        try {
+          const supabasePromise = client
+            .from('usuarios')
+            .select('*')
+            .eq('login', loginInput)
+            .eq('ativo', true)
+            .maybeSingle();
 
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout')), 2000)
-        );
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout')), 2000)
+          );
 
-        const res = await Promise.race([supabasePromise, timeoutPromise]);
-        if (res && res.data) {
-          user = res.data;
+          const res = await Promise.race([supabasePromise, timeoutPromise]);
+          if (res && res.data) {
+            user = res.data;
+          }
+        } catch (e) {
+          console.warn('Supabase query timed out or failed, using local check:', e);
         }
-      } catch (e) {
-        console.warn('Supabase query timed out or failed, using local check:', e);
       }
 
       // Fallback mock accounts if Supabase has no matching row

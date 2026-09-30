@@ -1,5 +1,10 @@
 // Accounts Management Logic for Gerente (NeoOrder)
 
+const db = window.supabaseClient;
+if (!db) {
+  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // Check manager permission
   const currentUser = window.NeoAuth.requireAuth(['gerente']);
@@ -43,19 +48,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     { id: '33333333-3333-3333-3333-333333333333', nome: 'Gerente Ana', login: 'gerente1', tipo: 'funcionario', perfil: 'gerente', ativo: true }
   ];
 
+  function getSupabase() {
+    return window.supabaseClient || db || window.supabase;
+  }
+
   // Load Accounts from Supabase
   async function loadAccounts() {
     try {
-      const { data, error } = await supabaseClient
-        .from('usuarios')
-        .select('*')
-        .order('criado_em', { ascending: false });
+      const client = getSupabase();
+      if (client && typeof client.from === 'function') {
+        const { data, error } = await client
+          .from('usuarios')
+          .select('*')
+          .order('criado_em', { ascending: false });
 
-      if (error || !data || data.length === 0) {
-        console.warn('Usando contas locais de demonstração');
-        accountsList = [...fallbackAccounts];
+        if (error || !data || data.length === 0) {
+          console.warn('Usando contas locais de demonstração');
+          accountsList = [...fallbackAccounts];
+        } else {
+          accountsList = data;
+        }
       } else {
-        accountsList = data;
+        accountsList = [...fallbackAccounts];
       }
     } catch (err) {
       console.error('Erro ao carregar contas do Supabase:', err);
@@ -135,7 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace/>/g, "&gt;");
   }
 
   // Filter Event Listeners
@@ -211,16 +225,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       const ativo = document.getElementById('accountStatus').value === 'true';
 
       const payload = { tipo, nome, login, perfil, ativo };
+      const client = getSupabase();
 
       try {
         if (id) {
           // Update
-          const { error } = await supabaseClient
-            .from('usuarios')
-            .update(payload)
-            .eq('id', id);
+          if (client && typeof client.from === 'function') {
+            const { error } = await client
+              .from('usuarios')
+              .update(payload)
+              .eq('id', id);
 
-          if (error) console.warn('Atualizando localmente devido a erro no Supabase:', error);
+            if (error) console.warn('Atualizando localmente devido a erro no Supabase:', error);
+          }
 
           const idx = accountsList.findIndex(a => a.id === id);
           if (idx !== -1) {
@@ -231,11 +248,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           const newId = crypto.randomUUID ? crypto.randomUUID() : `user-${Date.now()}`;
           const newAcc = { id: newId, ...payload, criado_em: new Date().toISOString() };
 
-          const { error } = await supabaseClient
-            .from('usuarios')
-            .insert([newAcc]);
+          if (client && typeof client.from === 'function') {
+            const { error } = await client
+              .from('usuarios')
+              .insert([newAcc]);
 
-          if (error) console.warn('Inserindo localmente devido a erro no Supabase:', error);
+            if (error) console.warn('Inserindo localmente devido a erro no Supabase:', error);
+          }
 
           accountsList.unshift(newAcc);
         }
@@ -256,12 +275,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const newStatus = !acc.ativo;
     try {
-      const { error } = await supabaseClient
-        .from('usuarios')
-        .update({ ativo: newStatus })
-        .eq('id', id);
+      const client = getSupabase();
+      if (client && typeof client.from === 'function') {
+        const { error } = await client
+          .from('usuarios')
+          .update({ ativo: newStatus })
+          .eq('id', id);
 
-      if (error) console.warn('Atualizando status localmente:', error);
+        if (error) console.warn('Atualizando status localmente:', error);
+      }
 
       acc.ativo = newStatus;
       renderAccounts();

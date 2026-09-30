@@ -2,6 +2,11 @@
  * NeoOrder - Cardápio & Pedidos da Mesa
  */
 
+const db = window.supabaseClient;
+if (!db) {
+  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Require Mesa authentication session
   const user = NeoAuth.requireAuth(['mesa']);
@@ -102,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Helper to get supabase client safely
   function getSupabase() {
-    return window.supabaseClient || window.supabase;
+    return window.supabaseClient || db || window.supabase;
   }
 
   // Load Menu and Stock Data
