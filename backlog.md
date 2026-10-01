@@ -63,10 +63,9 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
 
 ### 2. Correções de Bug, Revisão de Código e Interface (UI/UX)
-- **Revisão e Correção de Bugs de Código (`contas.js` e outros):** Varredura completa e correção de erros de lógica, escopo e execução nos scripts do sistema, com foco na estabilização do `js/contas.js`.
-- **Correção dos Botões da Área do Funcionário:** Ajuste nos escopos e manipuladores de eventos (`event listeners`) em `atendimento.js` para garantir que os botões operacionais (iniciar preparo, marcar entregue, atender chamado, etc.) respondam aos cliques e executem as atualizações no banco de dados.
-- **Correção de Declaração Duplicada em `cardapio.js`:** Resolução do erro `Uncaught SyntaxError: Identifier 'db' has already been declared (at cardapio.js:1:1)`, removendo a re-declaração da variável `db` e garantindo o uso exclusivo do objeto global em `js/supabase.js`.
+- **Correção de Declaração Duplicada em `cardapio.js` (URGENTE):** Resolução do erro `Uncaught SyntaxError: Identifier 'db' has already been declared (at cardapio.js:1:1)`, removendo a re-declaração da variável `db` e garantindo o uso exclusivo do objeto global em `js/supabase.js`.
 - **Correção do Loading Infinito Pós-Login:** Ajuste no fluxo de autenticação e carregamento de dados em `js/auth.js` e nas páginas restritas (`faturamento.html`, `contas.html`, `cardapio.html`, `atendimento.html`), tratando retornos vazios e erros da API do Supabase para evitar o congelamento da tela em estado de carregamento permanente.
+- **Revisão e Correção de Bugs de Código (`contas.js` e outros):** Varredura completa e correção de erros de lógica, escopo e execução nos scripts do sistema, com foco na estabilização do `js/contas.js`.
 - **Fidelidade ao Design (`themes`):** Padronização visual de todas as interfaces seguindo os componentes e folhas de estilo armazenados no diretório `themes/`.
 - **Sistema de Temas:** Implementação do botão de alternância entre **Tema Claro (Light)** e **Tema Escuro (Dark)**, com persistência da preferência do usuário via `localStorage`.
 - **Carrinho Interativo:** Implementação e manutenção do stepper de quantidade (`- 1 +`) para os itens do carrinho no cardápio.
