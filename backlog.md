@@ -38,6 +38,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 29/09/2026 | 1.6 | Adicionado | Atendimento | Conclusao da TASK-05 (Dashboard de Atendimento, Chamados de Mesa com Som e Gestão de Status com Estorno). | Jules | Concluido |
 | 29/09/2026 | 1.7 | Adicionado | Faturamento/Backup | Conclusao da TASK-06 (Faturamento) e TASK-07 (Exportação/Importação JSON & Polimento Final). | Jules | Concluido |
 | 29/09/2026 | 1.8 | Refatoracao | Carrinho/Supabase | Implementação do contador de quantidade (- 1 +) no cardápio, imagens públicas e sincronização em tempo real via Supabase Realtime. | Jules | Concluido |
+| 29/09/2026 | 1.9 | Correcao | Geral/Integração | Padronização da ordem dos scripts HTML, eliminação do erro de declaração de 'db', prevenção de loading infinito via safeSupabaseQuery timeout, suporte a 4 perfis de login e persistência de tema via localStorage. | Jules | Concluido |
 
 ---
 
