@@ -1,5 +1,5 @@
 /**
- * NeoOrder - Cardápio & Pedidos da Mesa
+ * NeoOrder - Cardápio & Pedidos da Mesa e Cliente
  */
 
 const db = window.supabaseClient;
@@ -8,20 +8,28 @@ if (!db) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // 1. Require Mesa authentication session
-  const user = NeoAuth.requireAuth(['mesa']);
+  // 1. Require Mesa or Cliente authentication session
+  const user = window.NeoAuth ? window.NeoAuth.requireAuth(['mesa', 'cliente']) : null;
   if (!user) return;
 
-  // Set header table name
+  // Set header table/client info
   const mesaTitle = document.getElementById('mesaTitle');
   if (mesaTitle) {
-    mesaTitle.textContent = user.nome || `Mesa ${user.login}`;
+    if (user.tipo === 'cliente' || user.perfil === 'cliente') {
+      const pts = user.pontos !== undefined ? user.pontos : 120;
+      const vis = user.visitas !== undefined ? user.visitas : 5;
+      mesaTitle.textContent = `${user.nome} (🌟 ${pts} pts | ${vis} visitas)`;
+    } else {
+      mesaTitle.textContent = user.nome || `Mesa ${user.login}`;
+    }
   }
 
   // Logout button
   const btnLogout = document.getElementById('btnLogout');
   if (btnLogout) {
-    btnLogout.addEventListener('click', () => NeoAuth.logout());
+    btnLogout.addEventListener('click', () => {
+      if (window.NeoAuth) window.NeoAuth.logout();
+    });
   }
 
   // State
@@ -115,13 +123,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const client = getSupabase();
       if (client && typeof client.from === 'function') {
-        const { data: dishData, error: dishErr } = await client.from('pratos').select('*').eq('ativo', true).order('nome');
+        const dishQuery = client.from('pratos').select('*').eq('ativo', true).order('nome');
+        const { data: dishData, error: dishErr } = await window.safeSupabaseQuery(dishQuery, 2500);
         dishes = (!dishErr && dishData && dishData.length > 0) ? dishData : [...mockDishes];
 
-        const { data: ingData, error: ingErr } = await client.from('estoque').select('*');
+        const ingQuery = client.from('estoque').select('*');
+        const { data: ingData, error: ingErr } = await window.safeSupabaseQuery(ingQuery, 2500);
         ingredients = (!ingErr && ingData && ingData.length > 0) ? ingData : [...mockIngredients];
 
-        const { data: piData, error: piErr } = await client.from('prato_ingredientes').select('*');
+        const piQuery = client.from('prato_ingredientes').select('*');
+        const { data: piData, error: piErr } = await window.safeSupabaseQuery(piQuery, 2500);
         if (!piErr && piData && piData.length > 0) {
           pratoIngredientesMap = {};
           piData.forEach(row => {
@@ -185,7 +196,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Render Dishes Grid
   function renderDishes() {
-    const searchTerm = (inputSearchDish.value || '').toLowerCase();
+    if (!dishesGrid) return;
+    const searchTerm = (inputSearchDish ? inputSearchDish.value : '').toLowerCase();
 
     const filtered = dishes.filter(dish => {
       const matchSearch = dish.nome.toLowerCase().includes(searchTerm) || (dish.descricao && dish.descricao.toLowerCase().includes(searchTerm));
@@ -317,18 +329,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   function updateCartUI() {
     // Badge
     const totalCount = cart.reduce((acc, curr) => acc + curr.quantidade, 0);
-    cartBadge.textContent = totalCount;
+    if (cartBadge) cartBadge.textContent = totalCount;
 
     // Refresh dishes grid to sync stepper - 1 + buttons directly in menu
     renderDishes();
+
+    if (!cartItemsContainer) return;
 
     if (cart.length === 0) {
       cartItemsContainer.innerHTML = `
         <div style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
           Seu carrinho está vazio.
         </div>`;
-      cartTotalValue.textContent = 'R$ 0,00';
-      btnConfirmOrder.disabled = true;
+      if (cartTotalValue) cartTotalValue.textContent = 'R$ 0,00';
+      if (btnConfirmOrder) btnConfirmOrder.disabled = true;
       return;
     }
 
@@ -355,8 +369,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
     }).join('');
 
-    cartTotalValue.textContent = `R$ ${grandTotal.toFixed(2).replace('.', ',')}`;
-    btnConfirmOrder.disabled = false;
+    if (cartTotalValue) cartTotalValue.textContent = `R$ ${grandTotal.toFixed(2).replace('.', ',')}`;
+    if (btnConfirmOrder) btnConfirmOrder.disabled = false;
 
     // Attach Cart Adjusters
     cartItemsContainer.querySelectorAll('.btn-cart-adj').forEach(btn => {
@@ -369,76 +383,85 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Confirm Order & Debit Stock
-  btnConfirmOrder.addEventListener('click', async () => {
-    if (cart.length === 0) return;
+  if (btnConfirmOrder) {
+    btnConfirmOrder.addEventListener('click', async () => {
+      if (cart.length === 0) return;
 
-    btnConfirmOrder.disabled = true;
-    btnConfirmOrder.innerHTML = `<span>Enviando...</span>`;
+      btnConfirmOrder.disabled = true;
+      btnConfirmOrder.innerHTML = `<span>Enviando...</span>`;
 
-    const grandTotal = cart.reduce((acc, curr) => acc + (curr.preco * curr.quantidade), 0);
-    const pedidoId = crypto.randomUUID();
+      const grandTotal = cart.reduce((acc, curr) => acc + (curr.preco * curr.quantidade), 0);
+      const pedidoId = crypto.randomUUID();
 
-    const newPedido = {
-      id: pedidoId,
-      mesa_id: user.id,
-      valor_total: grandTotal,
-      status: 'Recebido',
-      criado_em: new Date().toISOString()
-    };
+      const newPedido = {
+        id: pedidoId,
+        mesa_id: user.id,
+        valor_total: grandTotal,
+        status: 'Recebido',
+        criado_em: new Date().toISOString()
+      };
 
-    const pedidoItens = cart.map(item => ({
-      id: crypto.randomUUID(),
-      pedido_id: pedidoId,
-      prato_id: item.dishId,
-      quantidade: item.quantidade,
-      preco_unitario: item.preco
-    }));
+      const pedidoItens = cart.map(item => ({
+        id: crypto.randomUUID(),
+        pedido_id: pedidoId,
+        prato_id: item.dishId,
+        quantidade: item.quantidade,
+        preco_unitario: item.preco
+      }));
 
-    // Debit ingredients from stock
-    const client = getSupabase();
-    cart.forEach(item => {
-      const recipes = pratoIngredientesMap[item.dishId] || [];
-      recipes.forEach(r => {
-        const ing = ingredients.find(i => i.id === r.ingrediente_id);
-        if (ing) {
-          const totalConsumo = parseFloat(r.quantidade) * item.quantidade;
-          ing.quantidade = Math.max(0, parseFloat(ing.quantidade) - totalConsumo);
+      // Debit ingredients from stock
+      const client = getSupabase();
+      cart.forEach(item => {
+        const recipes = pratoIngredientesMap[item.dishId] || [];
+        recipes.forEach(r => {
+          const ing = ingredients.find(i => i.id === r.ingrediente_id);
+          if (ing) {
+            const totalConsumo = parseFloat(r.quantidade) * item.quantidade;
+            ing.quantidade = Math.max(0, parseFloat(ing.quantidade) - totalConsumo);
 
-          if (client && typeof client.from === 'function') {
-            client.from('estoque').update({ quantidade: ing.quantidade, atualizado_em: new Date().toISOString() }).eq('id', ing.id).then();
+            if (client && typeof client.from === 'function') {
+              const query = client.from('estoque').update({ quantidade: ing.quantidade, atualizado_em: new Date().toISOString() }).eq('id', ing.id);
+              window.safeSupabaseQuery(query, 2000);
+            }
           }
-        }
+        });
       });
+
+      if (client && typeof client.from === 'function') {
+        const pQuery = client.from('pedidos').insert(newPedido);
+        await window.safeSupabaseQuery(pQuery, 2000);
+
+        const piQuery = client.from('pedido_itens').insert(pedidoItens);
+        await window.safeSupabaseQuery(piQuery, 2000);
+      }
+
+      alert('Pedido confirmado e enviado para a cozinha com sucesso!');
+      cart = [];
+      updateCartUI();
+      closeCartModal();
+      renderDishes();
+
+      btnConfirmOrder.innerHTML = `<span class="material-symbols-outlined">check_circle</span><span>Enviar Pedido para a Cozinha</span>`;
     });
-
-    if (client && typeof client.from === 'function') {
-      await client.from('pedidos').insert(newPedido);
-      await client.from('pedido_itens').insert(pedidoItens);
-    }
-
-    alert('Pedido confirmado e enviado para a cozinha com sucesso!');
-    cart = [];
-    updateCartUI();
-    closeCartModal();
-    renderDishes();
-
-    btnConfirmOrder.innerHTML = `<span class="material-symbols-outlined">check_circle</span><span>Enviar Pedido para a Cozinha</span>`;
-  });
+  }
 
   // --- HISTORY FUNCTIONS ---
 
   async function loadOrderHistory() {
+    if (!historyOrdersContainer) return;
     historyOrdersContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">Carregando histórico...</div>`;
 
     let orders = [];
     try {
       const client = getSupabase();
       if (client && typeof client.from === 'function') {
-        const { data, error } = await client
+        const query = client
           .from('pedidos')
           .select('*, pedido_itens(*, pratos(nome))')
           .eq('mesa_id', user.id)
           .order('criado_em', { ascending: false });
+
+        const { data, error } = await window.safeSupabaseQuery(query, 2500);
 
         if (!error && data) {
           orders = data;
@@ -451,7 +474,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (orders.length === 0) {
       historyOrdersContainer.innerHTML = `
         <div style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
-          Nenhum pedido realizado por esta mesa ainda.
+          Nenhum pedido realizado ainda.
         </div>`;
       return;
     }
@@ -492,18 +515,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- MODAL CONTROLS ---
 
-  function openCartModal() { cartModal.style.display = 'flex'; }
-  function closeCartModal() { cartModal.style.display = 'none'; }
-  btnToggleCart.addEventListener('click', openCartModal);
-  btnCloseCartModal.addEventListener('click', closeCartModal);
+  function openCartModal() { if (cartModal) cartModal.style.display = 'flex'; }
+  function closeCartModal() { if (cartModal) cartModal.style.display = 'none'; }
+  if (btnToggleCart) btnToggleCart.addEventListener('click', openCartModal);
+  if (btnCloseCartModal) btnCloseCartModal.addEventListener('click', closeCartModal);
 
   function openHistoryModal() {
-    historyModal.style.display = 'flex';
+    if (historyModal) historyModal.style.display = 'flex';
     loadOrderHistory();
   }
-  function closeHistoryModal() { historyModal.style.display = 'none'; }
-  btnOpenHistory.addEventListener('click', openHistoryModal);
-  btnCloseHistoryModal.addEventListener('click', closeHistoryModal);
+  function closeHistoryModal() { if (historyModal) historyModal.style.display = 'none'; }
+  if (btnOpenHistory) btnOpenHistory.addEventListener('click', openHistoryModal);
+  if (btnCloseHistoryModal) btnCloseHistoryModal.addEventListener('click', closeHistoryModal);
 
   // --- CALL STAFF MODAL ---
   const callSelectReason = document.getElementById('callSelectReason');
@@ -512,10 +535,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (callSelectReason) {
     callSelectReason.addEventListener('change', () => {
       if (callSelectReason.value === 'Outro') {
-        callOtherGroup.style.display = 'block';
+        if (callOtherGroup) callOtherGroup.style.display = 'block';
         if (callJustification) callJustification.required = true;
       } else {
-        callOtherGroup.style.display = 'none';
+        if (callOtherGroup) callOtherGroup.style.display = 'none';
         if (callJustification) callJustification.required = false;
       }
     });
@@ -525,11 +548,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (callStaffForm) callStaffForm.reset();
     if (callOtherGroup) callOtherGroup.style.display = 'none';
     if (callJustification) callJustification.required = false;
-    callStaffModal.style.display = 'flex';
+    if (callStaffModal) callStaffModal.style.display = 'flex';
   }
 
   function closeCallStaffModal() {
-    callStaffModal.style.display = 'none';
+    if (callStaffModal) callStaffModal.style.display = 'none';
   }
 
   if (btnCallStaff) btnCallStaff.addEventListener('click', openCallStaffModal);
@@ -557,13 +580,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         const client = getSupabase();
         if (client && typeof client.from === 'function') {
-          await client.from('chamados').insert({
+          const query = client.from('chamados').insert({
             id: newChamado.id,
             mesa_id: newChamado.mesa_id,
             motivo: newChamado.motivo,
             status: newChamado.status,
             criado_em: newChamado.criado_em
           });
+          await window.safeSupabaseQuery(query, 2000);
         }
       } catch (err) {
         console.warn("Supabase chamados insert error:", err);
@@ -575,21 +599,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Filters
-  filterAll.addEventListener('click', () => {
-    filterAll.classList.add('active');
-    filterAvailable.classList.remove('active');
-    activeFilterMode = 'all';
-    renderDishes();
-  });
+  if (filterAll) {
+    filterAll.addEventListener('click', () => {
+      filterAll.classList.add('active');
+      if (filterAvailable) filterAvailable.classList.remove('active');
+      activeFilterMode = 'all';
+      renderDishes();
+    });
+  }
 
-  filterAvailable.addEventListener('click', () => {
-    filterAvailable.classList.add('active');
-    filterAll.classList.remove('active');
-    activeFilterMode = 'available';
-    renderDishes();
-  });
+  if (filterAvailable) {
+    filterAvailable.addEventListener('click', () => {
+      filterAvailable.classList.add('active');
+      if (filterAll) filterAll.classList.remove('active');
+      activeFilterMode = 'available';
+      renderDishes();
+    });
+  }
 
-  inputSearchDish.addEventListener('input', () => renderDishes());
+  if (inputSearchDish) inputSearchDish.addEventListener('input', () => renderDishes());
 
   // Realtime Subscription
   function setupRealtime() {

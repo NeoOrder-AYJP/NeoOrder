@@ -87,11 +87,9 @@ async function loadMenuData() {
     let dishes = [];
     const client = window.supabaseClient || db;
 
-    if (client) {
-      const { data, error } = await client
-        .from('pratos')
-        .select('*')
-        .eq('ativo', true);
+    if (client && typeof client.from === 'function') {
+      const query = client.from('pratos').select('*').eq('ativo', true);
+      const { data, error } = await window.safeSupabaseQuery(query, 2500);
 
       if (!error && data && data.length > 0) {
         dishes = data.map(dish => ({

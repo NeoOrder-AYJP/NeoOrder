@@ -7,19 +7,21 @@ if (!db) {
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Check manager permission
-  const currentUser = window.NeoAuth.requireAuth(['gerente']);
+  const currentUser = window.NeoAuth ? window.NeoAuth.requireAuth(['gerente']) : null;
   if (!currentUser) return;
 
   // Display manager info
   const userInfo = document.getElementById('userInfo');
   if (userInfo) {
-    userInfo.textContent = `${currentUser.nome} (${currentUser.perfil.toUpperCase()})`;
+    userInfo.textContent = `${currentUser.nome} (${(currentUser.perfil || currentUser.tipo || 'GERENTE').toUpperCase()})`;
   }
 
   // Logout Handler
   const btnLogout = document.getElementById('btnLogout');
   if (btnLogout) {
-    btnLogout.addEventListener('click', () => window.NeoAuth.logout());
+    btnLogout.addEventListener('click', () => {
+      if (window.NeoAuth) window.NeoAuth.logout();
+    });
   }
 
   // DOM Elements
@@ -35,6 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Filter Tabs
   const tabFilterAll = document.getElementById('tabFilterAll');
   const tabFilterMesas = document.getElementById('tabFilterMesas');
+  const tabFilterClientes = document.getElementById('tabFilterClientes');
   const tabFilterStaff = document.getElementById('tabFilterStaff');
 
   let currentFilter = 'all';
@@ -42,10 +45,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // In-memory fallback dataset
   const fallbackAccounts = [
-    { id: '11111111-1111-1111-1111-111111111111', nome: 'Mesa 01', login: 'Mesa 01', tipo: 'mesa', perfil: 'mesa', ativo: true },
-    { id: '11111111-1111-1111-1111-111111111112', nome: 'Mesa 02', login: 'Mesa 02', tipo: 'mesa', perfil: 'mesa', ativo: true },
-    { id: '22222222-2222-2222-2222-222222222222', nome: 'Atendente Carlos', login: 'atendente1', tipo: 'funcionario', perfil: 'atendente', ativo: true },
-    { id: '33333333-3333-3333-3333-333333333333', nome: 'Gerente Ana', login: 'gerente1', tipo: 'funcionario', perfil: 'gerente', ativo: true }
+    { id: '11111111-1111-1111-1111-111111111111', nome: 'Mesa 01', login: 'Mesa 01', senha: '123', tipo: 'mesa', perfil: 'mesa', ativo: true },
+    { id: '11111111-1111-1111-1111-111111111112', nome: 'Mesa 02', login: 'Mesa 02', senha: '123', tipo: 'mesa', perfil: 'mesa', ativo: true },
+    { id: '44444444-4444-4444-4444-444444444444', nome: 'Cliente Maria', login: 'cliente1', senha: '123', tipo: 'cliente', perfil: 'cliente', ativo: true },
+    { id: '22222222-2222-2222-2222-222222222222', nome: 'Atendente Carlos', login: 'atendente1', senha: '123', tipo: 'funcionario', perfil: 'atendente', ativo: true },
+    { id: '33333333-3333-3333-3333-333333333333', nome: 'Gerente Ana', login: 'gerente1', senha: '123', tipo: 'funcionario', perfil: 'gerente', ativo: true }
   ];
 
   function getSupabase() {
@@ -57,10 +61,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const client = getSupabase();
       if (client && typeof client.from === 'function') {
-        const { data, error } = await client
+        const query = client
           .from('usuarios')
           .select('*')
           .order('criado_em', { ascending: false });
+
+        const { data, error } = await window.safeSupabaseQuery(query, 2500);
 
         if (error || !data || data.length === 0) {
           console.warn('Usando contas locais de demonstração');
@@ -85,6 +91,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let filtered = accountsList;
     if (currentFilter === 'mesa') {
       filtered = accountsList.filter(a => a.tipo === 'mesa');
+    } else if (currentFilter === 'cliente') {
+      filtered = accountsList.filter(a => a.tipo === 'cliente');
     } else if (currentFilter === 'funcionario') {
       filtered = accountsList.filter(a => a.tipo === 'funcionario');
     }
@@ -102,14 +110,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     accountsTableBody.innerHTML = filtered.map(acc => {
       const badgeClass = acc.ativo ? 'badge-available' : 'badge-unavailable';
       const statusText = acc.ativo ? 'Ativo' : 'Inativo';
-      const perfilBadge = acc.tipo === 'mesa' ? 'Mesa' : (acc.perfil === 'gerente' ? 'Gerente' : 'Atendente');
+
+      let perfilBadge = 'Mesa';
+      let iconName = 'table_restaurant';
+      if (acc.tipo === 'cliente') {
+        perfilBadge = 'Cliente';
+        iconName = 'person';
+      } else if (acc.tipo === 'funcionario') {
+        perfilBadge = acc.perfil === 'gerente' ? 'Gerente' : 'Atendente';
+        iconName = 'badge';
+      }
 
       return `
         <tr>
           <td style="font-weight: 500;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span class="material-symbols-outlined" style="color: var(--text-muted);">
-                ${acc.tipo === 'mesa' ? 'table_restaurant' : 'badge'}
+                ${iconName}
               </span>
               <span>${escapeHtml(acc.nome)}</span>
             </div>
@@ -125,6 +142,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button type="button" class="btn ${acc.ativo ? 'btn-danger' : 'btn-primary'} btn-toggle-status" data-id="${acc.id}" style="padding: 4px 10px; min-height: 32px; font-size: 13px; margin-left: 4px;">
               <span class="material-symbols-outlined" style="font-size: 16px;">${acc.ativo ? 'block' : 'check_circle'}</span>
               <span>${acc.ativo ? 'Inativar' : 'Ativar'}</span>
+            </button>
+            <button type="button" class="btn btn-danger btn-delete-account" data-id="${acc.id}" style="padding: 4px 8px; min-height: 32px; font-size: 13px; margin-left: 4px;" title="Excluir Conta">
+              <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
             </button>
           </td>
         </tr>
@@ -145,24 +165,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         await toggleAccountStatus(id);
       });
     });
+
+    document.querySelectorAll('.btn-delete-account').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        await deleteAccount(id);
+      });
+    });
   }
 
   function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace/>/g, "&gt;");
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   // Filter Event Listeners
-  if (tabFilterAll && tabFilterMesas && tabFilterStaff) {
-    tabFilterAll.addEventListener('click', () => setFilter('all', tabFilterAll));
-    tabFilterMesas.addEventListener('click', () => setFilter('mesa', tabFilterMesas));
-    tabFilterStaff.addEventListener('click', () => setFilter('funcionario', tabFilterStaff));
-  }
+  if (tabFilterAll) tabFilterAll.addEventListener('click', () => setFilter('all', tabFilterAll));
+  if (tabFilterMesas) tabFilterMesas.addEventListener('click', () => setFilter('mesa', tabFilterMesas));
+  if (tabFilterClientes) tabFilterClientes.addEventListener('click', () => setFilter('cliente', tabFilterClientes));
+  if (tabFilterStaff) tabFilterStaff.addEventListener('click', () => setFilter('funcionario', tabFilterStaff));
 
   function setFilter(filterType, activeBtn) {
     currentFilter = filterType;
-    [tabFilterAll, tabFilterMesas, tabFilterStaff].forEach(btn => btn.classList.remove('active'));
-    activeBtn.classList.add('active');
+    [tabFilterAll, tabFilterMesas, tabFilterClientes, tabFilterStaff].forEach(btn => {
+      if (btn) btn.classList.remove('active');
+    });
+    if (activeBtn) activeBtn.classList.add('active');
     renderAccounts();
   }
 
@@ -176,7 +204,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (accountTipo) {
     accountTipo.addEventListener('change', () => {
-      groupPerfil.style.display = accountTipo.value === 'funcionario' ? 'flex' : 'none';
+      if (groupPerfil) {
+        groupPerfil.style.display = accountTipo.value === 'funcionario' ? 'flex' : 'none';
+      }
     });
   }
 
@@ -186,10 +216,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('accountTipo').value = 'mesa';
     document.getElementById('accountNome').value = '';
     document.getElementById('accountLogin').value = '';
+    document.getElementById('accountSenha').value = '123';
     document.getElementById('accountPerfil').value = 'atendente';
     document.getElementById('accountStatus').value = 'true';
-    groupPerfil.style.display = 'none';
-    accountModal.style.display = 'flex';
+    if (groupPerfil) groupPerfil.style.display = 'none';
+    if (accountModal) accountModal.style.display = 'flex';
   }
 
   function openEditModal(id) {
@@ -201,15 +232,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('accountTipo').value = acc.tipo;
     document.getElementById('accountNome').value = acc.nome;
     document.getElementById('accountLogin').value = acc.login;
+    document.getElementById('accountSenha').value = acc.senha || '123';
     document.getElementById('accountPerfil').value = acc.perfil || 'atendente';
     document.getElementById('accountStatus').value = acc.ativo ? 'true' : 'false';
 
-    groupPerfil.style.display = acc.tipo === 'funcionario' ? 'flex' : 'none';
-    accountModal.style.display = 'flex';
+    if (groupPerfil) {
+      groupPerfil.style.display = acc.tipo === 'funcionario' ? 'flex' : 'none';
+    }
+    if (accountModal) accountModal.style.display = 'flex';
   }
 
   function closeModal() {
-    accountModal.style.display = 'none';
+    if (accountModal) accountModal.style.display = 'none';
   }
 
   // Form Submit (Save / Update)
@@ -221,22 +255,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       const tipo = document.getElementById('accountTipo').value;
       const nome = document.getElementById('accountNome').value.trim();
       const login = document.getElementById('accountLogin').value.trim();
-      const perfil = tipo === 'funcionario' ? document.getElementById('accountPerfil').value : 'mesa';
+      const senha = document.getElementById('accountSenha').value.trim() || '123';
+      const perfil = tipo === 'funcionario' ? document.getElementById('accountPerfil').value : tipo;
       const ativo = document.getElementById('accountStatus').value === 'true';
 
-      const payload = { tipo, nome, login, perfil, ativo };
+      const payload = { tipo, nome, login, senha, perfil, ativo };
       const client = getSupabase();
 
       try {
         if (id) {
           // Update
           if (client && typeof client.from === 'function') {
-            const { error } = await client
-              .from('usuarios')
-              .update(payload)
-              .eq('id', id);
-
-            if (error) console.warn('Atualizando localmente devido a erro no Supabase:', error);
+            const query = client.from('usuarios').update(payload).eq('id', id);
+            await window.safeSupabaseQuery(query, 2000);
           }
 
           const idx = accountsList.findIndex(a => a.id === id);
@@ -249,11 +280,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           const newAcc = { id: newId, ...payload, criado_em: new Date().toISOString() };
 
           if (client && typeof client.from === 'function') {
-            const { error } = await client
-              .from('usuarios')
-              .insert([newAcc]);
-
-            if (error) console.warn('Inserindo localmente devido a erro no Supabase:', error);
+            const query = client.from('usuarios').insert([newAcc]);
+            await window.safeSupabaseQuery(query, 2000);
           }
 
           accountsList.unshift(newAcc);
@@ -277,18 +305,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const client = getSupabase();
       if (client && typeof client.from === 'function') {
-        const { error } = await client
-          .from('usuarios')
-          .update({ ativo: newStatus })
-          .eq('id', id);
-
-        if (error) console.warn('Atualizando status localmente:', error);
+        const query = client.from('usuarios').update({ ativo: newStatus }).eq('id', id);
+        await window.safeSupabaseQuery(query, 2000);
       }
 
       acc.ativo = newStatus;
       renderAccounts();
     } catch (err) {
       console.error('Erro ao alterar status:', err);
+    }
+  }
+
+  // Delete Account
+  async function deleteAccount(id) {
+    if (!confirm('Deseja realmente excluir esta conta?')) return;
+
+    try {
+      const client = getSupabase();
+      if (client && typeof client.from === 'function') {
+        const query = client.from('usuarios').delete().eq('id', id);
+        await window.safeSupabaseQuery(query, 2000);
+      }
+
+      accountsList = accountsList.filter(a => a.id !== id);
+      renderAccounts();
+    } catch (err) {
+      console.error('Erro ao excluir conta:', err);
     }
   }
 
