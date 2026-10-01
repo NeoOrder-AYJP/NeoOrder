@@ -63,16 +63,16 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
 
 ### 2. Correções de Bug, Revisão de Código e Interface (UI/UX)
-- **Revisão e Correção de Bugs de Código (`contas.js` e outros):** Varredura completa e correção de erros de lógica/execução nos scripts do sistema, com foco na estabilização do `js/contas.js`.
+- **Revisão e Correção de Bugs de Código (`contas.js` e outros):** Varredura completa e correção de erros de lógica, escopo e execução nos scripts do sistema, com foco na estabilização do `js/contas.js`.
+- **Correção dos Botões da Área do Funcionário:** Ajuste nos escopos e manipuladores de eventos (`event listeners`) em `atendimento.js` para garantir que os botões operacionais (iniciar preparo, marcar entregue, atender chamado, etc.) respondam aos cliques e executem as atualizações no banco de dados.
+- **Correção de Declaração Duplicada em `cardapio.js`:** Resolução do erro `Uncaught SyntaxError: Identifier 'db' has already been declared (at cardapio.js:1:1)`, removendo a re-declaração da variável `db` e garantindo o uso exclusivo do objeto global em `js/supabase.js`.
+- **Correção do Loading Infinito Pós-Login:** Ajuste no fluxo de autenticação e carregamento de dados em `js/auth.js` e nas páginas restritas (`faturamento.html`, `contas.html`, `cardapio.html`, `atendimento.html`), tratando retornos vazios e erros da API do Supabase para evitar o congelamento da tela em estado de carregamento permanente.
 - **Fidelidade ao Design (`themes`):** Padronização visual de todas as interfaces seguindo os componentes e folhas de estilo armazenados no diretório `themes/`.
-- **Resolução de Loading Infinito:** Tratamento de erros e validação de retornos vazios no carregamento do cardápio (`cardapio.html` / `js/cardapio.js`) e do gerenciamento de contas (`contas.html` / `js/contas.js`).
 - **Sistema de Temas:** Implementação do botão de alternância entre **Tema Claro (Light)** e **Tema Escuro (Dark)**, com persistência da preferência do usuário via `localStorage`.
 - **Carrinho Interativo:** Implementação e manutenção do stepper de quantidade (`- 1 +`) para os itens do carrinho no cardápio.
-- **Correção do Loading Infinito Pós-Login:** Ajuste no fluxo de autenticação e redirecionamento (`js/auth.js` e scripts das páginas restritas) para que, após o login do Gerente ou Cliente/Mesa, as informações do perfil e do banco de dados sejam carregadas e exibidas corretamente sem travar a tela em estado de carregamento permanente.
-- **Correção de Declaração Duplicada em `cardapio.js`:** Resolução do erro `Uncaught SyntaxError: Identifier 'db' has already been declared (at cardapio.js:1:1)`, removendo a re-declaração da variável/objeto `db` que conflita com a inicialização global no `js/supabase.js`.
 
 ### 3. Perfis de Acesso e Permissões
-- **Reformulação do Login (4 Perfis):** Reestruturação do painel de login (`login.html` / `js/auth.js`) para suportar quatro perfis distintos: Gerente, Atendente/Funcionário, Mesa e Cliente (Fidelidade com login por Usuário/Senha e campo opcional de Telefone).
+- **Reformulação do Login (4 Perfis):** Reestruturação do painel de login (`login.html` / `js/auth.js`) para suportar quatro perfis distintos: Gerente, Atendente/Funcionário, Mesa e Cliente (Fidelidade com login por Usuário/E-mail e Senha, com campo opcional para Telefone).
 - **Visão do Atendente:** Restauração da tela operacional em `atendimento.html` para exibir os chamados ativos das mesas (com justificativas pré-definidas) e os pedidos em andamento (Pendente / Em Preparo).
 - **Aba de Gerenciamento de Estoque:** Reativação/criação da interface de controle de estoque (`estoque.html` / `js/estoque.js`) para consulta e edição de insumos pelo Gerente.
 - **Restauração do Faturamento:** Reativação do painel financeiro e de relatórios (`faturamento.html` / `js/faturamento.js`) restrito ao Gerente.
@@ -83,4 +83,4 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 
 ### 5. Regras de Documentação
 - **Preservação da Especificação:** Congelamento total do arquivo `spec.md` (sem alterações).
-- **Atualização Centralizada no `backlog.md`:** Registro de todas as tarefas na tabela principal e acompanhamento no histórico de alterações.
+- **Atualização Centralizada no `backlog.md`:** Registro de todas as tarefas na tabela principal e atualização formal obrigatória na tabela de **`Histórico de Alterações`**.
