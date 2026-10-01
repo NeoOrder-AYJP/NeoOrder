@@ -1,7 +1,7 @@
 # Backlog — Registro de Alteracoes e Tarefas de Desenvolvimento
 
 Projeto: Sistema de Gerenciamento de Pedidos de Restaurante (NeoOrder)
-Data de atualizacao: 29/09/2026
+Data de atualizacao: 01/10/2026
 
 ---
 
@@ -50,9 +50,34 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
   - `js/faturamento.js` (Lógica de relatórios financeiros, filtros temporais e backup JSON)
   - `styles.css` (Ajustes nos estilos globais de navegacao `.nav-links` e `.nav-link`)
   - `contas.html`, `estoque.html`, `atendimento.html` (Padronização dos links do header global)
-
-- **Objetivo**: Implementar a interface de pedidos exclusiva para clientes logados em contas de Mesa (`cardapio.html`), permitindo seleção de pratos disponíveis, controle de quantidade, carrinho de compras, confirmação com débito automático no estoque e consulta do histórico de pedidos.
-- **Arquivos criados/modificados**:
-  - `backlog.md` (Atualizado com status das tarefas)
   - `cardapio.html` (Interface do cliente para navegação no cardápio, carrinho e pedidos)
   - `js/cardapio.js` (Lógica de carrinho, validação de disponibilidade, confirmação de pedido com débito de estoque e histórico com Supabase)
+
+---
+
+## 4. Correções e Alterações
+
+### 1. Infraestrutura e Conexão (Supabase & GitHub Pages)
+- **Correção do Erro 401 (Unauthorized):** Centralização das chaves públicas (`SUPABASE_URL` e `SUPABASE_ANON_KEY`) no arquivo `js/supabase.js` e inclusão obrigatória dos cabeçalhos HTTP (`apikey` e `Authorization: Bearer <ANON_KEY>`) nas requisições.
+- **Ordem de Importação de Scripts:** Garantia de que a CDN do Supabase e o script `js/supabase.js` sejam carregados no topo de todas as páginas HTML antes de qualquer módulo de negócio.
+- **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
+
+### 2. Correções de Bug e Interface (UI/UX)
+- **Fidelidade ao Design (`themes`):** Padronização visual de todas as interfaces seguindo os componentes e folhas de estilo armazenados no diretório `themes/`.
+- **Resolução de Loading Infinito:** Tratamento de erros e validação de retornos vazios no carregamento do cardápio (`cardapio.html` / `js/cardapio.js`) e do gerenciamento de contas (`contas.html` / `js/contas.js`).
+- **Sistema de Temas:** Implementação do botão de alternância entre **Tema Claro (Light)** e **Tema Escuro (Dark)**, com persistência da preferência do usuário via `localStorage`.
+- **Carrinho Interativo:** Implementação e manutenção do stepper de quantidade (`- 1 +`) para os itens do carrinho no cardápio.
+
+### 3. Perfis de Acesso e Permissões
+- **Reformulação do Login (4 Perfis):** Reestruturação do painel de login (`login.html` / `js/auth.js`) para suportar quatro perfis distintos: Gerente, Atendente/Funcionário, Mesa e Cliente (Fidelidade com login por Usuário/Senha e campo opcional de Telefone).
+- **Visão do Atendente:** Restauração da tela operacional em `atendimento.html` para exibir os chamados ativos das mesas (com justificativas pré-definidas) e os pedidos em andamento (Pendente / Em Preparo).
+- **Aba de Gerenciamento de Estoque:** Reativação/criação da interface de controle de estoque (`estoque.html` / `js/estoque.js`) para consulta e edição de insumos pelo Gerente.
+- **Restauração do Faturamento:** Reativação do painel financeiro e de relatórios (`faturamento.html` / `js/faturamento.js`) restrito ao Gerente.
+
+### 4. Sistema de Fidelidade
+- **Mecanismo de Pontuação e Visitas:** Integração com a tabela `clientes` e a função RPC (`identificar_cliente_fidelidade`) no Supabase, suportando o vínculo do telefone (opcional) associado à conta do cliente.
+- **Exibição no Frontend:** Exibição do saldo de pontos e do número de visitas no cabeçalho/topo do `cardapio.html` quando o cliente estiver identificado.
+
+### 5. Regras de Documentação
+- **Preservação da Especificação:** Congelamento total do arquivo `spec.md` (sem alterações).
+- **Atualização Centralizada no `backlog.md`:** Registro de todas as tarefas na tabela principal e acompanhamento no histórico de alterações.
