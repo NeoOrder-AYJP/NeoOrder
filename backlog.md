@@ -64,23 +64,25 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
 
 ### 2. Correções de Bug, Revisão de Código e Interface (UI/UX)
-- **Correção de Declaração Duplicada em `cardapio.js` (URGENTE):** Resolução do erro `Uncaught SyntaxError: Identifier 'db' has already been declared (at cardapio.js:1:1)`, removendo a re-declaração da variável `db` e garantindo o uso exclusivo do objeto global em `js/supabase.js`.
-- **Correção do Loading Infinito Pós-Login:** Ajuste no fluxo de autenticação e carregamento de dados em `js/auth.js` e nas páginas restritas (`faturamento.html`, `contas.html`, `cardapio.html`, `atendimento.html`), tratando retornos vazios e erros da API do Supabase para evitar o congelamento da tela em estado de carregamento permanente.
-- **Revisão e Correção de Bugs de Código (`contas.js` e outros):** Varredura completa e correção de erros de lógica, escopo e execução nos scripts do sistema, com foco na estabilização do `js/contas.js`.
+- **Correção da Declaração Duplicada do Objeto `db` (URGENTE):** 
+  - **Causa identificada:** Erro `Uncaught SyntaxError: Identifier 'db' has already been declared` ocorrendo na linha 1 dos arquivos `cardapio.js`, `estoque.js` e `faturamento.js`.
+  - **Solução:** Remoção de qualquer re-declaração local (`const db = ...` ou `let db = ...`) nos módulos de negócio e padronização do uso da referência global `window.db` ou `window.supabaseClient` inicializada em `js/supabase.js`.
+- **Correção do Loading Infinito Pós-Login:** Ajuste no fluxo de autenticação e carregamento de dados em `js/auth.js` e nas páginas restritas (`faturamento.html`, `contas.html`, `cardapio.html`, `atendimento.html`), tratando retornos vazios e exceções da API do Supabase para evitar o congelamento da interface.
+- **Revisão de Código em `js/contas.js`:** Varredura completa para correção de erros de lógica, escopo e execução no gerenciamento de contas de mesas e funcionários.
 - **Fidelidade ao Design (`themes`):** Padronização visual de todas as interfaces seguindo os componentes e folhas de estilo armazenados no diretório `themes/`.
-- **Sistema de Temas:** Implementação do botão de alternância entre **Tema Claro (Light)** e **Tema Escuro (Dark)**, com persistência da preferência do usuário via `localStorage`.
-- **Carrinho Interativo:** Implementação e manutenção do stepper de quantidade (`- 1 +`) para os itens do carrinho no cardápio.
+- **Sistema de Temas:** Implementação da alternância entre **Tema Claro (Light)** e **Tema Escuro (Dark)**, persistida via `localStorage`.
+- **Carrinho Interativo:** Manutenção do contador de quantidade (`- 1 +`) para os itens do carrinho no cardápio.
 
 ### 3. Perfis de Acesso e Permissões
-- **Reformulação do Login (4 Perfis):** Reestruturação do painel de login (`login.html` / `js/auth.js`) para suportar quatro perfis distintos: Gerente, Atendente/Funcionário, Mesa e Cliente (Fidelidade com login por Usuário/E-mail e Senha, com campo opcional para Telefone).
-- **Visão do Atendente:** Restauração da tela operacional em `atendimento.html` para exibir os chamados ativos das mesas (com justificativas pré-definidas) e os pedidos em andamento (Pendente / Em Preparo).
-- **Aba de Gerenciamento de Estoque:** Reativação/criação da interface de controle de estoque (`estoque.html` / `js/estoque.js`) para consulta e edição de insumos pelo Gerente.
-- **Restauração do Faturamento:** Reativação do painel financeiro e de relatórios (`faturamento.html` / `js/faturamento.js`) restrito ao Gerente.
+- **Reformulação do Login (4 Perfis):** Reestruturação do painel de login (`login.html` / `js/auth.js`) para suportar quatro perfis: Gerente, Atendente/Funcionário, Mesa e Cliente (Fidelidade com login por Usuário/E-mail e Senha, com campo opcional para Telefone).
+- **Visão do Atendente:** Restauração da tela operacional em `atendimento.html` para exibição de chamados das mesas e acompanhamento de pedidos em andamento.
+- **Gerenciamento de Estoque:** Interface de controle em `estoque.html` / `js/estoque.js` para consulta e edição de insumos pelo Gerente.
+- **Painel Financeiro:** Painel de relatórios em `faturamento.html` / `js/faturamento.js` restrito ao Gerente.
 
 ### 4. Sistema de Fidelidade
-- **Mecanismo de Pontuação e Visitas:** Integração com a tabela `clientes` e a função RPC (`identificar_cliente_fidelidade`) no Supabase, suportando o vínculo do telefone (opcional) associado à conta do cliente.
-- **Exibição no Frontend:** Exibição do saldo de pontos e do número de visitas no cabeçalho/topo do `cardapio.html` quando o cliente estiver identificado.
+- **Mecanismo de Pontuação e Visitas:** Integração com a tabela `clientes` e chamada à função RPC (`identificar_cliente_fidelidade`) no Supabase, permitindo a inclusão opcional do telefone.
+- **Exibição no Frontend:** Exibição do saldo de pontos e histórico de visitas no topo do `cardapio.html` para clientes identificados.
 
-### 5. Regras de Documentação
-- **Preservação da Especificação:** Congelamento total do arquivo `spec.md` (sem alterações).
-- **Atualização Centralizada no `backlog.md`:** Registro de todas as tarefas na tabela principal e atualização formal obrigatória na tabela de **`Histórico de Alterações`**.
+### 5. Regras de Documentação e Versionamento
+- **Preservação da Especificação:** O arquivo `spec.md` permanece congelado (sem alterações).
+- **Registro Obrigatório no Histórico:** Obrigatoriedade do registro de todas as intervenções na tabela `2. Historico de Alteracoes` do `backlog.md` a cada ciclo de desenvolvimento.
