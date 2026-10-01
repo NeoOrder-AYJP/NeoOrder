@@ -32,34 +32,42 @@
   </header>
 
   <main class="auth-wrapper">
-    <div class="auth-card">
+    <div class="auth-card" style="max-width: 480px;">
       <!-- Brand Header -->
       <div class="auth-header">
         <div class="auth-header-icon">
           <span class="material-symbols-outlined">restaurant</span>
         </div>
         <h1 class="auth-title">NeoOrder</h1>
-        <p class="auth-subtitle">Sistema de Gestão & Atendimento Integrado</p>
+        <p class="auth-subtitle">Escolha seu perfil para acessar o sistema</p>
       </div>
 
-      <!-- Segmented Control Switcher -->
-      <div class="segmented-control">
-        <button type="button" class="tab-btn active" id="tabClientBtn">
-          <span class="material-symbols-outlined" style="font-size: 18px;">table_bar</span>
-          <span>Acesso por Mesa</span>
+      <!-- 4-Profile Segmented Control Switcher -->
+      <div class="segmented-control" style="grid-template-columns: repeat(4, 1fr); font-size: 12px;">
+        <button type="button" class="tab-btn active" id="tabMesaBtn" title="Acesso por Mesa">
+          <span class="material-symbols-outlined" style="font-size: 16px;">table_bar</span>
+          <span>Mesa</span>
         </button>
-        <button type="button" class="tab-btn" id="tabStaffBtn">
-          <span class="material-symbols-outlined" style="font-size: 18px;">badge</span>
-          <span>Acesso da Equipe</span>
+        <button type="button" class="tab-btn" id="tabClientBtn" title="Cliente Fidelidade">
+          <span class="material-symbols-outlined" style="font-size: 16px;">person</span>
+          <span>Cliente</span>
+        </button>
+        <button type="button" class="tab-btn" id="tabAttendantBtn" title="Atendente">
+          <span class="material-symbols-outlined" style="font-size: 16px;">support_agent</span>
+          <span>Atendente</span>
+        </button>
+        <button type="button" class="tab-btn" id="tabManagerBtn" title="Gerente">
+          <span class="material-symbols-outlined" style="font-size: 16px;">manage_accounts</span>
+          <span>Gerente</span>
         </button>
       </div>
 
       <!-- Alert Box -->
       <div id="authAlert" class="alert-message alert-error" style="display: none;"></div>
 
-      <!-- TAB 1: Client / Mesa -->
-      <div id="clientTabContent">
-        <form id="clientForm" class="flex-col">
+      <!-- TAB 1: Mesa -->
+      <div id="mesaTabContent">
+        <form id="mesaForm" class="flex-col">
           <div class="form-group">
             <label for="tableLogin" class="form-label">Identificador da Mesa</label>
             <div class="input-wrapper">
@@ -76,45 +84,102 @@
             </div>
           </div>
 
-          <button type="submit" id="btnClientSubmit" class="btn btn-primary btn-full" style="margin-top: 8px;">
+          <button type="submit" id="btnMesaSubmit" class="btn btn-primary btn-full" style="margin-top: 8px;">
             <span>Iniciar Sessão da Mesa</span>
             <span class="material-symbols-outlined" style="font-size: 20px;">arrow_forward</span>
           </button>
         </form>
       </div>
 
-      <!-- TAB 2: Staff / Funcionário -->
-      <div id="staffTabContent" style="display: none;">
-        <form id="staffForm" class="flex-col">
+      <!-- TAB 2: Cliente Fidelidade -->
+      <div id="clientTabContent" style="display: none;">
+        <form id="clientForm" class="flex-col">
           <div class="form-group">
-            <label for="staffLogin" class="form-label">Usuário ou E-mail</label>
+            <label for="clientUserLogin" class="form-label">Usuário ou E-mail</label>
             <div class="input-wrapper">
               <span class="material-symbols-outlined input-icon">person</span>
-              <input type="text" id="staffLogin" name="staffLogin" class="input-field" placeholder="Ex: gerente1 ou atendente1" required>
+              <input type="text" id="clientUserLogin" name="clientUserLogin" class="input-field" placeholder="Ex: cliente1 ou maria@email.com" required>
             </div>
           </div>
 
           <div class="form-group">
-            <label for="staffPassword" class="form-label">Senha de Acesso</label>
+            <label for="clientPassword" class="form-label">Senha</label>
             <div class="input-wrapper">
               <span class="material-symbols-outlined input-icon">lock</span>
-              <input type="password" id="staffPassword" name="staffPassword" class="input-field" placeholder="••••••••" required>
-              <button type="button" class="toggle-password" id="toggleStaffPass">
-                <span class="material-symbols-outlined" style="font-size: 20px;">visibility</span>
-              </button>
+              <input type="password" id="clientPassword" name="clientPassword" class="input-field" placeholder="••••••••" required>
             </div>
           </div>
 
-          <button type="submit" id="btnStaffSubmit" class="btn btn-primary btn-full" style="margin-top: 8px;">
-            <span>Acessar Painel Operacional</span>
-            <span class="material-symbols-outlined" style="font-size: 20px;">login</span>
+          <div class="form-group">
+            <label for="clientPhone" class="form-label">Telefone (Opcional - Programa Fidelidade)</label>
+            <div class="input-wrapper">
+              <span class="material-symbols-outlined input-icon">phone</span>
+              <input type="tel" id="clientPhone" name="clientPhone" class="input-field" placeholder="Ex: (11) 99999-8888">
+            </div>
+          </div>
+
+          <button type="submit" id="btnClientSubmit" class="btn btn-primary btn-full" style="margin-top: 8px;">
+            <span>Acessar como Cliente Fidelidade</span>
+            <span class="material-symbols-outlined" style="font-size: 20px;">stars</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- TAB 3: Atendente -->
+      <div id="attendantTabContent" style="display: none;">
+        <form id="attendantForm" class="flex-col">
+          <div class="form-group">
+            <label for="attendantLogin" class="form-label">Usuário Atendente</label>
+            <div class="input-wrapper">
+              <span class="material-symbols-outlined input-icon">badge</span>
+              <input type="text" id="attendantLogin" name="attendantLogin" class="input-field" placeholder="Ex: atendente1" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="attendantPassword" class="form-label">Senha de Acesso</label>
+            <div class="input-wrapper">
+              <span class="material-symbols-outlined input-icon">lock</span>
+              <input type="password" id="attendantPassword" name="attendantPassword" class="input-field" placeholder="••••••••" required>
+            </div>
+          </div>
+
+          <button type="submit" id="btnAttendantSubmit" class="btn btn-primary btn-full" style="margin-top: 8px;">
+            <span>Acessar Painel de Atendimento</span>
+            <span class="material-symbols-outlined" style="font-size: 20px;">support_agent</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- TAB 4: Gerente -->
+      <div id="managerTabContent" style="display: none;">
+        <form id="managerForm" class="flex-col">
+          <div class="form-group">
+            <label for="managerLogin" class="form-label">Usuário Gerente</label>
+            <div class="input-wrapper">
+              <span class="material-symbols-outlined input-icon">manage_accounts</span>
+              <input type="text" id="managerLogin" name="managerLogin" class="input-field" placeholder="Ex: gerente1" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="managerPassword" class="form-label">Senha de Gerência</label>
+            <div class="input-wrapper">
+              <span class="material-symbols-outlined input-icon">lock</span>
+              <input type="password" id="managerPassword" name="managerPassword" class="input-field" placeholder="••••••••" required>
+            </div>
+          </div>
+
+          <button type="submit" id="btnManagerSubmit" class="btn btn-primary btn-full" style="margin-top: 8px;">
+            <span>Acessar Painel de Gestão</span>
+            <span class="material-symbols-outlined" style="font-size: 20px;">key</span>
           </button>
         </form>
       </div>
 
       <!-- Security Note -->
       <div style="text-align: center; margin-top: 8px;">
-        <p style="font-size: 12px; color: var(--text-muted);">NeoOrder • Atendimento & Gestão Digital</p>
+        <p style="font-size: 12px; color: var(--text-muted);">NeoOrder • Sistema Integrado de Gestão Gastronômica</p>
       </div>
     </div>
   </main>

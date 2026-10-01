@@ -25,6 +25,25 @@ window.supabaseClient = supabaseClient;
 window.SUPABASE_URL = SUPABASE_URL;
 window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
 
+// Global Safe Query Helper with Timeout Fallback to prevent infinite loading
+window.safeSupabaseQuery = async function(queryPromise, timeoutMs = 2500) {
+  let timeoutId;
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutId = setTimeout(() => {
+      resolve({ data: null, error: new Error("Supabase query timeout") });
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([queryPromise, timeoutPromise]);
+    clearTimeout(timeoutId);
+    return result || { data: null, error: new Error("Empty result") };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    return { data: null, error: err };
+  }
+};
+
 // Global Theme Management (Light / Dark mode persisted in localStorage)
 (function initTheme() {
   const savedTheme = localStorage.getItem('theme') || 'light';
