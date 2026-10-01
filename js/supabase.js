@@ -22,6 +22,7 @@ if (window.supabase && window.supabase.createClient) {
 
 // Make client available globally for non-module scripts
 window.supabaseClient = supabaseClient;
+window.db = supabaseClient;
 window.SUPABASE_URL = SUPABASE_URL;
 window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
 
