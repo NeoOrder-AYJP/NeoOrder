@@ -62,7 +62,8 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - **Ordem de Importação de Scripts:** Garantia de que a CDN do Supabase e o script `js/supabase.js` sejam carregados no topo de todas as páginas HTML antes de qualquer módulo de negócio.
 - **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
 
-### 2. Correções de Bug e Interface (UI/UX)
+### 2. Correções de Bug, Revisão de Código e Interface (UI/UX)
+- **Revisão e Correção de Bugs de Código (`contas.js` e outros):** Varredura completa e correção de erros de lógica/execução nos scripts do sistema, com foco na estabilização do `js/contas.js`.
 - **Fidelidade ao Design (`themes`):** Padronização visual de todas as interfaces seguindo os componentes e folhas de estilo armazenados no diretório `themes/`.
 - **Resolução de Loading Infinito:** Tratamento de erros e validação de retornos vazios no carregamento do cardápio (`cardapio.html` / `js/cardapio.js`) e do gerenciamento de contas (`contas.html` / `js/contas.js`).
 - **Sistema de Temas:** Implementação do botão de alternância entre **Tema Claro (Light)** e **Tema Escuro (Dark)**, com persistência da preferência do usuário via `localStorage`.
