@@ -68,6 +68,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - **Resolução de Loading Infinito:** Tratamento de erros e validação de retornos vazios no carregamento do cardápio (`cardapio.html` / `js/cardapio.js`) e do gerenciamento de contas (`contas.html` / `js/contas.js`).
 - **Sistema de Temas:** Implementação do botão de alternância entre **Tema Claro (Light)** e **Tema Escuro (Dark)**, com persistência da preferência do usuário via `localStorage`.
 - **Carrinho Interativo:** Implementação e manutenção do stepper de quantidade (`- 1 +`) para os itens do carrinho no cardápio.
+- **Correção do Loading Infinito Pós-Login:** Ajuste no fluxo de autenticação e redirecionamento (`js/auth.js` e scripts das páginas restritas) para que, após o login do Gerente ou Cliente/Mesa, as informações do perfil e do banco de dados sejam carregadas e exibidas corretamente sem travar a tela em estado de carregamento permanente.
 
 ### 3. Perfis de Acesso e Permissões
 - **Reformulação do Login (4 Perfis):** Reestruturação do painel de login (`login.html` / `js/auth.js`) para suportar quatro perfis distintos: Gerente, Atendente/Funcionário, Mesa e Cliente (Fidelidade com login por Usuário/Senha e campo opcional de Telefone).
