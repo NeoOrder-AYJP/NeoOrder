@@ -1,10 +1,5 @@
 // Authentication Logic for NeoOrder
 
-const db = window.supabaseClient;
-if (!db) {
-  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   const tabMesaBtn = document.getElementById('tabMesaBtn');
   const tabClientBtn = document.getElementById('tabClientBtn');
@@ -110,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       let user = null;
-      const client = window.supabaseClient || db;
+      const client = window.supabaseClient;
 
       // Try fetching from Supabase with quick timeout
       if (client && typeof client.from === 'function') {

@@ -2,11 +2,6 @@
  * NeoOrder - Estoque e Cardápio (Gerente)
  */
 
-const db = window.supabaseClient;
-if (!db) {
-  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Ensure user is authenticated and is a Gerente
   const user = NeoAuth.requireAuth(['gerente']);
@@ -122,14 +117,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Helper to get supabase client safely
-  function getSupabase() {
-    return window.supabaseClient || db || window.supabase;
-  }
-
   // Load All Data
   async function loadData() {
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         const { data: ingData, error: ingErr } = await client.from('estoque').select('*').order('nome');
         if (!ingErr && ingData && ingData.length > 0) {
@@ -387,7 +378,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const newQte = Math.max(0, parseFloat(ing.quantidade) + delta);
     ing.quantidade = newQte;
 
-    const client = getSupabase();
+    const client = window.supabaseClient;
     if (client && typeof client.from === 'function') {
       client.from('estoque').update({ quantidade: newQte, atualizado_em: new Date().toISOString() }).eq('id', id).then();
     }
@@ -435,7 +426,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       closeIngredientModal();
 
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (id) {
         const ing = ingredients.find(i => i.id === id);
         if (ing) {
@@ -472,7 +463,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!confirm('Deseja realmente remover este insumo do estoque?')) return;
 
     ingredients = ingredients.filter(i => i.id !== id);
-    const client = getSupabase();
+    const client = window.supabaseClient;
     if (client && typeof client.from === 'function') {
       client.from('estoque').delete().eq('id', id).then();
     }
@@ -575,7 +566,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       let dishId = id;
-      const client = getSupabase();
+      const client = window.supabaseClient;
 
       if (id) {
         const dish = dishes.find(d => d.id === id);
@@ -636,7 +627,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     dishes = dishes.filter(d => d.id !== id);
     delete pratoIngredientesMap[id];
 
-    const client = getSupabase();
+    const client = window.supabaseClient;
     if (client && typeof client.from === 'function') {
       client.from('prato_ingredientes').delete().eq('prato_id', id).then();
       client.from('pratos').delete().eq('id', id).then();
@@ -648,7 +639,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Realtime Subscription
   function setupRealtime() {
-    const client = getSupabase();
+    const client = window.supabaseClient;
     if (client && typeof client.channel === 'function') {
       client
         .channel('estoque-realtime')
