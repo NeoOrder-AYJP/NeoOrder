@@ -2,11 +2,6 @@
  * NeoOrder - Faturamento & Backup (Gerente)
  */
 
-const db = window.supabaseClient;
-if (!db) {
-  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Ensure user is authenticated and is a Gerente (RF-36)
   const user = NeoAuth.requireAuth(['gerente']);
@@ -24,10 +19,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Helper to get Supabase client
-  function getSupabase() {
-    return window.supabaseClient || db || window.supabase;
-  }
-
   // State
   let selectedPeriod = 'today'; // 'today', 'week', 'month'
   let rawOrders = [];
@@ -102,7 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Fetch Orders and Dishes Data
   async function loadData() {
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         const { data: orderData, error: orderErr } = await client
           .from('pedidos')
@@ -273,7 +264,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const tablesToExport = ['usuarios', 'pratos', 'estoque', 'prato_ingredientes', 'pedidos', 'pedido_itens', 'chamados'];
 
       try {
-        const client = getSupabase();
+        const client = window.supabaseClient;
         if (client && typeof client.from === 'function') {
           for (const table of tablesToExport) {
             const { data, error } = await client.from(table).select('*');
@@ -328,7 +319,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             throw new Error('Formato de arquivo de backup inválido.');
           }
 
-          const client = getSupabase();
+          const client = window.supabaseClient;
           if (client && typeof client.from === 'function') {
             for (const tableName of Object.keys(backupData.tables)) {
               const rows = backupData.tables[tableName];
@@ -353,7 +344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Realtime Subscription
   function setupRealtime() {
-    const client = getSupabase();
+    const client = window.supabaseClient;
     if (client && typeof client.channel === 'function') {
       client
         .channel('faturamento-realtime')

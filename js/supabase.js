@@ -22,9 +22,16 @@ if (window.supabase && window.supabase.createClient) {
 
 // Make client available globally for non-module scripts
 window.supabaseClient = supabaseClient;
-window.db = supabaseClient;
 window.SUPABASE_URL = SUPABASE_URL;
 window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
+
+// Global helper function to get Supabase client safely without global variable collision
+window.getSupabaseClient = function() {
+  if (!window.supabaseClient) {
+    console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
+  }
+  return window.supabaseClient;
+};
 
 // Global Safe Query Helper with Timeout Fallback to prevent infinite loading
 window.safeSupabaseQuery = async function(queryPromise, timeoutMs = 2500) {

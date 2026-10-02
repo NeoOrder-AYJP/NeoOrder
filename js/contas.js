@@ -1,10 +1,5 @@
 // Accounts Management Logic for Gerente (NeoOrder)
 
-const db = window.supabaseClient;
-if (!db) {
-  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
   // Check manager permission
   const currentUser = window.NeoAuth ? window.NeoAuth.requireAuth(['gerente']) : null;
@@ -52,14 +47,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     { id: '33333333-3333-3333-3333-333333333333', nome: 'Gerente Ana', login: 'gerente1', senha: '123', tipo: 'funcionario', perfil: 'gerente', ativo: true }
   ];
 
-  function getSupabase() {
-    return window.supabaseClient || db || window.supabase;
-  }
-
   // Load Accounts from Supabase
   async function loadAccounts() {
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         const query = client
           .from('usuarios')
@@ -260,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const ativo = document.getElementById('accountStatus').value === 'true';
 
       const payload = { tipo, nome, login, senha, perfil, ativo };
-      const client = getSupabase();
+      const client = window.supabaseClient;
 
       try {
         if (id) {
@@ -303,7 +294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const newStatus = !acc.ativo;
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         const query = client.from('usuarios').update({ ativo: newStatus }).eq('id', id);
         await window.safeSupabaseQuery(query, 2000);
@@ -321,7 +312,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!confirm('Deseja realmente excluir esta conta?')) return;
 
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         const query = client.from('usuarios').delete().eq('id', id);
         await window.safeSupabaseQuery(query, 2000);

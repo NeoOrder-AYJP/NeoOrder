@@ -1,10 +1,5 @@
 // js/app.js - Landing Page Logic for NeoOrder
 
-const db = window.supabaseClient;
-if (!db) {
-  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
-}
-
 // Fallback mock dishes if database is empty initially
 const MOCK_DISHES = [
   {
@@ -71,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function setupRealtimeSubscription() {
-  const client = window.supabaseClient || db;
+  const client = window.supabaseClient;
   if (client && typeof client.channel === 'function') {
     client
       .channel('app-landing-realtime')

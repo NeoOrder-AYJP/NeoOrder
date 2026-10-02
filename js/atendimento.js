@@ -2,11 +2,6 @@
  * NeoOrder - Operação e Atendimento (Atendente & Gerente)
  */
 
-const db = window.supabaseClient;
-if (!db) {
-  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Auth check: Allow atendente or gerente
   const user = NeoAuth.requireAuth(['atendente', 'gerente']);
@@ -80,8 +75,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Helper for Supabase Client
-  function getSupabase() {
-    return window.supabaseClient || db || window.supabase;
+  function getClient() {
+    return window.supabaseClient;
   }
 
   // Data State
@@ -172,7 +167,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load Recipe and Stock Mappings for Stock Reversal (RN-04)
   async function loadStockAndRecipes() {
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         const { data: ingData } = await client.from('estoque').select('*');
         if (ingData) ingredients = ingData;
@@ -204,7 +199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function fetchCalls() {
     let freshCalls = [];
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         const { data, error } = await client
           .from('chamados')
@@ -302,7 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (call) call.status = 'Atendido';
 
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         await client.from('chamados').update({ status: 'Atendido' }).eq('id', callId);
       }
@@ -318,7 +313,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function fetchOrders() {
     let freshOrders = [];
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         const { data, error } = await client
           .from('pedidos')
@@ -446,7 +441,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ord) ord.status = newStatus;
 
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         await client.from('pedidos').update({ status: newStatus }).eq('id', orderId);
       }
@@ -483,7 +478,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Perform stock reversal (RN-04)
         if (ord.pedido_itens && ord.pedido_itens.length > 0) {
-          const client = getSupabase();
+          const client = window.supabaseClient;
           ord.pedido_itens.forEach(pi => {
             const recipes = pratoIngredientesMap[pi.prato_id] || [];
             recipes.forEach(r => {
@@ -501,7 +496,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Update order status in Supabase
         try {
-          const client = getSupabase();
+          const client = window.supabaseClient;
           if (client && typeof client.from === 'function') {
             await client.from('pedidos').update({ status: 'Cancelado' }).eq('id', selectedCancelOrderId);
           }
@@ -517,7 +512,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Realtime Subscription
   function setupRealtime() {
-    const client = getSupabase();
+    const client = window.supabaseClient;
     if (client && typeof client.channel === 'function') {
       client
         .channel('atendimento-realtime')

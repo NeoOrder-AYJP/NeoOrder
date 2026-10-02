@@ -2,11 +2,6 @@
  * NeoOrder - Cardápio & Pedidos da Mesa e Cliente
  */
 
-const db = window.supabaseClient;
-if (!db) {
-  console.error("Supabase client não encontrado. Verifique o carregamento de js/supabase.js.");
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Require Mesa or Cliente authentication session
   const user = window.NeoAuth ? window.NeoAuth.requireAuth(['mesa', 'cliente']) : null;
@@ -114,14 +109,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   let activeFilterMode = 'all'; // 'all' or 'available'
 
   // Helper to get supabase client safely
-  function getSupabase() {
-    return window.supabaseClient || db || window.supabase;
-  }
-
   // Load Menu and Stock Data
   async function loadData() {
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         const dishQuery = client.from('pratos').select('*').eq('ativo', true).order('nome');
         const { data: dishData, error: dishErr } = await window.safeSupabaseQuery(dishQuery, 2500);
@@ -410,7 +401,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }));
 
       // Debit ingredients from stock
-      const client = getSupabase();
+      const client = window.supabaseClient;
       cart.forEach(item => {
         const recipes = pratoIngredientesMap[item.dishId] || [];
         recipes.forEach(r => {
@@ -453,7 +444,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let orders = [];
     try {
-      const client = getSupabase();
+      const client = window.supabaseClient;
       if (client && typeof client.from === 'function') {
         const query = client
           .from('pedidos')
@@ -578,7 +569,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
 
       try {
-        const client = getSupabase();
+        const client = window.supabaseClient;
         if (client && typeof client.from === 'function') {
           const query = client.from('chamados').insert({
             id: newChamado.id,
@@ -621,7 +612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Realtime Subscription
   function setupRealtime() {
-    const client = getSupabase();
+    const client = window.supabaseClient;
     if (client && typeof client.channel === 'function') {
       client
         .channel('cardapio-realtime')
