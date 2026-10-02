@@ -64,9 +64,10 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
 
 ### 2. Correções de Bug, Revisão de Código e Interface (UI/UX)
-- **Correção da Declaração Duplicada do Objeto `db` (URGENTE):** 
-  - **Causa identificada:** Erro `Uncaught SyntaxError: Identifier 'db' has already been declared` ocorrendo na linha 1 dos arquivos `cardapio.js`, `estoque.js` e `faturamento.js`.
-  - **Solução:** Remoção de qualquer re-declaração local (`const db = ...` ou `let db = ...`) nos módulos de negócio e padronização do uso da referência global `window.db` ou `window.supabaseClient` inicializada em `js/supabase.js`.
+- **Correção de Erro Sintático de Redeclaração no Escopo Global (Atribuído à Linha 1 de `cardapio.js`, `estoque.js` e `faturamento.js`):**
+  - **Identificação da Falha:** Erro do tipo `Uncaught SyntaxError: Identifier 'db' has already been declared`, apontado na linha 1 (bloco de comentário `/**`) dos scripts `js/cardapio.js`, `js/estoque.js` e `js/faturamento.js`.
+  - **Tipo de Erro:** Exceção de análise sintática em tempo de compilação/parsing (`SyntaxError`) decorrente do *hoisting* e colisão de nomes de identificadores (`db`) declarados via `const` ou `let` no escopo global através da inclusão múltipla de scripts HTML.
+  - **Solução Técnica:** Remoção de qualquer variável local ou global com o nome `db` e padronização absoluta do acesso às APIs do banco através das funções utilitárias `getSupabase()` ou da propriedade explícita no objeto global `window.supabaseClient`.
 - **Correção do Loading Infinito Pós-Login:** Ajuste no fluxo de autenticação e carregamento de dados em `js/auth.js` e nas páginas restritas (`faturamento.html`, `contas.html`, `cardapio.html`, `atendimento.html`), tratando retornos vazios e exceções da API do Supabase para evitar o congelamento da interface.
 - **Revisão de Código em `js/contas.js`:** Varredura completa para correção de erros de lógica, escopo e execução no gerenciamento de contas de mesas e funcionários.
 - **Fidelidade ao Design (`themes`):** Padronização visual de todas as interfaces seguindo os componentes e folhas de estilo armazenados no diretório `themes/`.
