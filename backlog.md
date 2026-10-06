@@ -63,29 +63,29 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 ### 1. Correções de Conexão, Infraestrutura e Interface
 
 #### 1.1. Infraestrutura e Conexão (Supabase & GitHub Pages)
-- **Correção do Erro 401 (Unauthorized) em Tabela Restritas (`pratos`, `prato_ingredientes`, `pedidos`, `pedido_itens`):**
+- **Correção dos Erros 401 (Unauthorized) & RLS:** 
   - Centralização das chaves públicas (`SUPABASE_URL` e `SUPABASE_ANON_KEY`) no arquivo `js/supabase.js` e inclusão obrigatória dos cabeçalhos HTTP (`apikey` e `Authorization: Bearer <ANON_KEY>`).
-  - Ajuste e criação de políticas de Row Level Security (RLS) para autorizar operações de `INSERT`, `SELECT`, `UPDATE` e `DELETE` pelas roles `anon` e `authenticated` nas tabelas operacionais e de estoque (`pratos`, `prato_ingredientes`, `pedidos`, `pedido_itens`).
+  - Ajuste e liberação de políticas de Row Level Security (RLS) para autorizar operações de `INSERT`, `SELECT`, `UPDATE` e `DELETE` pelas roles `anon` e `authenticated` nas tabelas operacionais, de estoque e pedidos (`pratos`, `prato_ingredientes`, `pedidos`, `pedido_itens`).
   - Execução de concessão explícita de permissões no PostgreSQL (`GRANT INSERT, SELECT, UPDATE, DELETE TO anon, authenticated`).
 - **Flexibilização da Tabela `clientes`:** Execução da instrução SQL `ALTER TABLE public.clientes ALTER COLUMN telefone DROP NOT NULL;` para permitir cadastro e identificação opcional do número de telefone no programa de fidelidade sem rejeição pelo banco.
 - **Ordem de Importação de Scripts:** Garantia de que a CDN do Supabase e o script `js/supabase.js` sejam carregados no topo de todas as páginas HTML antes de qualquer módulo de negócio.
 - **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
 
-#### 1.2. Correções de Sintaxe, Tipagem e Erros de Código (JS)
-- **Correção dos Erros 401 ao Salvar Pratos e Insumos (`estoque.js`):**
-  - Tratamento das chamadas `POST` para `pratos` e `prato_ingredientes` no gerenciamento do estoque, garantindo envio das credenciais corretas e captura adequada de exceções de autorização.
-- **Correção do Erro 400 (Bad Request em POST / PATCH de Pedidos):**
+#### 1.2. Correções de Sintaxe, Tipagem e Erros HTTP (400, 409 e 401 no JS)
+- **Correção dos Erros 401 (Unauthorized no POST de `pratos` e `prato_ingredientes` em `estoque.js`):**
+  - **Causa:** Ausência de autenticação/cabeçalhos adequados ou restrições de permissão RLS no Supabase ao salvar novos pratos e insumos.
+  - **Solução:** Garantir que as requisições em `estoque.js` utilizem a instância autenticada do Supabase (`window.supabaseClient` / `getSupabase()`) e tratar retornos da API para evitar falhas de permissão.
+- **Correção do Erro 400 (Bad Request no POST / PATCH de Pedidos):**
   - **Causa:** Envio de IDs estáticos em formato string simples (ex: `"o1032"`, `"o1001"`) para a coluna `id` da tabela `pedidos`, gerando erro de conversão de tipo (`invalid input syntax for type uuid`).
-  - **Solução:** Padronização absoluta de todos os identificadores de pedidos para o formato `UUID` válido, gerados via `crypto.randomUUID()` no frontend ou diretamente pelo Supabase via `gen_random_uuid()`.
-- **Correção do Erro 409 (Conflict em POST /pedido_itens):**
-  - **Causa:** Tentativa de inserção manual de IDs duplicados na tabela `pedido_itens` ou violação de chave primária durante o envio do payload do carrinho.
-  - **Solução:** Omissão da propriedade `id` no array de objetos do `.insert()`, permitindo a geração automática de UUID pelo banco de dados.
-- **Correção do Erro Sintático de Redeclaração no Escopo Global (`SyntaxError: Identifier 'db' has already been declared`):**
-  - **Identificação da Falha:** Erro do tipo `SyntaxError` apontado na linha 1 (bloco de comentário `/**`) dos scripts `js/cardapio.js`, `js/estoque.js` e `js/faturamento.js`.
-  - **Tipo de Erro:** Exceção de análise sintática em tempo de compilação/parsing decorrente do *hoisting* e colisão de nomes de identificadores (`db`) declarados via `const` ou `let` no escopo global através da inclusão múltipla de scripts HTML.
+  - **Solução:** Padronização absoluta de todos os identificadores de pedidos para o formato `UUID` válido, gerados via `crypto.randomUUID()` no frontend ou deixando a geração automática a cargo da coluna no Supabase (`gen_random_uuid()`).
+- **Correção do Erro 409 (Conflict no POST de `pedido_itens`):**
+  - **Causa:** Tentativa de inserção de IDs manuais duplicados na tabela `pedido_itens` ou violação de chave primária/única durante o envio dos itens do carrinho.
+  - **Solução:** Omissão da propriedade `id` no array de objetos do `.insert()`, permitindo que o PostgreSQL/Supabase atribua automaticamente um UUID único a cada item.
+- **Correção do Erro Sintático de Redeclaração (`SyntaxError: Identifier 'db' has already been declared`):**
+  - **Identificação da Falha:** Erro de análise sintática apontado na linha 1 (comentário `/**`) dos scripts `js/cardapio.js`, `js/estoque.js` e `js/faturamento.js`.
   - **Solução Técnica:** Remoção de qualquer variável local ou global com o nome `db` e padronização do acesso exclusivo às APIs do banco através da função utilitária `getSupabase()` ou da propriedade global `window.supabaseClient`.
-- **Correção do Loading Infinito Pós-Login:** Ajuste no fluxo de autenticação e carregamento de dados em `js/auth.js` e nas páginas restritas (`faturamento.html`, `contas.html`, `cardapio.html`, `atendimento.html`), tratando retornos vazios e exceções da API do Supabase para evitar o congelamento da interface.
-- **Revisão de Código em `js/contas.js`:** Varredura completa para correção de erros de lógica, escopo e execução no gerenciamento de contas de mesas e funcionários.
+- **Correção do Loading Infinito Pós-Login:** Ajuste no fluxo de autenticação e carregamento de dados em `js/auth.js` e nas páginas restritas (`faturamento.html`, `contas.html`, `cardapio.html`, `atendimento.html`), tratando exceções da API do Supabase para evitar o congelamento da interface.
+- **Revisão de Código em `js/contas.js`:** Varredura completa para correção de erros de lógica e execução no gerenciamento de contas de mesas e funcionários.
 
 #### 1.3. Interface, Componentes (UI/UX) e Fidelidade ao Design
 - **Fidelidade ao Design (`themes/`):** Padronização visual de todas as interfaces seguindo os componentes e folhas de estilo armazenados no diretório `themes/`.
@@ -93,7 +93,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - **Carrinho Interativo:** Manutenção do contador de quantidade (`- 1 +`) para os itens do carrinho diretamente nas cartas do cardápio.
 
 #### 1.4. Perfis de Acesso, Autenticação e Regras de Negócio
-- **Reformulação do Login (4 Perfis):** Reestruturação do painel de login (`login.html` / `js/auth.js`) para suportar quatro perfis: Gerente, Atendente/Funcionário, Mesa e Cliente (Fidelidade com login por Usuário/E-mail e Senha, com campo opcional para Telefone).
+- **Reformulação do Login (4 Perfis):** Reestruturação do painel de login (`login.html` / `js/auth.js`) para suportar quatro perfis: Gerente, Atendente/Funcionário, Mesa e Cliente.
 - **Visão do Atendente:** Restauração da tela operacional em `atendimento.html` para exibição de chamados das mesas e acompanhamento de pedidos em andamento.
 - **Gerenciamento de Estoque:** Interface de controle em `estoque.html` / `js/estoque.js` para consulta e edição de insumos e pratos pelo Gerente.
 - **Painel Financeiro:** Painel de relatórios em `faturamento.html` / `js/faturamento.js` restrito ao Gerente.
