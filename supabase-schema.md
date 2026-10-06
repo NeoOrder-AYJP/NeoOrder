@@ -66,17 +66,30 @@
 | `ingrediente_id` | `uuid` | Primary |
 | `quantidade` | `numeric` |  |
 
-## Table `pedidos`
+## Table `clientes`
 
 ### Columns
 
 | Name | Type | Constraints |
 |------|------|-------------|
 | `id` | `uuid` | Primary |
+| `nome` | `varchar` |  |
+| `telefone` | `varchar` |  Nullable |
+| `pontos` | `int4` | Default `0` |
+| `visitas` | `int4` | Default `0` |
+| `criado_em` | `timestamptz` | Default `now()` |
+
+## Table `pedidos`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary Default `gen_random_uuid()` |
 | `mesa_id` | `uuid` |  |
 | `valor_total` | `numeric` |  |
 | `status` | `varchar` |  |
-| `criado_em` | `timestamptz` |  |
+| `criado_em` | `timestamptz` | Default `now()` |
 | `atualizado_em` | `timestamptz` |  |
 | `entregue_em` | `timestamptz` |  Nullable |
 
@@ -86,7 +99,7 @@
 
 | Name | Type | Constraints |
 |------|------|-------------|
-| `id` | `uuid` | Primary |
+| `id` | `uuid` | Primary Default `gen_random_uuid()` |
 | `pedido_id` | `uuid` |  |
 | `prato_id` | `uuid` |  |
 | `quantidade` | `int4` |  |
@@ -105,7 +118,12 @@
 | `criado_em` | `timestamptz` |  |
 | `atendido_em` | `timestamptz` |  Nullable |
 
-## RLS Policies
+## Permissions & RLS Policies
+
+```sql
+-- Concessão explícita de permissões para roles do Supabase
+GRANT INSERT, SELECT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+```
 
 ### `pratos`
 
@@ -113,6 +131,7 @@
 |--------|---------|-------|--------|-------|------------|
 | `Gerente gerencia pratos` | ALL | public | PERMISSIVE | `eh_gerente()` | — |
 | `Leitura publica de pratos ativos` | SELECT | public | PERMISSIVE | `((ativo = true) OR eh_funcionario())` | — |
+| `Acesso total anon e authenticated` | ALL | anon, authenticated | PERMISSIVE | `true` | `true` |
 
 ### `usuarios`
 
@@ -132,18 +151,21 @@
 | Policy | Command | Roles | Action | USING | WITH CHECK |
 |--------|---------|-------|--------|-------|------------|
 | `Apenas Gerente acessa ingredientes do prato` | ALL | public | PERMISSIVE | `eh_gerente()` | — |
+| `Acesso total anon e authenticated` | ALL | anon, authenticated | PERMISSIVE | `true` | `true` |
 
 ### `pedidos`
 
 | Policy | Command | Roles | Action | USING | WITH CHECK |
 |--------|---------|-------|--------|-------|------------|
 | `Funcionarios gerenciam pedidos` | ALL | public | PERMISSIVE | `eh_funcionario()` | — |
+| `Acesso total anon e authenticated` | ALL | anon, authenticated | PERMISSIVE | `true` | `true` |
 
 ### `pedido_itens`
 
 | Policy | Command | Roles | Action | USING | WITH CHECK |
 |--------|---------|-------|--------|-------|------------|
 | `Funcionarios gerenciam itens de pedidos` | ALL | public | PERMISSIVE | `eh_funcionario()` | — |
+| `Acesso total anon e authenticated` | ALL | anon, authenticated | PERMISSIVE | `true` | `true` |
 
 ### `chamados`
 
