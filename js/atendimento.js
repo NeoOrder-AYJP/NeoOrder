@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const mockCalls = [
     {
       id: 'c1111111-1111-1111-1111-111111111111',
-      mesa_id: 'm004',
+      mesa_id: '10000000-0000-0000-0000-000000000004',
       mesa_nome: 'Mesa 04',
       motivo: 'Solicitação de 2 taças extras de vinho e verificar reposição de azeite.',
       status: 'Pendente',
@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     },
     {
       id: 'c2222222-2222-2222-2222-222222222222',
-      mesa_id: 'm008',
+      mesa_id: '10000000-0000-0000-0000-000000000008',
       mesa_nome: 'Mesa 08',
       motivo: 'Dúvida sobre o ponto da carne no prato Filé Mignon.',
       status: 'Pendente',
@@ -111,36 +111,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const mockOrders = [
     {
-      id: 'o1033',
-      mesa_id: 'm002',
+      id: 'a1033000-0000-0000-0000-000000001033',
+      mesa_id: '10000000-0000-0000-0000-000000000002',
       mesa_nome: 'Mesa 02',
       valor_total: 89.90,
       status: 'Recebido',
       criado_em: new Date(Date.now() - 3 * 60000).toISOString(),
       pedido_itens: [
-        { id: 'pi1', prato_id: 'd1111111-1111-1111-1111-111111111111', quantidade: 1, preco_unitario: 89.90, pratos: { nome: 'Filé Mignon ao Roti' } }
+        { id: 'b1010000-0000-0000-0000-000000000001', prato_id: 'd1111111-1111-1111-1111-111111111111', quantidade: 1, preco_unitario: 89.90, pratos: { nome: 'Filé Mignon ao Roti' } }
       ]
     },
     {
-      id: 'o1032',
-      mesa_id: 'm008',
+      id: 'a1032000-0000-0000-0000-000000001032',
+      mesa_id: '10000000-0000-0000-0000-000000000008',
       mesa_nome: 'Mesa 08',
       valor_total: 149.00,
       status: 'Em preparo',
       criado_em: new Date(Date.now() - 10 * 60000).toISOString(),
       pedido_itens: [
-        { id: 'pi2', prato_id: 'd2222222-2222-2222-2222-222222222222', quantidade: 2, preco_unitario: 74.50, pratos: { nome: 'Risoto de Cogumelos Frescos' } }
+        { id: 'b1020000-0000-0000-0000-000000000002', prato_id: 'd2222222-2222-2222-2222-222222222222', quantidade: 2, preco_unitario: 74.50, pratos: { nome: 'Risoto de Cogumelos Frescos' } }
       ]
     },
     {
-      id: 'o1030',
-      mesa_id: 'm001',
+      id: 'a1030000-0000-0000-0000-000000001030',
+      mesa_id: '10000000-0000-0000-0000-000000000001',
       mesa_nome: 'Mesa 01',
       valor_total: 98.00,
       status: 'Entregue',
       criado_em: new Date(Date.now() - 25 * 60000).toISOString(),
       pedido_itens: [
-        { id: 'pi3', prato_id: 'd3333333-3333-3333-3333-333333333333', quantidade: 1, preco_unitario: 98.00, pratos: { nome: 'Salmão Grelhado com Alcaparras' } }
+        { id: 'b1030000-0000-0000-0000-000000000003', prato_id: 'd3333333-3333-3333-3333-333333333333', quantidade: 1, preco_unitario: 98.00, pratos: { nome: 'Salmão Grelhado com Alcaparras' } }
       ]
     }
   ];
