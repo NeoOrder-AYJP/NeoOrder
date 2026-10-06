@@ -60,14 +60,17 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 
 ## 4. Correções e Alterações
 
-### 1. Correções de Conexão, Infraestrutura e Interface
+### 1. Correções de Conexão, Infraestrutura, Banco e Interface
 
-#### 1.1. Infraestrutura e Conexão (Supabase & GitHub Pages)
+#### 1.1. Infraestrutura, Schema do Banco (Supabase) e GitHub Pages
+- **Revisão e Sincronização do Schema (`supabase-schema.md`):**
+  - Atualização completa da documentação da estrutura de banco em `supabase-schema.md` para refletir os ajustes recentes de permissões e tipos de dados.
+  - Definição explícita de UUID como valor padrão (`gen_random_uuid()`) para a coluna `id` nas tabelas `pedidos` e `pedido_itens`.
+  - Atualização da coluna `telefone` na tabela `clientes` para `DROP NOT NULL` (opcional).
+  - Mapeamento das regras de políticas de segurança Row Level Security (RLS) e concessões (`GRANT INSERT, SELECT, UPDATE, DELETE TO anon, authenticated`) para as tabelas `pratos`, `prato_ingredientes`, `pedidos` e `pedido_itens`.
 - **Correção dos Erros 401 (Unauthorized) & RLS:** 
   - Centralização das chaves públicas (`SUPABASE_URL` e `SUPABASE_ANON_KEY`) no arquivo `js/supabase.js` e inclusão obrigatória dos cabeçalhos HTTP (`apikey` e `Authorization: Bearer <ANON_KEY>`).
-  - Ajuste e liberação de políticas de Row Level Security (RLS) para autorizar operações de `INSERT`, `SELECT`, `UPDATE` e `DELETE` pelas roles `anon` e `authenticated` nas tabelas operacionais, de estoque e pedidos (`pratos`, `prato_ingredientes`, `pedidos`, `pedido_itens`).
-  - Execução de concessão explícita de permissões no PostgreSQL (`GRANT INSERT, SELECT, UPDATE, DELETE TO anon, authenticated`).
-- **Flexibilização da Tabela `clientes`:** Execução da instrução SQL `ALTER TABLE public.clientes ALTER COLUMN telefone DROP NOT NULL;` para permitir cadastro e identificação opcional do número de telefone no programa de fidelidade sem rejeição pelo banco.
+  - Aplicação prática e liberação das políticas de RLS para autorizar requisições das roles `anon` e `authenticated`.
 - **Ordem de Importação de Scripts:** Garantia de que a CDN do Supabase e o script `js/supabase.js` sejam carregados no topo de todas as páginas HTML antes de qualquer módulo de negócio.
 - **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
 
