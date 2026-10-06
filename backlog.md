@@ -62,18 +62,21 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 ### 1. Correções de Conexão, Infraestrutura e Interface
 
 #### 1.1. Infraestrutura e Conexão (Supabase & GitHub Pages)
-- **Correção do Erro 401 (Unauthorized) & RLS:** 
+- **Correção do Erro 401 (Unauthorized) & RLS:**
   - Centralização das chaves públicas (`SUPABASE_URL` e `SUPABASE_ANON_KEY`) no arquivo `js/supabase.js` e inclusão obrigatória dos cabeçalhos HTTP (`apikey` e `Authorization: Bearer <ANON_KEY>`).
   - Atualização das políticas de Row Level Security (RLS) nas tabelas `pedidos` e `pedido_itens` para permitir a criação e inserção de registros por usuários não autenticados via Supabase Auth (role `anon`/Mesas).
-  - Concessão de permissões explícitas no PostgreSQL (`GRANT INSERT, SELECT TO anon, authenticated`).
+  - Concessão de permissões explícitas no PostgreSQL (`GRANT INSERT, SELECT, UPDATE TO anon, authenticated`).
 - **Flexibilização da Tabela `clientes`:** Execução da instrução SQL `ALTER TABLE public.clientes ALTER COLUMN telefone DROP NOT NULL;` para permitir cadastro e identificação opcional do número de telefone no programa de fidelidade sem rejeição pelo banco.
 - **Ordem de Importação de Scripts:** Garantia de que a CDN do Supabase e o script `js/supabase.js` sejam carregados no topo de todas as páginas HTML antes de qualquer módulo de negócio.
 - **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
 
 #### 1.2. Correções de Sintaxe, Tipagem e Erros de Código (JS)
-- **Correção do Erro 400 (Bad Request no PATCH / POST de Pedidos):**
+- **Correção do Erro 400 (Bad Request em POST / PATCH de Pedidos):**
   - **Causa:** Envio de IDs estáticos em formato string simples (ex: `"o1032"`, `"o1001"`) para a coluna `id` da tabela `pedidos`, gerando erro de conversão de tipo (`invalid input syntax for type uuid`).
-  - **Solução:** Padronização absoluta de todos os identificadores de pedidos para o formato `UUID` válido, gerados via `crypto.randomUUID()` no frontend ou diretamente pelo Supabase.
+  - **Solução:** Padronização absoluta de todos os identificadores de pedidos para o formato `UUID` válido, gerados via `crypto.randomUUID()` no frontend ou diretamente pelo Supabase via `gen_random_uuid()`.
+- **Correção do Erro 409 (Conflict em POST /pedido_itens):**
+  - **Causa:** Tentativa de inserção manual de IDs duplicados na tabela `pedido_itens` ou violação de chave primária durante o envio do payload do carrinho.
+  - **Solução:** Omissão da propriedade `id` no array de objetos do `.insert()`, permitindo a geração automática de UUID pelo banco de dados.
 - **Correção do Erro Sintático de Redeclaração no Escopo Global (`SyntaxError: Identifier 'db' has already been declared`):**
   - **Identificação da Falha:** Erro do tipo `SyntaxError` apontado na linha 1 (bloco de comentário `/**`) dos scripts `js/cardapio.js`, `js/estoque.js` e `js/faturamento.js`.
   - **Tipo de Erro:** Exceção de análise sintática em tempo de compilação/parsing decorrente do *hoisting* e colisão de nomes de identificadores (`db`) declarados via `const` ou `let` no escopo global através da inclusão múltipla de scripts HTML.
