@@ -63,15 +63,17 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 ### 1. Correções de Conexão, Infraestrutura e Interface
 
 #### 1.1. Infraestrutura e Conexão (Supabase & GitHub Pages)
-- **Correção do Erro 401 (Unauthorized) & RLS:**
+- **Correção do Erro 401 (Unauthorized) em Tabela Restritas (`pratos`, `prato_ingredientes`, `pedidos`, `pedido_itens`):**
   - Centralização das chaves públicas (`SUPABASE_URL` e `SUPABASE_ANON_KEY`) no arquivo `js/supabase.js` e inclusão obrigatória dos cabeçalhos HTTP (`apikey` e `Authorization: Bearer <ANON_KEY>`).
-  - Atualização das políticas de Row Level Security (RLS) nas tabelas `pedidos` e `pedido_itens` para permitir a criação e inserção de registros por usuários não autenticados via Supabase Auth (role `anon`/Mesas).
-  - Concessão de permissões explícitas no PostgreSQL (`GRANT INSERT, SELECT, UPDATE TO anon, authenticated`).
+  - Ajuste e criação de políticas de Row Level Security (RLS) para autorizar operações de `INSERT`, `SELECT`, `UPDATE` e `DELETE` pelas roles `anon` e `authenticated` nas tabelas operacionais e de estoque (`pratos`, `prato_ingredientes`, `pedidos`, `pedido_itens`).
+  - Execução de concessão explícita de permissões no PostgreSQL (`GRANT INSERT, SELECT, UPDATE, DELETE TO anon, authenticated`).
 - **Flexibilização da Tabela `clientes`:** Execução da instrução SQL `ALTER TABLE public.clientes ALTER COLUMN telefone DROP NOT NULL;` para permitir cadastro e identificação opcional do número de telefone no programa de fidelidade sem rejeição pelo banco.
 - **Ordem de Importação de Scripts:** Garantia de que a CDN do Supabase e o script `js/supabase.js` sejam carregados no topo de todas as páginas HTML antes de qualquer módulo de negócio.
 - **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
 
 #### 1.2. Correções de Sintaxe, Tipagem e Erros de Código (JS)
+- **Correção dos Erros 401 ao Salvar Pratos e Insumos (`estoque.js`):**
+  - Tratamento das chamadas `POST` para `pratos` e `prato_ingredientes` no gerenciamento do estoque, garantindo envio das credenciais corretas e captura adequada de exceções de autorização.
 - **Correção do Erro 400 (Bad Request em POST / PATCH de Pedidos):**
   - **Causa:** Envio de IDs estáticos em formato string simples (ex: `"o1032"`, `"o1001"`) para a coluna `id` da tabela `pedidos`, gerando erro de conversão de tipo (`invalid input syntax for type uuid`).
   - **Solução:** Padronização absoluta de todos os identificadores de pedidos para o formato `UUID` válido, gerados via `crypto.randomUUID()` no frontend ou diretamente pelo Supabase via `gen_random_uuid()`.
@@ -93,7 +95,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 #### 1.4. Perfis de Acesso, Autenticação e Regras de Negócio
 - **Reformulação do Login (4 Perfis):** Reestruturação do painel de login (`login.html` / `js/auth.js`) para suportar quatro perfis: Gerente, Atendente/Funcionário, Mesa e Cliente (Fidelidade com login por Usuário/E-mail e Senha, com campo opcional para Telefone).
 - **Visão do Atendente:** Restauração da tela operacional em `atendimento.html` para exibição de chamados das mesas e acompanhamento de pedidos em andamento.
-- **Gerenciamento de Estoque:** Interface de controle em `estoque.html` / `js/estoque.js` para consulta e edição de insumos pelo Gerente.
+- **Gerenciamento de Estoque:** Interface de controle em `estoque.html` / `js/estoque.js` para consulta e edição de insumos e pratos pelo Gerente.
 - **Painel Financeiro:** Painel de relatórios em `faturamento.html` / `js/faturamento.js` restrito ao Gerente.
 - **Mecanismo de Fidelidade:** Integração com a tabela `clientes` e chamada à função RPC (`identificar_cliente_fidelidade`), exibindo saldo de pontos e histórico de visitas no topo de `cardapio.html`.
 
