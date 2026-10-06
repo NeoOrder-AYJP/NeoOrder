@@ -56,36 +56,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Default Mock Fallback Data
   const mockOrders = [
     {
-      id: 'o1001',
-      mesa_id: 'm001',
+      id: 'f1001000-0000-0000-0000-000000001001',
+      mesa_id: '10000000-0000-0000-0000-000000000001',
       mesa_nome: 'Mesa 01',
       valor_total: 89.90,
       status: 'Entregue',
       criado_em: new Date().toISOString(),
       pedido_itens: [
-        { id: 'pi101', prato_id: 'd1111111-1111-1111-1111-111111111111', quantidade: 1, preco_unitario: 89.90, pratos: { nome: 'Filé Mignon ao Roti' } }
+        { id: 'f1010000-0000-0000-0000-000000000101', prato_id: 'd1111111-1111-1111-1111-111111111111', quantidade: 1, preco_unitario: 89.90, pratos: { nome: 'Filé Mignon ao Roti' } }
       ]
     },
     {
-      id: 'o1002',
-      mesa_id: 'm002',
+      id: 'f1002000-0000-0000-0000-000000001002',
+      mesa_id: '10000000-0000-0000-0000-000000000002',
       mesa_nome: 'Mesa 02',
       valor_total: 149.00,
       status: 'Entregue',
       criado_em: new Date(Date.now() - 86400000).toISOString(),
       pedido_itens: [
-        { id: 'pi102', prato_id: 'd2222222-2222-2222-2222-222222222222', quantidade: 2, preco_unitario: 74.50, pratos: { nome: 'Risoto de Cogumelos Frescos' } }
+        { id: 'f1020000-0000-0000-0000-000000000102', prato_id: 'd2222222-2222-2222-2222-222222222222', quantidade: 2, preco_unitario: 74.50, pratos: { nome: 'Risoto de Cogumelos Frescos' } }
       ]
     },
     {
-      id: 'o1003',
-      mesa_id: 'm003',
+      id: 'f1003000-0000-0000-0000-000000001003',
+      mesa_id: '10000000-0000-0000-0000-000000000003',
       mesa_nome: 'Mesa 03',
       valor_total: 98.00,
       status: 'Cancelado',
       criado_em: new Date().toISOString(),
       pedido_itens: [
-        { id: 'pi103', prato_id: 'd3333333-3333-3333-3333-333333333333', quantidade: 1, preco_unitario: 98.00, pratos: { nome: 'Salmão Grelhado com Alcaparras' } }
+        { id: 'f1030000-0000-0000-0000-000000000103', prato_id: 'd3333333-3333-3333-3333-333333333333', quantidade: 1, preco_unitario: 98.00, pratos: { nome: 'Salmão Grelhado com Alcaparras' } }
       ]
     }
   ];
