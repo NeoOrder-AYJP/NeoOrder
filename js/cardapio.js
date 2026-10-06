@@ -393,7 +393,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
 
       const pedidoItens = cart.map(item => ({
-        id: crypto.randomUUID(),
         pedido_id: pedidoId,
         prato_id: item.dishId,
         quantidade: item.quantidade,
