@@ -58,32 +58,40 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 
 ## 4. Correções e Alterações
 
-### 1. Infraestrutura e Conexão (Supabase & GitHub Pages)
-- **Correção do Erro 401 (Unauthorized):** Centralização das chaves públicas (`SUPABASE_URL` e `SUPABASE_ANON_KEY`) no arquivo `js/supabase.js` e inclusão obrigatória dos cabeçalhos HTTP (`apikey` e `Authorization: Bearer <ANON_KEY>`) nas requisições.
+### 1. Correções de Conexão, Infraestrutura e Interface
+
+#### 1.1. Infraestrutura e Conexão (Supabase & GitHub Pages)
+- **Correção do Erro 401 (Unauthorized) & RLS:** 
+  - Centralização das chaves públicas (`SUPABASE_URL` e `SUPABASE_ANON_KEY`) no arquivo `js/supabase.js` e inclusão obrigatória dos cabeçalhos HTTP (`apikey` e `Authorization: Bearer <ANON_KEY>`).
+  - Atualização das políticas de Row Level Security (RLS) nas tabelas `pedidos` e `pedido_itens` para permitir a criação e inserção de registros por usuários não autenticados via Supabase Auth (role `anon`/Mesas).
+  - Concessão de permissões explícitas no PostgreSQL (`GRANT INSERT, SELECT TO anon, authenticated`).
+- **Flexibilização da Tabela `clientes`:** Execução da instrução SQL `ALTER TABLE public.clientes ALTER COLUMN telefone DROP NOT NULL;` para permitir cadastro e identificação opcional do número de telefone no programa de fidelidade sem rejeição pelo banco.
 - **Ordem de Importação de Scripts:** Garantia de que a CDN do Supabase e o script `js/supabase.js` sejam carregados no topo de todas as páginas HTML antes de qualquer módulo de negócio.
 - **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
 
-### 2. Correções de Bug, Revisão de Código e Interface (UI/UX)
-- **Correção de Erro Sintático de Redeclaração no Escopo Global (Atribuído à Linha 1 de `cardapio.js`, `estoque.js` e `faturamento.js`):**
-  - **Identificação da Falha:** Erro do tipo `Uncaught SyntaxError: Identifier 'db' has already been declared`, apontado na linha 1 (bloco de comentário `/**`) dos scripts `js/cardapio.js`, `js/estoque.js` e `js/faturamento.js`.
-  - **Tipo de Erro:** Exceção de análise sintática em tempo de compilação/parsing (`SyntaxError`) decorrente do *hoisting* e colisão de nomes de identificadores (`db`) declarados via `const` ou `let` no escopo global através da inclusão múltipla de scripts HTML.
-  - **Solução Técnica:** Remoção de qualquer variável local ou global com o nome `db` e padronização absoluta do acesso às APIs do banco através das funções utilitárias `getSupabase()` ou da propriedade explícita no objeto global `window.supabaseClient`.
+#### 1.2. Correções de Sintaxe, Tipagem e Erros de Código (JS)
+- **Correção do Erro 400 (Bad Request no PATCH / POST de Pedidos):**
+  - **Causa:** Envio de IDs estáticos em formato string simples (ex: `"o1032"`, `"o1001"`) para a coluna `id` da tabela `pedidos`, gerando erro de conversão de tipo (`invalid input syntax for type uuid`).
+  - **Solução:** Padronização absoluta de todos os identificadores de pedidos para o formato `UUID` válido, gerados via `crypto.randomUUID()` no frontend ou diretamente pelo Supabase.
+- **Correção do Erro Sintático de Redeclaração no Escopo Global (`SyntaxError: Identifier 'db' has already been declared`):**
+  - **Identificação da Falha:** Erro do tipo `SyntaxError` apontado na linha 1 (bloco de comentário `/**`) dos scripts `js/cardapio.js`, `js/estoque.js` e `js/faturamento.js`.
+  - **Tipo de Erro:** Exceção de análise sintática em tempo de compilação/parsing decorrente do *hoisting* e colisão de nomes de identificadores (`db`) declarados via `const` ou `let` no escopo global através da inclusão múltipla de scripts HTML.
+  - **Solução Técnica:** Remoção de qualquer variável local ou global com o nome `db` e padronização do acesso exclusivo às APIs do banco através da função utilitária `getSupabase()` ou da propriedade global `window.supabaseClient`.
 - **Correção do Loading Infinito Pós-Login:** Ajuste no fluxo de autenticação e carregamento de dados em `js/auth.js` e nas páginas restritas (`faturamento.html`, `contas.html`, `cardapio.html`, `atendimento.html`), tratando retornos vazios e exceções da API do Supabase para evitar o congelamento da interface.
 - **Revisão de Código em `js/contas.js`:** Varredura completa para correção de erros de lógica, escopo e execução no gerenciamento de contas de mesas e funcionários.
-- **Fidelidade ao Design (`themes`):** Padronização visual de todas as interfaces seguindo os componentes e folhas de estilo armazenados no diretório `themes/`.
-- **Sistema de Temas:** Implementação da alternância entre **Tema Claro (Light)** e **Tema Escuro (Dark)**, persistida via `localStorage`.
-- **Carrinho Interativo:** Manutenção do contador de quantidade (`- 1 +`) para os itens do carrinho no cardápio.
 
-### 3. Perfis de Acesso e Permissões
+#### 1.3. Interface, Componentes (UI/UX) e Fidelidade ao Design
+- **Fidelidade ao Design (`themes/`):** Padronização visual de todas as interfaces seguindo os componentes e folhas de estilo armazenados no diretório `themes/`.
+- **Sistema de Temas:** Implementação da alternância entre **Tema Claro (Light)** e **Tema Escuro (Dark)**, persistida via `localStorage`.
+- **Carrinho Interativo:** Manutenção do contador de quantidade (`- 1 +`) para os itens do carrinho diretamente nas cartas do cardápio.
+
+#### 1.4. Perfis de Acesso, Autenticação e Regras de Negócio
 - **Reformulação do Login (4 Perfis):** Reestruturação do painel de login (`login.html` / `js/auth.js`) para suportar quatro perfis: Gerente, Atendente/Funcionário, Mesa e Cliente (Fidelidade com login por Usuário/E-mail e Senha, com campo opcional para Telefone).
 - **Visão do Atendente:** Restauração da tela operacional em `atendimento.html` para exibição de chamados das mesas e acompanhamento de pedidos em andamento.
 - **Gerenciamento de Estoque:** Interface de controle em `estoque.html` / `js/estoque.js` para consulta e edição de insumos pelo Gerente.
 - **Painel Financeiro:** Painel de relatórios em `faturamento.html` / `js/faturamento.js` restrito ao Gerente.
+- **Mecanismo de Fidelidade:** Integração com a tabela `clientes` e chamada à função RPC (`identificar_cliente_fidelidade`), exibindo saldo de pontos e histórico de visitas no topo de `cardapio.html`.
 
-### 4. Sistema de Fidelidade
-- **Mecanismo de Pontuação e Visitas:** Integração com a tabela `clientes` e chamada à função RPC (`identificar_cliente_fidelidade`) no Supabase, permitindo a inclusão opcional do telefone.
-- **Exibição no Frontend:** Exibição do saldo de pontos e histórico de visitas no topo do `cardapio.html` para clientes identificados.
-
-### 5. Regras de Documentação e Versionamento
+#### 1.5. Regras de Documentação e Versionamento
 - **Preservação da Especificação:** O arquivo `spec.md` permanece congelado (sem alterações).
 - **Registro Obrigatório no Histórico:** Obrigatoriedade do registro de todas as intervenções na tabela `2. Historico de Alteracoes` do `backlog.md` a cada ciclo de desenvolvimento.
