@@ -41,7 +41,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 29/09/2026 | 1.9 | Correcao | Geral/Integração | Padronização da ordem dos scripts HTML, eliminação do erro de declaração de 'db' na linha 1 em cardapio.js, estoque.js e faturamento.js, prevenção de loading infinito via safeSupabaseQuery timeout, suporte a 4 perfis de login e persistência de tema via localStorage. | Jules | Concluido |
 | 29/09/2026 | 2.0 | Refatoracao | Infraestrutura/Supabase | Centralização de credenciais e cabeçalhos em js/supabase.js, substituição de IDs simples por UUIDs válidos em atendimento.js e faturamento.js (resolução de erro 400), e verificação das correções de subtópicos 1.1 a 1.5. | Jules | Concluido |
 | 29/09/2026 | 2.1 | Correcao | Pedidos/Supabase | Remoção do campo 'id' na inserção de pedido_itens (resolução de erro 409 Conflict) e garantia de geração de UUID válido via crypto.randomUUID() na tabela pedidos (resolução de erro 400 Bad Request). | Jules | Concluido |
-| 06/10/2026 | 2.2 | Correcao | Geral/Autenticação & HTTP | Resolução dos erros HTTP 401, 400 e 409 em estoque.js, cardapio.js, atendimento.js e faturamento.js, inclusão da função utilitária window.getSupabase(), eliminação de referências à variável 'db' e prevenção de loading infinito com tratamento de exceções no auth.js. | Jules | Concluido |
+| 06/10/2026 | 2.2 | Correcao | Geral/Autenticação & HTTP | Resolução dos erros HTTP 401, 400 e 409 em estoque.js, cardapio.js, atendimento.js e faturamento.js, inclusão da função utilitária window.getSupabase(), atualização do supabase-schema.md, eliminação de referências à variável 'db' e prevenção de loading infinito com tratamento de exceções no auth.js. | Jules | Concluido |
 
 ---
 
@@ -61,14 +61,17 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 
 ## 4. Correções e Alterações
 
-### 1. Correções de Conexão, Infraestrutura e Interface
+### 1. Correções de Conexão, Infraestrutura, Banco e Interface
 
-#### 1.1. Infraestrutura e Conexão (Supabase & GitHub Pages)
+#### 1.1. Infraestrutura, Schema do Banco (Supabase) e GitHub Pages
+- **Revisão e Sincronização do Schema (`supabase-schema.md`):**
+  - Atualização completa da documentação da estrutura de banco em `supabase-schema.md` para refletir os ajustes recentes de permissões e tipos de dados.
+  - Definição explícita de UUID como valor padrão (`gen_random_uuid()`) para a coluna `id` nas tabelas `pedidos` e `pedido_itens`.
+  - Atualização da coluna `telefone` na tabela `clientes` para `DROP NOT NULL` (opcional).
+  - Mapeamento das regras de políticas de segurança Row Level Security (RLS) e concessões (`GRANT INSERT, SELECT, UPDATE, DELETE TO anon, authenticated`) para as tabelas `pratos`, `prato_ingredientes`, `pedidos` e `pedido_itens`.
 - **Correção dos Erros 401 (Unauthorized) & RLS:** 
   - Centralização das chaves públicas (`SUPABASE_URL` e `SUPABASE_ANON_KEY`) no arquivo `js/supabase.js` e inclusão obrigatória dos cabeçalhos HTTP (`apikey` e `Authorization: Bearer <ANON_KEY>`).
-  - Ajuste e liberação de políticas de Row Level Security (RLS) para autorizar operações de `INSERT`, `SELECT`, `UPDATE` e `DELETE` pelas roles `anon` e `authenticated` nas tabelas operacionais, de estoque e pedidos (`pratos`, `prato_ingredientes`, `pedidos`, `pedido_itens`).
-  - Execução de concessão explícita de permissões no PostgreSQL (`GRANT INSERT, SELECT, UPDATE, DELETE TO anon, authenticated`).
-- **Flexibilização da Tabela `clientes`:** Execução da instrução SQL `ALTER TABLE public.clientes ALTER COLUMN telefone DROP NOT NULL;` para permitir cadastro e identificação opcional do número de telefone no programa de fidelidade sem rejeição pelo banco.
+  - Aplicação prática e liberação das políticas de RLS para autorizar requisições das roles `anon` e `authenticated`.
 - **Ordem de Importação de Scripts:** Garantia de que a CDN do Supabase e o script `js/supabase.js` sejam carregados no topo de todas as páginas HTML antes de qualquer módulo de negócio.
 - **Remoção de Dependência Local:** Eliminação do uso de arquivos `.env` para execução direta e estática via GitHub Pages.
 

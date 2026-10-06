@@ -66,19 +66,6 @@
 | `ingrediente_id` | `uuid` | Primary |
 | `quantidade` | `numeric` |  |
 
-## Table `clientes`
-
-### Columns
-
-| Name | Type | Constraints |
-|------|------|-------------|
-| `id` | `uuid` | Primary |
-| `nome` | `varchar` |  |
-| `telefone` | `varchar` |  Nullable |
-| `pontos` | `int4` | Default `0` |
-| `visitas` | `int4` | Default `0` |
-| `criado_em` | `timestamptz` | Default `now()` |
-
 ## Table `pedidos`
 
 ### Columns
@@ -118,6 +105,20 @@
 | `criado_em` | `timestamptz` |  |
 | `atendido_em` | `timestamptz` |  Nullable |
 
+## Table `clientes`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `nome` | `varchar` |  |
+| `telefone` | `varchar` |  Nullable |
+| `total_visitas` | `int4` | Default `0` |
+| `pontos` | `int4` | Default `0` |
+| `criado_em` | `timestamptz` | Default `now()` |
+| `ultimo_acesso_em` | `timestamptz` |  Nullable |
+
 ## Permissions & RLS Policies
 
 ```sql
@@ -129,16 +130,10 @@ GRANT INSERT, SELECT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, aut
 
 | Policy | Command | Roles | Action | USING | WITH CHECK |
 |--------|---------|-------|--------|-------|------------|
-| `Gerente gerencia pratos` | ALL | public | PERMISSIVE | `eh_gerente()` | — |
 | `Leitura publica de pratos ativos` | SELECT | public | PERMISSIVE | `((ativo = true) OR eh_funcionario())` | — |
-| `Acesso total anon e authenticated` | ALL | anon, authenticated | PERMISSIVE | `true` | `true` |
-
-### `usuarios`
-
-| Policy | Command | Roles | Action | USING | WITH CHECK |
-|--------|---------|-------|--------|-------|------------|
-| `Funcionarios visualizam dados de usuarios` | SELECT | public | PERMISSIVE | `eh_funcionario()` | — |
-| `Gerente possui controle total de usuarios` | ALL | public | PERMISSIVE | `eh_gerente()` | — |
+| `Gerente gerencia pratos` | ALL | public | PERMISSIVE | `eh_gerente()` | — |
+| `Permitir inserção em pratos` | INSERT | anon, authenticated | PERMISSIVE | — | `true` |
+| `Permitir leitura em pratos` | SELECT | anon, authenticated | PERMISSIVE | `true` | — |
 
 ### `estoque`
 
@@ -151,21 +146,29 @@ GRANT INSERT, SELECT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, aut
 | Policy | Command | Roles | Action | USING | WITH CHECK |
 |--------|---------|-------|--------|-------|------------|
 | `Apenas Gerente acessa ingredientes do prato` | ALL | public | PERMISSIVE | `eh_gerente()` | — |
-| `Acesso total anon e authenticated` | ALL | anon, authenticated | PERMISSIVE | `true` | `true` |
+| `Permitir inserção em prato_ingredientes` | INSERT | anon, authenticated | PERMISSIVE | — | `true` |
+| `Permitir leitura em prato_ingredientes` | SELECT | anon, authenticated | PERMISSIVE | `true` | — |
+
+### `usuarios`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Gerente possui controle total de usuarios` | ALL | public | PERMISSIVE | `eh_gerente()` | — |
+| `Funcionarios visualizam dados de usuarios` | SELECT | public | PERMISSIVE | `eh_funcionario()` | — |
 
 ### `pedidos`
 
 | Policy | Command | Roles | Action | USING | WITH CHECK |
 |--------|---------|-------|--------|-------|------------|
 | `Funcionarios gerenciam pedidos` | ALL | public | PERMISSIVE | `eh_funcionario()` | — |
-| `Acesso total anon e authenticated` | ALL | anon, authenticated | PERMISSIVE | `true` | `true` |
+| `Permitir inserção pública de pedidos` | INSERT | public | PERMISSIVE | — | `true` |
 
 ### `pedido_itens`
 
 | Policy | Command | Roles | Action | USING | WITH CHECK |
 |--------|---------|-------|--------|-------|------------|
 | `Funcionarios gerenciam itens de pedidos` | ALL | public | PERMISSIVE | `eh_funcionario()` | — |
-| `Acesso total anon e authenticated` | ALL | anon, authenticated | PERMISSIVE | `true` | `true` |
+| `Permitir inserção pública de itens` | INSERT | public | PERMISSIVE | — | `true` |
 
 ### `chamados`
 
@@ -173,3 +176,9 @@ GRANT INSERT, SELECT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, aut
 |--------|---------|-------|--------|-------|------------|
 | `Funcionarios gerenciam chamados` | ALL | public | PERMISSIVE | `eh_funcionario()` | — |
 
+### `clientes`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Acesso público leitura clientes por telefone` | SELECT | public | PERMISSIVE | `true` | — |
+| `Funcionarios gerenciam clientes` | ALL | public | PERMISSIVE | `eh_funcionario()` | — |
