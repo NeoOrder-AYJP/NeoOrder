@@ -109,10 +109,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   let activeFilterMode = 'all'; // 'all' or 'available'
 
   // Helper to get supabase client safely
+  function getClient() {
+    return (window.getSupabase && window.getSupabase()) || window.supabaseClient || window.getSupabaseClient();
+  }
+
   // Load Menu and Stock Data
   async function loadData() {
     try {
-      const client = window.supabaseClient;
+      const client = getClient();
       if (client && typeof client.from === 'function') {
         const dishQuery = client.from('pratos').select('*').eq('ativo', true).order('nome');
         const { data: dishData, error: dishErr } = await window.safeSupabaseQuery(dishQuery, 2500);
@@ -400,7 +404,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }));
 
       // Debit ingredients from stock
-      const client = window.supabaseClient;
+      const client = getClient();
       cart.forEach(item => {
         const recipes = pratoIngredientesMap[item.dishId] || [];
         recipes.forEach(r => {
@@ -443,7 +447,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let orders = [];
     try {
-      const client = window.supabaseClient;
+      const client = getClient();
       if (client && typeof client.from === 'function') {
         const query = client
           .from('pedidos')
@@ -568,7 +572,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
 
       try {
-        const client = window.supabaseClient;
+        const client = getClient();
         if (client && typeof client.from === 'function') {
           const query = client.from('chamados').insert({
             id: newChamado.id,
@@ -611,7 +615,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Realtime Subscription
   function setupRealtime() {
-    const client = window.supabaseClient;
+    const client = getClient();
     if (client && typeof client.channel === 'function') {
       client
         .channel('cardapio-realtime')

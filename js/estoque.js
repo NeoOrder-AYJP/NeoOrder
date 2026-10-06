@@ -117,10 +117,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Helper to get supabase client safely
+  function getClient() {
+    return (window.getSupabase && window.getSupabase()) || window.supabaseClient || window.getSupabaseClient();
+  }
+
   // Load All Data
   async function loadData() {
     try {
-      const client = window.supabaseClient;
+      const client = getClient();
       if (client && typeof client.from === 'function') {
         const { data: ingData, error: ingErr } = await client.from('estoque').select('*').order('nome');
         if (!ingErr && ingData && ingData.length > 0) {
@@ -378,7 +382,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const newQte = Math.max(0, parseFloat(ing.quantidade) + delta);
     ing.quantidade = newQte;
 
-    const client = window.supabaseClient;
+    const client = getClient();
     if (client && typeof client.from === 'function') {
       client.from('estoque').update({ quantidade: newQte, atualizado_em: new Date().toISOString() }).eq('id', id).then();
     }
@@ -426,7 +430,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       closeIngredientModal();
 
-      const client = window.supabaseClient;
+      const client = getClient();
       if (id) {
         const ing = ingredients.find(i => i.id === id);
         if (ing) {
@@ -463,7 +467,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!confirm('Deseja realmente remover este insumo do estoque?')) return;
 
     ingredients = ingredients.filter(i => i.id !== id);
-    const client = window.supabaseClient;
+    const client = getClient();
     if (client && typeof client.from === 'function') {
       client.from('estoque').delete().eq('id', id).then();
     }
@@ -566,7 +570,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       let dishId = id;
-      const client = window.supabaseClient;
+      const client = getClient();
 
       if (id) {
         const dish = dishes.find(d => d.id === id);
@@ -579,7 +583,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           dish.ativo = ativo;
 
           if (client && typeof client.from === 'function') {
-            client.from('pratos').update({ nome, descricao, preco, imagem, destaque, ativo }).eq('id', id).then();
+            const res = await window.safeSupabaseQuery(
+              client.from('pratos').update({ nome, descricao, preco, imagem, destaque, ativo }).eq('id', id)
+            );
+            if (res.error) console.error("Erro ao atualizar prato:", res.error);
           }
         }
       } else {
@@ -597,23 +604,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         dishes.push(newDish);
 
         if (client && typeof client.from === 'function') {
-          client.from('pratos').insert(newDish).then();
+          const res = await window.safeSupabaseQuery(
+            client.from('pratos').insert(newDish)
+          );
+          if (res.error) console.error("Erro ao inserir prato:", res.error);
         }
       }
 
       pratoIngredientesMap[dishId] = newRecipes;
 
       if (client && typeof client.from === 'function') {
-        client.from('prato_ingredientes').delete().eq('prato_id', dishId).then(() => {
-          if (newRecipes.length > 0) {
-            const piInserts = newRecipes.map(r => ({
-              prato_id: dishId,
-              ingrediente_id: r.ingrediente_id,
-              quantidade: r.quantidade
-            }));
-            client.from('prato_ingredientes').insert(piInserts).then();
-          }
-        });
+        await window.safeSupabaseQuery(client.from('prato_ingredientes').delete().eq('prato_id', dishId));
+        if (newRecipes.length > 0) {
+          const piInserts = newRecipes.map(r => ({
+            prato_id: dishId,
+            ingrediente_id: r.ingrediente_id,
+            quantidade: r.quantidade
+          }));
+          const piRes = await window.safeSupabaseQuery(client.from('prato_ingredientes').insert(piInserts));
+          if (piRes.error) console.error("Erro ao inserir prato_ingredientes:", piRes.error);
+        }
       }
 
       renderKPIs();
@@ -627,7 +637,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     dishes = dishes.filter(d => d.id !== id);
     delete pratoIngredientesMap[id];
 
-    const client = window.supabaseClient;
+    const client = getClient();
     if (client && typeof client.from === 'function') {
       client.from('prato_ingredientes').delete().eq('prato_id', id).then();
       client.from('pratos').delete().eq('id', id).then();
@@ -639,7 +649,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Realtime Subscription
   function setupRealtime() {
-    const client = window.supabaseClient;
+    const client = getClient();
     if (client && typeof client.channel === 'function') {
       client
         .channel('estoque-realtime')

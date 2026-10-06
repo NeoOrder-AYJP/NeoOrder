@@ -80,7 +80,7 @@ function setupRealtimeSubscription() {
 async function loadMenuData() {
   try {
     let dishes = [];
-    const client = window.supabaseClient || db;
+    const client = (window.getSupabase && window.getSupabase()) || window.supabaseClient || window.getSupabaseClient();
 
     if (client && typeof client.from === 'function') {
       const query = client.from('pratos').select('*').eq('ativo', true);

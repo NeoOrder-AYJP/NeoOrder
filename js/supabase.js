@@ -33,6 +33,10 @@ window.getSupabaseClient = function() {
   return window.supabaseClient;
 };
 
+window.getSupabase = function() {
+  return window.getSupabaseClient();
+};
+
 // Global Safe Query Helper with Timeout Fallback to prevent infinite loading
 window.safeSupabaseQuery = async function(queryPromise, timeoutMs = 2500) {
   let timeoutId;
