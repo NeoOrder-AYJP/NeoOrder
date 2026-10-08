@@ -621,8 +621,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             ingrediente_id: r.ingrediente_id,
             quantidade: r.quantidade
           }));
-          const piRes = await window.safeSupabaseQuery(client.from('prato_ingredientes').insert(piInserts));
-          if (piRes.error) console.error("Erro ao inserir prato_ingredientes:", piRes.error);
+          const piRes = await window.safeSupabaseQuery(
+            client.from('prato_ingredientes').upsert(piInserts, { onConflict: 'prato_id,ingrediente_id' })
+          );
+          if (piRes.error) console.error("Erro ao realizar upsert em prato_ingredientes:", piRes.error);
         }
       }
 

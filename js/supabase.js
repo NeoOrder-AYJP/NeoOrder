@@ -11,8 +11,7 @@ if (window.supabase && window.supabase.createClient) {
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: {
       headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+        apikey: SUPABASE_ANON_KEY
       }
     }
   });
