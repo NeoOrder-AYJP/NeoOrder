@@ -72,11 +72,11 @@
 
 | Name | Type | Constraints |
 |------|------|-------------|
-| `id` | `uuid` | Primary Default `gen_random_uuid()` |
+| `id` | `uuid` | Primary |
 | `mesa_id` | `uuid` |  |
 | `valor_total` | `numeric` |  |
 | `status` | `varchar` |  |
-| `criado_em` | `timestamptz` | Default `now()` |
+| `criado_em` | `timestamptz` |  |
 | `atualizado_em` | `timestamptz` |  |
 | `entregue_em` | `timestamptz` |  Nullable |
 
@@ -86,7 +86,7 @@
 
 | Name | Type | Constraints |
 |------|------|-------------|
-| `id` | `uuid` | Primary Default `gen_random_uuid()` |
+| `id` | `uuid` | Primary |
 | `pedido_id` | `uuid` |  |
 | `prato_id` | `uuid` |  |
 | `quantidade` | `int4` |  |
@@ -113,18 +113,13 @@
 |------|------|-------------|
 | `id` | `uuid` | Primary |
 | `nome` | `varchar` |  |
-| `telefone` | `varchar` |  Nullable |
-| `total_visitas` | `int4` | Default `0` |
-| `pontos` | `int4` | Default `0` |
-| `criado_em` | `timestamptz` | Default `now()` |
-| `ultimo_acesso_em` | `timestamptz` |  Nullable |
+| `telefone` | `varchar` |  Nullable Unique |
+| `total_visitas` | `int4` |  |
+| `pontos` | `int4` |  |
+| `criado_em` | `timestamptz` |  |
+| `ultimo_acesso_em` | `timestamptz` |  |
 
-## Permissions & RLS Policies
-
-```sql
--- Concessão explícita de permissões para roles do Supabase
-GRANT INSERT, SELECT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-```
+## RLS Policies
 
 ### `pratos`
 
