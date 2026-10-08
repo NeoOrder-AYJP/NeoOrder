@@ -105,3 +105,14 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 #### 1.5. Regras de Documentação e Versionamento
 - **Preservação da Especificação:** O arquivo `spec.md` permanece congelado (sem alterações).
 - **Registro Obrigatório no Histórico:** Obrigatoriedade do registro de todas as intervenções na tabela `2. Historico de Alteracoes` do `backlog.md` a cada ciclo de desenvolvimento.
+
+#### 1.6. Ações Pendentes e Correções Adicionais
+- **Erro 409 (Conflict) no POST de `prato_ingredientes`:** 
+  - **Problema:** A tabela `prato_ingredientes` define `prato_id` e `ingrediente_id` como chaves primárias. O erro indica uma tentativa de inserir um relacionamento que já existe no banco, violando a restrição de unicidade.
+  - **Correção Solicitada:** Modificar a operação no arquivo `estoque.js` para utilizar a função `.upsert()` ao invés de `.insert()`, ou implementar uma exclusão dos ingredientes antigos antes de salvar a nova configuração do prato.
+- **Erro 400 (Bad Request) no POST de `pedidos`:**
+  - **Problema:** Envio de dados com tipo incompatível para o esquema do banco. A tabela `pedidos` exige estritamente valores do tipo `uuid` para as colunas `id` e `mesa_id`. O envio de strings genéricas ou IDs mal formatados pela interface do carrinho gera falha de sintaxe no PostgreSQL.
+  - **Correção Solicitada:** Validar a criação do objeto de pedido no JavaScript, garantindo que o `mesa_id` proveniente da sessão e o `id` (caso gerado no frontend) sejam UUIDs estritamente válidos, como gerados via `crypto.randomUUID()`.
+- **Erro 401 (Unauthorized) no POST de `estoque`:**
+  - **Problema:** As políticas de segurança (RLS) da tabela `estoque` permitem operações apenas para usuários que satisfaçam a condição `eh_gerente()`. O arquivo `js/supabase.js` foi configurado com o cabeçalho global `Authorization: Bearer ${SUPABASE_ANON_KEY}`, o que sobrescreve o token (JWT) do usuário autenticado e força todas as requisições a serem lidas como usuário anônimo (`anon`), resultando em bloqueio imediato pelas regras de RLS do Supabase.
+  - **Correção Solicitada:** Acessar `js/supabase.js` e remover a linha `Authorization: Bearer ${SUPABASE_ANON_KEY}` do bloco `global.headers`. O Supabase Client injetará automaticamente o JWT correto da sessão ativa se a configuração global de Authorization não for forçada.
