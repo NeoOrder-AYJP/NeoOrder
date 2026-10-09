@@ -250,8 +250,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const perfil = tipo === 'funcionario' ? document.getElementById('accountPerfil').value : tipo;
       const ativo = document.getElementById('accountStatus').value === 'true';
 
-      const payload = { tipo, nome, login, senha, perfil, ativo };
-      const client = window.supabaseClient;
+      const payload = { tipo, nome, login, perfil, ativo };
+      const localAccData = { ...payload, senha };
+      const client = (window.getSupabase && window.getSupabase()) || window.supabaseClient || window.getSupabaseClient();
 
       try {
         if (id) {
@@ -263,15 +264,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           const idx = accountsList.findIndex(a => a.id === id);
           if (idx !== -1) {
-            accountsList[idx] = { ...accountsList[idx], ...payload };
+            accountsList[idx] = { ...accountsList[idx], ...localAccData };
           }
         } else {
           // Insert
-          const newId = crypto.randomUUID ? crypto.randomUUID() : `user-${Date.now()}`;
-          const newAcc = { id: newId, ...payload, criado_em: new Date().toISOString() };
+          const newId = crypto.randomUUID ? crypto.randomUUID() : '11111111-1111-1111-1111-111111111111';
+          const dbAcc = { id: newId, ...payload, criado_em: new Date().toISOString() };
+          const newAcc = { id: newId, ...localAccData, criado_em: new Date().toISOString() };
 
           if (client && typeof client.from === 'function') {
-            const query = client.from('usuarios').insert([newAcc]);
+            const query = client.from('usuarios').insert([dbAcc]);
             await window.safeSupabaseQuery(query, 2000);
           }
 
