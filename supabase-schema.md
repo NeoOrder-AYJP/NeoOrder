@@ -177,4 +177,3 @@
 |--------|---------|-------|--------|-------|------------|
 | `Acesso público leitura clientes por telefone` | SELECT | public | PERMISSIVE | `true` | — |
 | `Funcionarios gerenciam clientes` | ALL | public | PERMISSIVE | `eh_funcionario()` | — |
-

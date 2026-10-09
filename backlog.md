@@ -41,6 +41,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 29/09/2026 | 1.9 | Correcao | Geral/Integração | Padronização da ordem dos scripts HTML, eliminação do erro de declaração de 'db' na linha 1 em cardapio.js, estoque.js e faturamento.js, prevenção de loading infinito via safeSupabaseQuery timeout, suporte a 4 perfis de login e persistência de tema via localStorage. | Jules | Concluido |
 | 29/09/2026 | 2.0 | Refatoracao | Infraestrutura/Supabase | Centralização de credenciais e cabeçalhos em js/supabase.js, substituição de IDs simples por UUIDs válidos em atendimento.js e faturamento.js (resolução de erro 400), e verificação das correções de subtópicos 1.1 a 1.5. | Jules | Concluido |
 | 29/09/2026 | 2.1 | Correcao | Pedidos/Supabase | Remoção do campo 'id' na inserção de pedido_itens (resolução de erro 409 Conflict) e garantia de geração de UUID válido via crypto.randomUUID() na tabela pedidos (resolução de erro 400 Bad Request). | Jules | Concluido |
+| 08/10/2026 | 2.2 | Correcao | Geral/Autenticação & HTTP | Resolução dos erros HTTP 401, 400 e 409 em estoque.js, cardapio.js, atendimento.js e faturamento.js, inclusão da função utilitária window.getSupabase(), eliminação de referências à variável 'db' e prevenção de loading infinito com tratamento de exceções no auth.js. | Jules | Concluido |
 
 ---
 
@@ -107,7 +108,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - **Registro Obrigatório no Histórico:** Obrigatoriedade do registro de todas as intervenções na tabela `2. Historico de Alteracoes` do `backlog.md` a cada ciclo de desenvolvimento.
 
 #### 1.6. Ações Pendentes e Correções Adicionais
-- **Erro 409 (Conflict) no POST de `prato_ingredientes`:** 
+- **Erro 409 (Conflict) no POST de `prato_ingredientes`:**
   - **Problema:** A tabela `prato_ingredientes` define `prato_id` e `ingrediente_id` como chaves primárias. O erro indica uma tentativa de inserir um relacionamento que já existe no banco, violando a restrição de unicidade.
   - **Correção Solicitada:** Modificar a operação no arquivo `estoque.js` para utilizar a função `.upsert()` ao invés de `.insert()`, ou implementar uma exclusão dos ingredientes antigos antes de salvar a nova configuração do prato.
 - **Erro 400 (Bad Request) no POST de `pedidos`:**

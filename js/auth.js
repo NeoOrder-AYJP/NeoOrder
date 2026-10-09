@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       let user = null;
-      const client = window.supabaseClient;
+      const client = (window.getSupabase && window.getSupabase()) || window.supabaseClient || window.getSupabaseClient();
 
       // Try fetching from Supabase with quick timeout
       if (client && typeof client.from === 'function') {
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .eq('ativo', true)
             .maybeSingle();
 
-          const res = await window.safeSupabaseQuery(query, 2000);
+          const res = await (window.safeSupabaseQuery ? window.safeSupabaseQuery(query, 2000) : query);
           if (res && res.data) {
             user = res.data;
           }
@@ -218,27 +218,42 @@ document.addEventListener('DOMContentLoaded', () => {
 // Helper functions exported globally
 window.NeoAuth = {
   getUser() {
-    const data = sessionStorage.getItem('neoorder_user');
-    return data ? JSON.parse(data) : null;
+    try {
+      const data = sessionStorage.getItem('neoorder_user');
+      return data ? JSON.parse(data) : null;
+    } catch (e) {
+      console.error('Erro ao ler usuario da sessao:', e);
+      return null;
+    }
   },
   logout() {
-    sessionStorage.removeItem('neoorder_user');
+    try {
+      sessionStorage.removeItem('neoorder_user');
+    } catch (e) {
+      console.error('Erro ao encerrar sessao:', e);
+    }
     window.location.href = 'login.html';
   },
   requireAuth(allowedProfiles = []) {
-    const user = this.getUser();
-    if (!user) {
+    try {
+      const user = this.getUser();
+      if (!user) {
+        window.location.href = 'login.html';
+        return null;
+      }
+      const userProfile = user.perfil || user.tipo;
+      if (allowedProfiles.length > 0 &&
+          !allowedProfiles.includes(userProfile) &&
+          !allowedProfiles.includes(user.tipo)) {
+        alert('Acesso negado: Perfil sem permissão para esta área.');
+        window.location.href = 'index.html';
+        return null;
+      }
+      return user;
+    } catch (err) {
+      console.error('Erro em requireAuth:', err);
       window.location.href = 'login.html';
       return null;
     }
-    const userProfile = user.perfil || user.tipo;
-    if (allowedProfiles.length > 0 &&
-        !allowedProfiles.includes(userProfile) &&
-        !allowedProfiles.includes(user.tipo)) {
-      alert('Acesso negado: Perfil sem permissão para esta área.');
-      window.location.href = 'index.html';
-      return null;
-    }
-    return user;
   }
 };

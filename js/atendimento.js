@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Helper for Supabase Client
   function getClient() {
-    return window.supabaseClient;
+    return (window.getSupabase && window.getSupabase()) || window.supabaseClient || window.getSupabaseClient();
   }
 
   // Data State
