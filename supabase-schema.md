@@ -143,12 +143,15 @@
 | `Apenas Gerente acessa ingredientes do prato` | ALL | public | PERMISSIVE | `eh_gerente()` | — |
 | `Permitir inserção em prato_ingredientes` | INSERT | anon, authenticated | PERMISSIVE | — | `true` |
 | `Permitir leitura em prato_ingredientes` | SELECT | anon, authenticated | PERMISSIVE | `true` | — |
+| `Permitir atualização em prato_ingredientes` | UPDATE | anon, authenticated | PERMISSIVE | `true` | `true` |
+| `Permitir deleção em prato_ingredientes` | DELETE | anon, authenticated | PERMISSIVE | `true` | — |
 
 ### `usuarios`
 
 | Policy | Command | Roles | Action | USING | WITH CHECK |
 |--------|---------|-------|--------|-------|------------|
 | `Gerente possui controle total de usuarios` | ALL | public | PERMISSIVE | `eh_gerente()` | — |
+| `Permitir leitura publica de mesas` | SELECT | anon, authenticated | PERMISSIVE | `(((tipo)::text = 'mesa'::text) AND (ativo = true))` | — |
 | `Funcionarios visualizam dados de usuarios` | SELECT | public | PERMISSIVE | `eh_funcionario()` | — |
 
 ### `pedidos`
@@ -157,6 +160,7 @@
 |--------|---------|-------|--------|-------|------------|
 | `Funcionarios gerenciam pedidos` | ALL | public | PERMISSIVE | `eh_funcionario()` | — |
 | `Permitir inserção pública de pedidos` | INSERT | public | PERMISSIVE | — | `true` |
+| `Permitir atualização pública de pedidos` | UPDATE | anon, authenticated | PERMISSIVE | `true` | `true` |
 
 ### `pedido_itens`
 
@@ -164,6 +168,7 @@
 |--------|---------|-------|--------|-------|------------|
 | `Funcionarios gerenciam itens de pedidos` | ALL | public | PERMISSIVE | `eh_funcionario()` | — |
 | `Permitir inserção pública de itens` | INSERT | public | PERMISSIVE | — | `true` |
+| `Permitir atualização pública de itens` | UPDATE | anon, authenticated | PERMISSIVE | `true` | `true` |
 
 ### `chamados`
 
@@ -177,3 +182,4 @@
 |--------|---------|-------|--------|-------|------------|
 | `Acesso público leitura clientes por telefone` | SELECT | public | PERMISSIVE | `true` | — |
 | `Funcionarios gerenciam clientes` | ALL | public | PERMISSIVE | `eh_funcionario()` | — |
+
