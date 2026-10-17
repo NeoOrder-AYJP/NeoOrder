@@ -42,6 +42,8 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 29/09/2026 | 2.0 | Refatoracao | Infraestrutura/Supabase | Centralização de credenciais e cabeçalhos em js/supabase.js, substituição de IDs simples por UUIDs válidos em atendimento.js e faturamento.js (resolução de erro 400), e verificação das correções de subtópicos 1.1 a 1.5. | Jules | Concluido |
 | 29/09/2026 | 2.1 | Correcao | Pedidos/Supabase | Remoção do campo 'id' na inserção de pedido_itens (resolução de erro 409 Conflict) e garantia de geração de UUID válido via crypto.randomUUID() na tabela pedidos (resolução de erro 400 Bad Request). | Jules | Concluido |
 | 08/10/2026 | 2.2 | Correcao | Geral/Autenticação & HTTP | Resolução dos erros HTTP 401, 400 e 409 em estoque.js, cardapio.js, atendimento.js e faturamento.js, inclusão da função utilitária window.getSupabase(), eliminação de referências à variável 'db' e prevenção de loading infinito com tratamento de exceções no auth.js. | Jules | Concluido |
+| 17/10/2026 | 2.3 | Correcao | Geral/Cardápio, Pedidos, Supabase e Responsividade | Registro das regressões de disponibilidade dos pratos, imagens repetidas, falha no envio de pedidos (400 e 409), verificação dos erros 401 e revisão da responsividade e funcionalidades pendentes. | Stakeholder | Pendente |
+
 
 ---
 
@@ -120,3 +122,63 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - **Correção na Gestão de Utilizadores (`js/contas.js` - Erro 400 Bad Request em `POST /usuarios`):**
   - **Problema:** Tentativa de inserção da propriedade `senha` na tabela `usuarios`, campo inexistente no esquema do banco de dados.
   - **Solução:** Remoção da propriedade `senha` das operações de `.insert()` e `.update()` no `js/contas.js`.
+
+#### 1.7. Regressões de Disponibilidade, Imagens, Pedidos e Responsividade
+
+- **Correção do Cálculo de Disponibilidade dos Pratos:**
+  - **Problema:** A disponibilidade dos pratos deixou de funcionar corretamente após alterações recentes. Na tela inicial, os pratos podem aparecer como disponíveis mesmo quando não deveriam estar.
+  - **Causa:** Investigar a função `calculateAvailability()`, os dados de estoque e da tabela `prato_ingredientes`, além da lógica utilizada em `app.js` para determinar a disponibilidade.
+  - **Solução:** Corrigir o cálculo e garantir que a disponibilidade exibida na tela inicial e no cardápio corresponda aos dados reais do Supabase, considerando a quantidade de ingredientes necessária para preparar cada prato. Não considerar um prato disponível quando faltarem dados necessários para validar seu estoque.
+
+- **Correção das Imagens dos Pratos:**
+  - **Problema:** Após alterações recentes, vários pratos passaram a exibir a mesma imagem. Em outros casos, a interface apresenta a mensagem "Sem imagem".
+  - **Causa:** Investigar as últimas Pull Requests, o carregamento das imagens, os caminhos dos arquivos e os dados associados a cada prato no banco de dados.
+  - **Solução:** Restaurar as imagens corretas e garantir que cada prato utilize sua própria imagem. Implementar um tratamento adequado para imagens ausentes, sem substituir todas as imagens por uma imagem genérica. Validar o resultado na tela inicial e no cardápio completo.
+
+- **Correção do Envio de Pedidos à Cozinha (Erros HTTP 400 e 409):**
+  - **Problema:** O botão "Enviar pedido à cozinha" não registra corretamente o pedido no banco de dados. Foram observados erros HTTP 400 (Bad Request) e 409 (Conflict).
+  - **Causa:** Investigar o payload enviado pelo `js/cardapio.js`, os campos obrigatórios das tabelas `pedidos` e `pedido_itens`, os UUIDs, as chaves primárias e estrangeiras, as restrições do banco e as políticas RLS.
+  - **Solução:** Corrigir a criação do pedido e a inserção de seus itens de acordo com o esquema real do Supabase. Garantir que os identificadores tenham os formatos esperados e que não sejam enviados IDs duplicados ou campos inexistentes. Confirmar que o pedido seja registrado integralmente antes de apresentar uma mensagem de sucesso ao usuário.
+
+- **Verificação dos Erros HTTP 401 (Unauthorized):**
+  - **Problema:** O histórico registra a correção dos erros HTTP 401 em 08/10/2026, mas é necessário verificar se o problema foi realmente resolvido e se não voltou a ocorrer.
+  - **Causa:** Investigar os cabeçalhos das requisições, as chaves do Supabase, a sessão de autenticação e as políticas RLS dos módulos afetados.
+  - **Solução:** Reproduzir os fluxos de acesso e gravação de dados, identificar eventuais falhas restantes e corrigi-las. Registrar a correção como concluída somente após testes que confirmem o funcionamento.
+
+- **Correção da Navegação e Responsividade:**
+  - **Problema:** A navegação e a adaptação da interface a diferentes tamanhos de tela precisam ser revisadas para garantir uma experiência consistente.
+  - **Causa:** Verificar os estilos responsivos, as regras de mídia CSS, os cabeçalhos das páginas e o comportamento dos menus em dispositivos móveis.
+  - **Solução:** Padronizar a navegação entre as páginas, corrigir conflitos de CSS e garantir que menus, botões, tabelas, formulários e cards funcionem adequadamente em computadores, tablets e celulares.
+
+- **Validação de Regressões após Pull Requests:**
+  - **Problema:** Funcionalidades que estavam funcionando anteriormente apresentaram falhas após alterações recentes no projeto.
+  - **Causa:** Mudanças no código podem ter afetado módulos dependentes, integrações com o Supabase ou comportamentos já implementados.
+  - **Solução:** Comparar as alterações recentes com as versões anteriores que funcionavam, identificar a origem das regressões e criar testes de validação para disponibilidade, imagens, criação de pedidos, autenticação e responsividade. Evitar considerar uma funcionalidade concluída sem testar seus principais fluxos.
+
+---
+
+## 5. Pendências Identificadas na Análise Técnica
+
+### 5.1. Prioridade Alta — Integridade e Funcionamento do Sistema
+
+- **Consistência dos Status dos Pedidos:** Revisar os status utilizados no frontend e no banco de dados, garantindo compatibilidade com as restrições existentes e evitando falhas nas atualizações.
+- **Correção do Registro de Chamados:** Verificar a utilização dos campos da tabela `chamados`, especialmente a correspondência entre `motivo` e `justificativa`.
+- **Autenticação e Perfis de Acesso:** Revisar a validação dos perfis de Gerente, Atendente, Mesa e Cliente, garantindo compatibilidade com o esquema real do banco de dados e evitando verificações baseadas em campos inexistentes.
+- **Segurança das Operações:** Revisar as políticas RLS das tabelas utilizadas pelos módulos do sistema, garantindo que cada perfil tenha somente as permissões necessárias.
+- **Operações no Banco de Dados:** Avaliar a utilização das funções RPC existentes ou necessárias para operações críticas, como criação de pedidos, atualização de status, consulta de pedidos da mesa, faturamento e criação de chamados.
+- **Tratamento de Erros:** Eliminar mensagens de sucesso falsas e garantir que falhas de gravação ou consulta sejam informadas corretamente ao usuário.
+- **Dados Iniciais:** Verificar a existência e a consistência dos dados necessários para o funcionamento do sistema, incluindo mesas, pratos, ingredientes, estoque e fichas técnicas.
+
+### 5.2. Prioridade Média — Funcionalidades e Experiência de Uso
+
+- **Atualização em Tempo Real:** Verificar a configuração do Supabase Realtime e garantir a atualização dos pedidos e chamados nos módulos correspondentes.
+- **Chamados de Atendimento:** Garantir que a solicitação de atendimento funcione corretamente nas telas aplicáveis e que os chamados sejam registrados e exibidos aos funcionários.
+- **Faturamento:** Validar os cálculos financeiros, os filtros por período, a quantidade de pedidos, o ticket médio e os pratos mais vendidos.
+- **Estoque e Cancelamentos:** Verificar a baixa de ingredientes na criação de pedidos e o estorno correspondente em cancelamentos, evitando inconsistências no estoque.
+- **Navegação e Interface:** Revisar os links entre módulos, os menus e a adaptação das telas para dispositivos móveis.
+
+### 5.3. Prioridade Baixa — Documentação e Qualidade
+
+- **Testes de Regressão:** Criar ou atualizar testes para os principais fluxos do sistema, incluindo autenticação, disponibilidade, imagens, pedidos, chamados, estoque e faturamento.
+- **Documentação Técnica:** Conferir se o `backlog.md` e o `supabase-schema.md` correspondem ao comportamento real do sistema e ao esquema atual do banco de dados.
+- **Validação Final:** Executar os fluxos principais antes de registrar tarefas como concluídas, documentando os erros encontrados e as correções efetivamente validadas.
