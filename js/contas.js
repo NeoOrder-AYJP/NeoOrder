@@ -1,330 +1,276 @@
-// Accounts Management Logic for Gerente (NeoOrder)
+// js/contas.js — Gerenciamento de contas (gerente)
+//
+// Mesas e funcionários vivem na tabela `usuarios`. Senhas são gravadas com
+// bcrypt no banco (RPC `salvar_conta`); o front-end nunca as lê.
 
-document.addEventListener('DOMContentLoaded', async () => {
-  // Check manager permission
-  const currentUser = window.NeoAuth ? window.NeoAuth.requireAuth(['gerente']) : null;
-  if (!currentUser) return;
+(function () {
+  let token = null;
+  let contas = [];
+  let filtro = 'todas';
+  let busca = '';
 
-  // Display manager info
-  const userInfo = document.getElementById('userInfo');
-  if (userInfo) {
-    userInfo.textContent = `${currentUser.nome} (${(currentUser.perfil || currentUser.tipo || 'GERENTE').toUpperCase()})`;
-  }
+  document.addEventListener('DOMContentLoaded', async () => {
+    const user = window.NeoAuth.requireAuth(['gerente']);
+    if (!user) return;
 
-  // Logout Handler
-  const btnLogout = document.getElementById('btnLogout');
-  if (btnLogout) {
-    btnLogout.addEventListener('click', () => {
-      if (window.NeoAuth) window.NeoAuth.logout();
-    });
-  }
+    token = window.NeoAuth.getToken();
 
-  // DOM Elements
-  const accountsTableBody = document.getElementById('accountsTableBody');
-  const btnNewAccount = document.getElementById('btnNewAccount');
-  const accountModal = document.getElementById('accountModal');
-  const btnCloseModal = document.getElementById('btnCloseModal');
-  const btnCancelModal = document.getElementById('btnCancelModal');
-  const accountForm = document.getElementById('accountForm');
-  const accountTipo = document.getElementById('accountTipo');
-  const groupPerfil = document.getElementById('groupPerfil');
+    const userInfo = document.getElementById('userInfo');
+    if (userInfo) userInfo.textContent = `${user.nome} (GERENTE)`;
 
-  // Filter Tabs
-  const tabFilterAll = document.getElementById('tabFilterAll');
-  const tabFilterMesas = document.getElementById('tabFilterMesas');
-  const tabFilterClientes = document.getElementById('tabFilterClientes');
-  const tabFilterStaff = document.getElementById('tabFilterStaff');
+    bindEventos();
+    await carregarContas();
+  });
 
-  let currentFilter = 'all';
-  let accountsList = [];
+  async function carregarContas() {
+    const body = document.getElementById('accountsTableBody');
+    if (body) {
+      body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:var(--space-xl);"><span class="spinner"></span></td></tr>';
+    }
 
-  // In-memory fallback dataset
-  const fallbackAccounts = [
-    { id: '11111111-1111-1111-1111-111111111111', nome: 'Mesa 01', login: 'Mesa 01', senha: '123', tipo: 'mesa', perfil: 'mesa', ativo: true },
-    { id: '11111111-1111-1111-1111-111111111112', nome: 'Mesa 02', login: 'Mesa 02', senha: '123', tipo: 'mesa', perfil: 'mesa', ativo: true },
-    { id: '44444444-4444-4444-4444-444444444444', nome: 'Cliente Maria', login: 'cliente1', senha: '123', tipo: 'cliente', perfil: 'cliente', ativo: true },
-    { id: '22222222-2222-2222-2222-222222222222', nome: 'Atendente Carlos', login: 'atendente1', senha: '123', tipo: 'funcionario', perfil: 'atendente', ativo: true },
-    { id: '33333333-3333-3333-3333-333333333333', nome: 'Gerente Ana', login: 'gerente1', senha: '123', tipo: 'funcionario', perfil: 'gerente', ativo: true }
-  ];
-
-  // Load Accounts from Supabase
-  async function loadAccounts() {
     try {
-      const client = window.supabaseClient;
-      if (client && typeof client.from === 'function') {
-        const query = client
-          .from('usuarios')
-          .select('*')
-          .order('criado_em', { ascending: false });
-
-        const { data, error } = await window.safeSupabaseQuery(query, 2500);
-
-        if (error || !data || data.length === 0) {
-          console.warn('Usando contas locais de demonstração');
-          accountsList = [...fallbackAccounts];
-        } else {
-          accountsList = data;
-        }
-      } else {
-        accountsList = [...fallbackAccounts];
-      }
+      const data = await NeoAPI.listarContas(token);
+      contas = Array.isArray(data) ? data : [];
+      renderContas();
     } catch (err) {
-      console.error('Erro ao carregar contas do Supabase:', err);
-      accountsList = [...fallbackAccounts];
+      console.error('Erro ao carregar contas:', err);
+      if (body) {
+        body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:var(--space-xl);">${escapeHtml(err.message || 'Erro ao carregar contas.')}</td></tr>`;
+      }
     }
-    renderAccounts();
   }
 
-  // Render Accounts Table
-  function renderAccounts() {
-    if (!accountsTableBody) return;
+  function tipoLabel(conta) {
+    if (conta.tipo === 'mesa') return '<span class="badge badge-ready">Mesa</span>';
+    const perfil = (conta.perfil || 'atendente').toLowerCase();
+    const label = perfil.charAt(0).toUpperCase() + perfil.slice(1);
+    return `<span class="badge badge-pending">${escapeHtml(label)}</span>`;
+  }
 
-    let filtered = accountsList;
-    if (currentFilter === 'mesa') {
-      filtered = accountsList.filter(a => a.tipo === 'mesa');
-    } else if (currentFilter === 'cliente') {
-      filtered = accountsList.filter(a => a.tipo === 'cliente');
-    } else if (currentFilter === 'funcionario') {
-      filtered = accountsList.filter(a => a.tipo === 'funcionario');
-    }
+  function renderContas() {
+    const body = document.getElementById('accountsTableBody');
+    if (!body) return;
 
-    if (filtered.length === 0) {
-      accountsTableBody.innerHTML = `
-        <tr>
-          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
-            Nenhuma conta encontrada.
-          </td>
-        </tr>`;
+    const termo = busca.toLowerCase();
+    const lista = contas.filter(c => {
+      const okFiltro = filtro === 'todas'
+        || (filtro === 'mesas' && c.tipo === 'mesa')
+        || (filtro === 'staff' && c.tipo === 'funcionario');
+      const okBusca = !termo
+        || String(c.nome || '').toLowerCase().includes(termo)
+        || String(c.login || '').toLowerCase().includes(termo);
+      return okFiltro && okBusca;
+    });
+
+    if (!lista.length) {
+      body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:var(--space-xl);">Nenhuma conta encontrada.</td></tr>';
       return;
     }
 
-    accountsTableBody.innerHTML = filtered.map(acc => {
-      const badgeClass = acc.ativo ? 'badge-available' : 'badge-unavailable';
-      const statusText = acc.ativo ? 'Ativo' : 'Inativo';
-
-      let perfilBadge = 'Mesa';
-      let iconName = 'table_restaurant';
-      if (acc.tipo === 'cliente') {
-        perfilBadge = 'Cliente';
-        iconName = 'person';
-      } else if (acc.tipo === 'funcionario') {
-        perfilBadge = acc.perfil === 'gerente' ? 'Gerente' : 'Atendente';
-        iconName = 'badge';
-      }
-
-      return `
-        <tr>
-          <td style="font-weight: 500;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span class="material-symbols-outlined" style="color: var(--text-muted);">
-                ${iconName}
-              </span>
-              <span>${escapeHtml(acc.nome)}</span>
-            </div>
-          </td>
-          <td><code>${escapeHtml(acc.login)}</code></td>
-          <td><span class="badge badge-pending">${perfilBadge}</span></td>
-          <td><span class="badge ${badgeClass}">${statusText}</span></td>
-          <td style="text-align: right;">
-            <button type="button" class="btn btn-secondary btn-edit" data-id="${acc.id}" style="padding: 4px 10px; min-height: 32px; font-size: 13px;">
-              <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
-              <span>Editar</span>
-            </button>
-            <button type="button" class="btn ${acc.ativo ? 'btn-danger' : 'btn-primary'} btn-toggle-status" data-id="${acc.id}" style="padding: 4px 10px; min-height: 32px; font-size: 13px; margin-left: 4px;">
-              <span class="material-symbols-outlined" style="font-size: 16px;">${acc.ativo ? 'block' : 'check_circle'}</span>
-              <span>${acc.ativo ? 'Inativar' : 'Ativar'}</span>
-            </button>
-            <button type="button" class="btn btn-danger btn-delete-account" data-id="${acc.id}" style="padding: 4px 8px; min-height: 32px; font-size: 13px; margin-left: 4px;" title="Excluir Conta">
-              <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
-            </button>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    // Attach Event Listeners to Action Buttons
-    document.querySelectorAll('.btn-edit').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.currentTarget.getAttribute('data-id');
-        openEditModal(id);
-      });
+    body.innerHTML = '';
+    lista.forEach(conta => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(conta.nome)}</strong></td>
+        <td><code style="font-size:13px;">${escapeHtml(conta.login || '—')}</code></td>
+        <td>${tipoLabel(conta)}</td>
+        <td>${conta.ativo
+          ? '<span class="badge badge-available">Ativo</span>'
+          : '<span class="badge badge-unavailable">Inativo</span>'}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button type="button" class="btn btn-secondary" style="padding:6px 10px;min-height:32px;" data-edit="${conta.id}" title="Editar">
+            <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
+          </button>
+          <button type="button" class="btn btn-secondary" style="padding:6px 10px;min-height:32px;" data-toggle="${conta.id}" title="${conta.ativo ? 'Inativar' : 'Ativar'}">
+            <span class="material-symbols-outlined" style="font-size:16px;">${conta.ativo ? 'block' : 'check_circle'}</span>
+          </button>
+          <button type="button" class="btn btn-danger" style="padding:6px 10px;min-height:32px;" data-del="${conta.id}" title="Excluir">
+            <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+          </button>
+        </td>`;
+      body.appendChild(tr);
     });
 
-    document.querySelectorAll('.btn-toggle-status').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const id = e.currentTarget.getAttribute('data-id');
-        await toggleAccountStatus(id);
-      });
-    });
-
-    document.querySelectorAll('.btn-delete-account').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const id = e.currentTarget.getAttribute('data-id');
-        await deleteAccount(id);
-      });
-    });
+    body.querySelectorAll('[data-edit]').forEach(btn =>
+      btn.addEventListener('click', () => abrirConta(btn.dataset.edit)));
+    body.querySelectorAll('[data-toggle]').forEach(btn =>
+      btn.addEventListener('click', () => alternarStatus(btn.dataset.toggle)));
+    body.querySelectorAll('[data-del]').forEach(btn =>
+      btn.addEventListener('click', () => excluirConta(btn.dataset.del)));
   }
 
-  function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
+  // ---------------------------------------------------------------------------
+  // Modal
+  // ---------------------------------------------------------------------------
 
-  // Filter Event Listeners
-  if (tabFilterAll) tabFilterAll.addEventListener('click', () => setFilter('all', tabFilterAll));
-  if (tabFilterMesas) tabFilterMesas.addEventListener('click', () => setFilter('mesa', tabFilterMesas));
-  if (tabFilterClientes) tabFilterClientes.addEventListener('click', () => setFilter('cliente', tabFilterClientes));
-  if (tabFilterStaff) tabFilterStaff.addEventListener('click', () => setFilter('funcionario', tabFilterStaff));
+  function abrirConta(id) {
+    const form = document.getElementById('accountForm');
+    if (form) form.reset();
 
-  function setFilter(filterType, activeBtn) {
-    currentFilter = filterType;
-    [tabFilterAll, tabFilterMesas, tabFilterClientes, tabFilterStaff].forEach(btn => {
-      if (btn) btn.classList.remove('active');
-    });
-    if (activeBtn) activeBtn.classList.add('active');
-    renderAccounts();
-  }
+    const conta = id ? contas.find(c => c.id === id) : null;
 
-  // Modal Controls
-  if (btnNewAccount) {
-    btnNewAccount.addEventListener('click', () => openNewModal());
-  }
+    const idEl = document.getElementById('accountId');
+    if (idEl) idEl.value = conta ? conta.id : '';
 
-  if (btnCloseModal) btnCloseModal.addEventListener('click', closeModal);
-  if (btnCancelModal) btnCancelModal.addEventListener('click', closeModal);
+    const tipoEl = document.getElementById('accountTipo');
+    if (tipoEl) tipoEl.value = conta ? conta.tipo : 'mesa';
 
-  if (accountTipo) {
-    accountTipo.addEventListener('change', () => {
-      if (groupPerfil) {
-        groupPerfil.style.display = accountTipo.value === 'funcionario' ? 'flex' : 'none';
-      }
-    });
-  }
+    setVal('accountNome', conta ? conta.nome : '');
+    setVal('accountLogin', conta ? conta.login : '');
+    setVal('accountSenha', '');
 
-  function openNewModal() {
-    document.getElementById('modalTitle').textContent = 'Nova Conta';
-    document.getElementById('accountId').value = '';
-    document.getElementById('accountTipo').value = 'mesa';
-    document.getElementById('accountNome').value = '';
-    document.getElementById('accountLogin').value = '';
-    document.getElementById('accountSenha').value = '123';
-    document.getElementById('accountPerfil').value = 'atendente';
-    document.getElementById('accountStatus').value = 'true';
-    if (groupPerfil) groupPerfil.style.display = 'none';
-    if (accountModal) accountModal.style.display = 'flex';
-  }
+    const perfilEl = document.getElementById('accountPerfil');
+    if (perfilEl) perfilEl.value = conta && conta.perfil ? conta.perfil : 'atendente';
 
-  function openEditModal(id) {
-    const acc = accountsList.find(a => a.id === id);
-    if (!acc) return;
+    const statusEl = document.getElementById('accountStatus');
+    if (statusEl) statusEl.value = conta ? String(Boolean(conta.ativo)) : 'true';
 
-    document.getElementById('modalTitle').textContent = 'Editar Conta';
-    document.getElementById('accountId').value = acc.id;
-    document.getElementById('accountTipo').value = acc.tipo;
-    document.getElementById('accountNome').value = acc.nome;
-    document.getElementById('accountLogin').value = acc.login;
-    document.getElementById('accountSenha').value = acc.senha || '123';
-    document.getElementById('accountPerfil').value = acc.perfil || 'atendente';
-    document.getElementById('accountStatus').value = acc.ativo ? 'true' : 'false';
+    atualizarPerfilVisivel();
 
-    if (groupPerfil) {
-      groupPerfil.style.display = acc.tipo === 'funcionario' ? 'flex' : 'none';
+    const titulo = document.getElementById('modalTitle');
+    if (titulo) titulo.textContent = conta ? 'Editar Conta' : 'Nova Conta';
+
+    const senha = document.getElementById('accountSenha');
+    if (senha) {
+      senha.required = !conta;
+      senha.placeholder = conta ? 'Deixe em branco para manter a senha atual' : 'Mínimo de 6 caracteres';
     }
-    if (accountModal) accountModal.style.display = 'flex';
+
+    const modal = document.getElementById('accountModal');
+    if (modal) modal.style.display = 'flex';
   }
 
-  function closeModal() {
-    if (accountModal) accountModal.style.display = 'none';
+  function atualizarPerfilVisivel() {
+    const tipoEl = document.getElementById('accountTipo');
+    const grupo = document.getElementById('groupPerfil');
+    if (!tipoEl || !grupo) return;
+    grupo.style.display = tipoEl.value === 'funcionario' ? 'block' : 'none';
   }
 
-  // Form Submit (Save / Update)
-  if (accountForm) {
-    accountForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
+  async function salvarConta(e) {
+    e.preventDefault();
 
-      const id = document.getElementById('accountId').value;
-      const tipo = document.getElementById('accountTipo').value;
-      const nome = document.getElementById('accountNome').value.trim();
-      const login = document.getElementById('accountLogin').value.trim();
-      const senha = document.getElementById('accountSenha').value.trim() || '123';
-      const perfil = tipo === 'funcionario' ? document.getElementById('accountPerfil').value : tipo;
-      const ativo = document.getElementById('accountStatus').value === 'true';
+    const id = (document.getElementById('accountId') || {}).value || null;
+    const tipo = (document.getElementById('accountTipo') || {}).value;
+    const nome = (document.getElementById('accountNome') || {}).value || '';
+    const login = (document.getElementById('accountLogin') || {}).value || '';
+    const senha = (document.getElementById('accountSenha') || {}).value || '';
+    const perfil = (document.getElementById('accountPerfil') || {}).value;
+    const ativo = (document.getElementById('accountStatus') || {}).value === 'true';
 
-      const payload = { tipo, nome, login, senha, perfil, ativo };
-      const client = window.supabaseClient;
-
-      try {
-        if (id) {
-          // Update
-          if (client && typeof client.from === 'function') {
-            const query = client.from('usuarios').update(payload).eq('id', id);
-            await window.safeSupabaseQuery(query, 2000);
-          }
-
-          const idx = accountsList.findIndex(a => a.id === id);
-          if (idx !== -1) {
-            accountsList[idx] = { ...accountsList[idx], ...payload };
-          }
-        } else {
-          // Insert
-          const newId = crypto.randomUUID ? crypto.randomUUID() : `user-${Date.now()}`;
-          const newAcc = { id: newId, ...payload, criado_em: new Date().toISOString() };
-
-          if (client && typeof client.from === 'function') {
-            const query = client.from('usuarios').insert([newAcc]);
-            await window.safeSupabaseQuery(query, 2000);
-          }
-
-          accountsList.unshift(newAcc);
-        }
-
-        renderAccounts();
-        closeModal();
-      } catch (err) {
-        console.error('Erro ao salvar conta:', err);
-        alert('Erro ao salvar conta.');
-      }
-    });
-  }
-
-  // Toggle Account Active Status
-  async function toggleAccountStatus(id) {
-    const acc = accountsList.find(a => a.id === id);
-    if (!acc) return;
-
-    const newStatus = !acc.ativo;
-    try {
-      const client = window.supabaseClient;
-      if (client && typeof client.from === 'function') {
-        const query = client.from('usuarios').update({ ativo: newStatus }).eq('id', id);
-        await window.safeSupabaseQuery(query, 2000);
-      }
-
-      acc.ativo = newStatus;
-      renderAccounts();
-    } catch (err) {
-      console.error('Erro ao alterar status:', err);
+    if (!nome.trim() || !login.trim()) {
+      return NeoUI.toast('Informe o nome e o login da conta.', 'error');
     }
-  }
+    if (!id && senha.length < 6) {
+      return NeoUI.toast('A senha deve ter no mínimo 6 caracteres.', 'error');
+    }
+    if (senha && senha.length < 6) {
+      return NeoUI.toast('A nova senha deve ter no mínimo 6 caracteres.', 'error');
+    }
 
-  // Delete Account
-  async function deleteAccount(id) {
-    if (!confirm('Deseja realmente excluir esta conta?')) return;
+    const button = e.target.querySelector('button[type="submit"]');
+    NeoUI.setBusy(button, true, 'Salvando...');
 
     try {
-      const client = window.supabaseClient;
-      if (client && typeof client.from === 'function') {
-        const query = client.from('usuarios').delete().eq('id', id);
-        await window.safeSupabaseQuery(query, 2000);
-      }
+      await NeoAPI.salvarConta(token, {
+        id,
+        tipo,
+        nome: nome.trim(),
+        login: login.trim(),
+        senha: senha || null,
+        perfil: tipo === 'funcionario' ? perfil : null,
+        ativo
+      });
 
-      accountsList = accountsList.filter(a => a.id !== id);
-      renderAccounts();
+      fecharModal('accountModal');
+      await carregarContas();
+      NeoUI.toast('Conta salva com sucesso.', 'success');
     } catch (err) {
-      console.error('Erro ao excluir conta:', err);
+      NeoUI.toast(err.message || 'Não foi possível salvar a conta.', 'error', 7000);
+    } finally {
+      NeoUI.setBusy(button, false);
     }
   }
 
-  // Initial Load
-  await loadAccounts();
-});
+  async function alternarStatus(id) {
+    const conta = contas.find(c => c.id === id);
+    if (!conta) return;
+
+    try {
+      await NeoAPI.definirStatusConta(token, id, !conta.ativo);
+      await carregarContas();
+      NeoUI.toast(conta.ativo ? 'Conta inativada.' : 'Conta reativada.', 'success');
+    } catch (err) {
+      NeoUI.toast(err.message || 'Não foi possível alterar o status.', 'error', 6000);
+    }
+  }
+
+  async function excluirConta(id) {
+    const conta = contas.find(c => c.id === id);
+    if (!conta) return;
+    if (!window.confirm(`Excluir a conta "${conta.nome}"? Sessões abertas serão encerradas.`)) return;
+
+    try {
+      await NeoAPI.excluirConta(token, id);
+      await carregarContas();
+      NeoUI.toast('Conta excluída.', 'success');
+    } catch (err) {
+      NeoUI.toast(err.message || 'Não foi possível excluir a conta.', 'error', 7000);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Eventos
+  // ---------------------------------------------------------------------------
+
+  function bindEventos() {
+    const btnNew = document.getElementById('btnNewAccount');
+    if (btnNew) btnNew.addEventListener('click', () => abrirConta(null));
+
+    const form = document.getElementById('accountForm');
+    if (form) form.addEventListener('submit', salvarConta);
+
+    const tipo = document.getElementById('accountTipo');
+    if (tipo) tipo.addEventListener('change', atualizarPerfilVisivel);
+
+    const filtros = {
+      tabFilterAll: 'todas',
+      tabFilterMesas: 'mesas',
+      tabFilterStaff: 'staff'
+    };
+    Object.entries(filtros).forEach(([btnId, valor]) => {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        filtro = valor;
+        Object.keys(filtros).forEach(otherId => {
+          const other = document.getElementById(otherId);
+          if (other) other.classList.toggle('active', otherId === btnId);
+        });
+        renderContas();
+      });
+    });
+
+    ['btnCloseModal', 'btnCancelModal'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', () => fecharModal('accountModal'));
+    });
+
+    const modal = document.getElementById('accountModal');
+    if (modal) {
+      modal.addEventListener('click', e => {
+        if (e.target === modal) modal.style.display = 'none';
+      });
+    }
+  }
+
+  function fecharModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
+
+  function setVal(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.value = value === null || value === undefined ? '' : value;
+  }
+})();

@@ -1,668 +1,477 @@
-/**
- * NeoOrder - Estoque e Cardápio (Gerente)
- */
+// js/estoque.js — Estoque e ficha técnica (gerente)
+//
+// Toda leitura/escrita passa pelas RPCs `listar_estoque`, `listar_pratos_admin`,
+// `salvar_ingrediente`, `excluir_ingrediente`, `salvar_prato` e `excluir_prato`.
 
-document.addEventListener('DOMContentLoaded', async () => {
-  // 1. Ensure user is authenticated and is a Gerente
-  const user = NeoAuth.requireAuth(['gerente']);
-  if (!user) return;
+(function () {
+  const PLACEHOLDER = 'assets/pratos/sem-imagem.svg';
+  const LIMITE_BAIXO = 5;
 
-  const userInfoEl = document.getElementById('userInfo');
-  if (userInfoEl) {
-    userInfoEl.textContent = `${user.nome} (${(user.perfil || user.tipo).toUpperCase()})`;
+  let token = null;
+  let ingredientes = [];
+  let pratos = [];
+  let abaAtual = 'estoque';
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const user = window.NeoAuth.requireAuth(['gerente']);
+    if (!user) return;
+
+    token = window.NeoAuth.getToken();
+
+    const userInfo = document.getElementById('userInfo');
+    if (userInfo) userInfo.textContent = `${user.nome} (GERENTE)`;
+
+    bindEventos();
+    await carregarTudo();
+  });
+
+  async function carregarTudo() {
+    await Promise.all([carregarIngredientes(), carregarPratos()]);
+    renderKpis();
   }
 
-  // Bind logout button
-  const btnLogout = document.getElementById('btnLogout');
-  if (btnLogout) {
-    btnLogout.addEventListener('click', () => NeoAuth.logout());
-  }
-
-  // Active state data
-  let ingredients = [];
-  let dishes = [];
-  let pratoIngredientesMap = {}; // prato_id -> array of { ingrediente_id, quantidade }
-
-  // Default Mock Fallbacks
-  const mockIngredients = [
-    { id: '11111111-1111-1111-1111-111111111111', nome: 'Mignon Bovino Prime', quantidade: 14.5, unidade: 'kg' },
-    { id: '22222222-2222-2222-2222-222222222222', nome: 'Arroz Arbóreo Italiano', quantidade: 22.0, unidade: 'kg' },
-    { id: '33333333-3333-3333-3333-333333333333', nome: 'Cogumelos Paris e Shimeji', quantidade: 1.2, unidade: 'kg' },
-    { id: '44444444-4444-4444-4444-444444444444', nome: 'Salmão Fresco', quantidade: 0, unidade: 'kg' },
-    { id: '55555555-5555-5555-5555-555555555555', nome: 'Laranja Pera', quantidade: 45.0, unidade: 'kg' }
-  ];
-
-  const mockDishes = [
-    {
-      id: 'd1111111-1111-1111-1111-111111111111',
-      nome: 'Filé Mignon ao Roti',
-      descricao: 'Medalhão de filé mignon grelhado com molho roti de especiarias e musseline de batatas.',
-      preco: 89.90,
-      imagem: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80',
-      destaque: true,
-      ativo: true
-    },
-    {
-      id: 'd2222222-2222-2222-2222-222222222222',
-      nome: 'Risoto de Cogumelos Frescos',
-      descricao: 'Arroz arbóreo preparado com caldo de ervas, cogumelos Paris, Shimeji e finalizado com grana padano.',
-      preco: 74.50,
-      imagem: 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?auto=format&fit=crop&w=800&q=80',
-      destaque: true,
-      ativo: true
-    },
-    {
-      id: 'd3333333-3333-3333-3333-333333333333',
-      nome: 'Salmão Grelhado com Alcaparras',
-      descricao: 'Posta de salmão grelhada ao molho de manteiga, alcaparras e legumes ao vapor.',
-      preco: 98.00,
-      imagem: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=800&q=80',
-      destaque: false,
-      ativo: true
-    }
-  ];
-
-  const mockPratoIngredientes = [
-    { prato_id: 'd1111111-1111-1111-1111-111111111111', ingrediente_id: '11111111-1111-1111-1111-111111111111', quantidade: 0.25 },
-    { prato_id: 'd2222222-2222-2222-2222-222222222222', ingrediente_id: '22222222-2222-2222-2222-222222222222', quantidade: 0.20 },
-    { prato_id: 'd2222222-2222-2222-2222-222222222222', ingrediente_id: '33333333-3333-3333-3333-333333333333', quantidade: 0.15 },
-    { prato_id: 'd3333333-3333-3333-3333-333333333333', ingrediente_id: '44444444-4444-4444-4444-444444444444', quantidade: 0.30 }
-  ];
-
-  // DOM Elements
-  const tabViewEstoque = document.getElementById('tabViewEstoque');
-  const tabViewPratos = document.getElementById('tabViewPratos');
-  const panelEstoque = document.getElementById('panelEstoque');
-  const panelPratos = document.getElementById('panelPratos');
-
-  const ingredientsTableBody = document.getElementById('ingredientsTableBody');
-  const dishesTableBody = document.getElementById('dishesTableBody');
-
-  const kpiTotalIngredientes = document.getElementById('kpiTotalIngredientes');
-  const kpiAlertaIngredientes = document.getElementById('kpiAlertaIngredientes');
-  const kpiTotalPratos = document.getElementById('kpiTotalPratos');
-
-  // Modals
-  const btnNewIngredient = document.getElementById('btnNewIngredient');
-  const ingredientModal = document.getElementById('ingredientModal');
-  const btnCloseIngredientModal = document.getElementById('btnCloseIngredientModal');
-  const btnCancelIngredientModal = document.getElementById('btnCancelIngredientModal');
-  const ingredientForm = document.getElementById('ingredientForm');
-
-  const btnNewDish = document.getElementById('btnNewDish');
-  const dishModal = document.getElementById('dishModal');
-  const btnCloseDishModal = document.getElementById('btnCloseDishModal');
-  const btnCancelDishModal = document.getElementById('btnCancelDishModal');
-  const dishForm = document.getElementById('dishForm');
-  const btnAddRecipeRow = document.getElementById('btnAddRecipeRow');
-  const recipeContainer = document.getElementById('recipeContainer');
-
-  // Tab Switching Handler
-  if (tabViewEstoque) {
-    tabViewEstoque.addEventListener('click', () => {
-      tabViewEstoque.classList.add('active');
-      if (tabViewPratos) tabViewPratos.classList.remove('active');
-      if (panelEstoque) panelEstoque.style.display = 'block';
-      if (panelPratos) panelPratos.style.display = 'none';
-    });
-  }
-
-  if (tabViewPratos) {
-    tabViewPratos.addEventListener('click', () => {
-      tabViewPratos.classList.add('active');
-      if (tabViewEstoque) tabViewEstoque.classList.remove('active');
-      if (panelPratos) panelPratos.style.display = 'block';
-      if (panelEstoque) panelEstoque.style.display = 'none';
-    });
-  }
-
-  // Helper to get supabase client safely
-  function getClient() {
-    return (window.getSupabase && window.getSupabase()) || window.supabaseClient || window.getSupabaseClient();
-  }
-
-  // Load All Data
-  async function loadData() {
+  async function carregarIngredientes() {
     try {
-      const client = getClient();
-      if (client && typeof client.from === 'function') {
-        const { data: ingData, error: ingErr } = await client.from('estoque').select('*').order('nome');
-        if (!ingErr && ingData && ingData.length > 0) {
-          ingredients = ingData;
-        } else {
-          ingredients = [...mockIngredients];
-        }
-
-        const { data: dishData, error: dishErr } = await client.from('pratos').select('*').order('nome');
-        if (!dishErr && dishData && dishData.length > 0) {
-          dishes = dishData;
-        } else {
-          dishes = [...mockDishes];
-        }
-
-        const { data: piData, error: piErr } = await client.from('prato_ingredientes').select('*');
-        if (!piErr && piData && piData.length > 0) {
-          pratoIngredientesMap = {};
-          piData.forEach(row => {
-            if (!pratoIngredientesMap[row.prato_id]) pratoIngredientesMap[row.prato_id] = [];
-            pratoIngredientesMap[row.prato_id].push({
-              ingrediente_id: row.ingrediente_id,
-              quantidade: parseFloat(row.quantidade)
-            });
-          });
-        } else {
-          pratoIngredientesMap = {};
-          mockPratoIngredientes.forEach(row => {
-            if (!pratoIngredientesMap[row.prato_id]) pratoIngredientesMap[row.prato_id] = [];
-            pratoIngredientesMap[row.prato_id].push({
-              ingrediente_id: row.ingrediente_id,
-              quantidade: parseFloat(row.quantidade)
-            });
-          });
-        }
-      } else {
-        ingredients = [...mockIngredients];
-        dishes = [...mockDishes];
-        pratoIngredientesMap = {};
-        mockPratoIngredientes.forEach(row => {
-          if (!pratoIngredientesMap[row.prato_id]) pratoIngredientesMap[row.prato_id] = [];
-          pratoIngredientesMap[row.prato_id].push({
-            ingrediente_id: row.ingrediente_id,
-            quantidade: parseFloat(row.quantidade)
-          });
-        });
-      }
+      const data = await NeoAPI.listarEstoque(token);
+      ingredientes = Array.isArray(data) ? data : [];
+      renderIngredientes();
     } catch (err) {
-      console.warn("Data load error, falling back to mock data:", err);
-      ingredients = [...mockIngredients];
-      dishes = [...mockDishes];
-      pratoIngredientesMap = {};
-      mockPratoIngredientes.forEach(row => {
-        if (!pratoIngredientesMap[row.prato_id]) pratoIngredientesMap[row.prato_id] = [];
-        pratoIngredientesMap[row.prato_id].push({
-          ingrediente_id: row.ingrediente_id,
-          quantidade: parseFloat(row.quantidade)
-        });
-      });
+      console.error('Erro ao carregar estoque:', err);
+      const body = document.getElementById('ingredientsTableBody');
+      if (body) body.innerHTML = linhaErro(5, err.message);
+      tratarSessao(err);
     }
-
-    renderKPIs();
-    renderIngredientsTable();
-    renderDishesTable();
   }
 
-  // Render KPIs
-  function renderKPIs() {
-    let alertCount = 0;
-    ingredients.forEach(ing => {
-      if (parseFloat(ing.quantidade) <= 2.0) alertCount++;
-    });
-
-    if (kpiTotalIngredientes) kpiTotalIngredientes.textContent = ingredients.length;
-    if (kpiAlertaIngredientes) kpiAlertaIngredientes.textContent = alertCount;
-    if (kpiTotalPratos) kpiTotalPratos.textContent = dishes.length;
+  async function carregarPratos() {
+    try {
+      const data = await NeoAPI.listarPratosAdmin(token);
+      pratos = Array.isArray(data) ? data : [];
+      renderPratos();
+    } catch (err) {
+      console.error('Erro ao carregar pratos:', err);
+      const body = document.getElementById('dishesTableBody');
+      if (body) body.innerHTML = linhaErro(6, err.message);
+      tratarSessao(err);
+    }
   }
 
-  // Render Ingredients Table
-  function renderIngredientsTable() {
-    if (!ingredientsTableBody) return;
+  function tratarSessao(err) {
+    if (err && (err.code === '28000' || /sess[aã]o/i.test(err.message || ''))) {
+      NeoUI.toast('Sessão expirada. Faça login novamente.', 'error', 5000);
+      setTimeout(() => window.NeoAuth.logout(), 1500);
+    }
+  }
 
-    if (ingredients.length === 0) {
-      ingredientsTableBody.innerHTML = `
-        <tr>
-          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
-            Nenhum insumo cadastrado no estoque.
-          </td>
-        </tr>`;
+  // ---------------------------------------------------------------------------
+  // KPIs
+  // ---------------------------------------------------------------------------
+
+  function renderKpis() {
+    const total = ingredientes.length;
+    const baixos = ingredientes.filter(i => Number(i.quantidade) <= LIMITE_BAIXO).length;
+    const totalPratos = pratos.filter(p => p.ativo).length;
+
+    setText('kpiTotalIngredientes', total);
+    setText('kpiAlertaIngredientes', baixos);
+    setText('kpiTotalPratos', totalPratos);
+  }
+
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(value);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tabela de insumos
+  // ---------------------------------------------------------------------------
+
+  function statusIngrediente(qtd) {
+    const n = Number(qtd);
+    if (n <= 0) return '<span class="badge badge-unavailable">Esgotado</span>';
+    if (n <= LIMITE_BAIXO) return '<span class="badge badge-pending">Estoque baixo</span>';
+    return '<span class="badge badge-available">Disponível</span>';
+  }
+
+  function renderIngredientes() {
+    const body = document.getElementById('ingredientsTableBody');
+    if (!body) return;
+
+    if (!ingredientes.length) {
+      body.innerHTML = linhaVazia(5, 'Nenhum insumo cadastrado. Clique em "Novo Insumo" para começar.');
       return;
     }
 
-    ingredientsTableBody.innerHTML = ingredients.map(ing => {
-      const qte = parseFloat(ing.quantidade);
-      let statusBadge = '<span class="status-badge status-active">Disponível</span>';
-      if (qte === 0) {
-        statusBadge = '<span class="status-badge status-inactive">Esgotado</span>';
-      } else if (qte <= 2.0) {
-        statusBadge = '<span class="status-badge" style="background: rgba(217, 119, 6, 0.15); color: #D97706;">Alerta (Baixo)</span>';
-      }
-
-      return `
-        <tr>
-          <td>
-            <div style="font-weight: 500; color: var(--text-main);">${ing.nome}</div>
-          </td>
-          <td style="text-align: right; font-weight: 600; color: var(--text-main);">
-            ${qte.toFixed(2)}
-          </td>
-          <td style="text-align: center; color: var(--text-muted);">
-            ${ing.unidade}
-          </td>
-          <td>${statusBadge}</td>
-          <td style="text-align: right;">
-            <div style="display: flex; gap: 4px; justify-content: flex-end;">
-              <button type="button" class="btn btn-secondary btn-quick-adj" data-id="${ing.id}" data-delta="-1" style="padding: 2px 8px; min-height: 28px;" title="-1 em estoque">-1</button>
-              <button type="button" class="btn btn-secondary btn-quick-adj" data-id="${ing.id}" data-delta="1" style="padding: 2px 8px; min-height: 28px;" title="+1 em estoque">+1</button>
-              <button type="button" class="btn btn-secondary btn-edit-ing" data-id="${ing.id}" style="padding: 2px 8px; min-height: 28px;">
-                <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
-              </button>
-              <button type="button" class="btn btn-danger btn-del-ing" data-id="${ing.id}" style="padding: 2px 8px; min-height: 28px;">
-                <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    // Attach Event Listeners
-    ingredientsTableBody.querySelectorAll('.btn-quick-adj').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.currentTarget.dataset.id;
-        const delta = parseFloat(e.currentTarget.dataset.delta);
-        adjustIngredientQuantity(id, delta);
-      });
+    body.innerHTML = '';
+    ingredientes.forEach(ing => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(ing.nome)}</strong></td>
+        <td style="text-align:right;">${formatarNumero(ing.quantidade)}</td>
+        <td style="text-align:center;">${escapeHtml(ing.unidade)}</td>
+        <td>${statusIngrediente(ing.quantidade)}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button type="button" class="btn btn-secondary" style="padding:6px 10px;min-height:32px;" data-edit-ing="${ing.id}">
+            <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
+          </button>
+          <button type="button" class="btn btn-danger" style="padding:6px 10px;min-height:32px;" data-del-ing="${ing.id}">
+            <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+          </button>
+        </td>`;
+      body.appendChild(tr);
     });
 
-    ingredientsTableBody.querySelectorAll('.btn-edit-ing').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.currentTarget.dataset.id;
-        openIngredientModal(id);
-      });
-    });
-
-    ingredientsTableBody.querySelectorAll('.btn-del-ing').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.currentTarget.dataset.id;
-        deleteIngredient(id);
-      });
-    });
+    body.querySelectorAll('[data-edit-ing]').forEach(btn =>
+      btn.addEventListener('click', () => abrirIngrediente(btn.dataset.editIng)));
+    body.querySelectorAll('[data-del-ing]').forEach(btn =>
+      btn.addEventListener('click', () => excluirIngrediente(btn.dataset.delIng)));
   }
 
-  // Calculate Portion Availability for a Dish
-  function calculateDishAvailability(dishId) {
-    const recipes = pratoIngredientesMap[dishId] || [];
-    if (recipes.length === 0) {
-      return { portions: '∞ (Sem receita)', isAvailable: true };
-    }
+  // ---------------------------------------------------------------------------
+  // Tabela de pratos
+  // ---------------------------------------------------------------------------
 
-    let minPortions = Infinity;
-    for (const item of recipes) {
-      const ing = ingredients.find(i => i.id === item.ingrediente_id);
-      if (!ing || parseFloat(item.quantidade) <= 0) continue;
+  function renderPratos() {
+    const body = document.getElementById('dishesTableBody');
+    if (!body) return;
 
-      const availablePortions = Math.floor(parseFloat(ing.quantidade) / parseFloat(item.quantidade));
-      if (availablePortions < minPortions) {
-        minPortions = availablePortions;
-      }
-    }
-
-    if (minPortions === Infinity) return { portions: '0 porções', isAvailable: false };
-    return {
-      portions: `${minPortions} porções`,
-      isAvailable: minPortions > 0
-    };
-  }
-
-  // Render Dishes Table
-  function renderDishesTable() {
-    if (!dishesTableBody) return;
-
-    if (dishes.length === 0) {
-      dishesTableBody.innerHTML = `
-        <tr>
-          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
-            Nenhum prato cadastrado no cardápio.
-          </td>
-        </tr>`;
+    if (!pratos.length) {
+      body.innerHTML = linhaVazia(6, 'Nenhum prato cadastrado. Clique em "Novo Prato" para começar.');
       return;
     }
 
-    dishesTableBody.innerHTML = dishes.map(dish => {
-      const avail = calculateDishAvailability(dish.id);
-      const availBadge = avail.isAvailable
-        ? `<span class="status-badge status-active">${avail.portions}</span>`
-        : `<span class="status-badge status-inactive">Indisponível (Falta Insumo)</span>`;
+    body.innerHTML = '';
+    pratos.forEach(prato => {
+      const disponibilidade = prato.porcoes === null || prato.porcoes === undefined
+        ? '<span class="badge badge-ready">Sem ficha técnica</span>'
+        : prato.porcoes > 0
+          ? `<span class="badge badge-available">${prato.porcoes} porçõe${prato.porcoes === 1 ? 'm' : 's'}</span>`
+          : '<span class="badge badge-unavailable">Sem estoque</span>';
 
-      const statusBadge = dish.ativo
-        ? `<span class="status-badge status-active">Ativo</span>`
-        : `<span class="status-badge status-inactive">Inativo</span>`;
-
-      const destaqueBadge = dish.destaque
-        ? `<span class="material-symbols-outlined" style="color: var(--primary);" title="Em Destaque no Carousel">star</span>`
-        : `<span class="material-symbols-outlined" style="color: var(--border-input);" title="Normal">star_outline</span>`;
-
-      return `
-        <tr>
-          <td>
-            <div style="font-weight: 600; color: var(--text-main);">${dish.nome}</div>
-            <div style="font-size: 12px; color: var(--text-muted); max-width: 300px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${dish.descricao || ''}</div>
-          </td>
-          <td style="font-weight: 600; color: var(--text-main);">
-            R$ ${parseFloat(dish.preco).toFixed(2).replace('.', ',')}
-          </td>
-          <td style="text-align: center;">${destaqueBadge}</td>
-          <td>${availBadge}</td>
-          <td>${statusBadge}</td>
-          <td style="text-align: right;">
-            <div style="display: flex; gap: 4px; justify-content: flex-end;">
-              <button type="button" class="btn btn-secondary btn-edit-dish" data-id="${dish.id}" style="padding: 2px 8px; min-height: 28px;">
-                <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
-              </button>
-              <button type="button" class="btn btn-danger btn-del-dish" data-id="${dish.id}" style="padding: 2px 8px; min-height: 28px;">
-                <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
-              </button>
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <div class="dish-cell">
+            <img src="${escapeHtml(prato.imagem || PLACEHOLDER)}" class="dish-thumb" alt=""
+                 onerror="this.onerror=null;this.src='${PLACEHOLDER}'">
+            <div>
+              <strong>${escapeHtml(prato.nome)}</strong>
+              <div style="font-size:12px;color:var(--text-muted);">${(prato.receita || []).length} insumo(s) na ficha</div>
             </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    // Attach Event Listeners
-    dishesTableBody.querySelectorAll('.btn-edit-dish').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.currentTarget.dataset.id;
-        openDishModal(id);
-      });
+          </div>
+        </td>
+        <td>${NeoUI.money(prato.preco)}</td>
+        <td>${prato.destaque ? '<span class="badge badge-pending">Destaque</span>' : '<span class="text-muted">—</span>'}</td>
+        <td>${disponibilidade}</td>
+        <td>${prato.ativo ? '<span class="badge badge-available">Ativo</span>' : '<span class="badge badge-unavailable">Inativo</span>'}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button type="button" class="btn btn-secondary" style="padding:6px 10px;min-height:32px;" data-edit-dish="${prato.id}">
+            <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
+          </button>
+          <button type="button" class="btn btn-danger" style="padding:6px 10px;min-height:32px;" data-del-dish="${prato.id}">
+            <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+          </button>
+        </td>`;
+      body.appendChild(tr);
     });
 
-    dishesTableBody.querySelectorAll('.btn-del-dish').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.currentTarget.dataset.id;
-        deleteDish(id);
-      });
-    });
+    body.querySelectorAll('[data-edit-dish]').forEach(btn =>
+      btn.addEventListener('click', () => abrirPrato(btn.dataset.editDish)));
+    body.querySelectorAll('[data-del-dish]').forEach(btn =>
+      btn.addEventListener('click', () => excluirPrato(btn.dataset.delDish)));
   }
 
-  // --- INGREDIENT ACTIONS ---
+  // ---------------------------------------------------------------------------
+  // Modal de insumo
+  // ---------------------------------------------------------------------------
 
-  async function adjustIngredientQuantity(id, delta) {
-    const ing = ingredients.find(i => i.id === id);
+  function abrirIngrediente(id) {
+    const form = document.getElementById('ingredientForm');
+    if (form) form.reset();
+
+    const ing = id ? ingredientes.find(i => i.id === id) : null;
+
+    setVal('ingredientId', ing ? ing.id : '');
+    setVal('ingredientNome', ing ? ing.nome : '');
+    setVal('ingredientUnidade', ing ? ing.unidade : 'kg');
+    setVal('ingredientQuantidade', ing ? ing.quantidade : '');
+
+    setText('ingredientModalTitle', ing ? 'Editar Insumo' : 'Novo Insumo');
+    abrirModal('ingredientModal');
+  }
+
+  async function salvarIngrediente(e) {
+    e.preventDefault();
+    const id = getVal('ingredientId') || null;
+    const nome = getVal('ingredientNome').trim();
+    const unidade = getVal('ingredientUnidade');
+    const quantidade = Number(getVal('ingredientQuantidade'));
+
+    if (!nome) return NeoUI.toast('Informe o nome do insumo.', 'error');
+    if (!Number.isFinite(quantidade) || quantidade < 0) {
+      return NeoUI.toast('Informe uma quantidade válida (zero ou maior).', 'error');
+    }
+
+    const button = e.target.querySelector('button[type="submit"]');
+    NeoUI.setBusy(button, true, 'Salvando...');
+
+    try {
+      await NeoAPI.salvarIngrediente(token, id, nome, unidade, quantidade);
+      fecharModal('ingredientModal');
+      await carregarTudo();
+      NeoUI.toast('Insumo salvo com sucesso.', 'success');
+    } catch (err) {
+      NeoUI.toast(err.message || 'Não foi possível salvar o insumo.', 'error', 6000);
+      tratarSessao(err);
+    } finally {
+      NeoUI.setBusy(button, false);
+    }
+  }
+
+  async function excluirIngrediente(id) {
+    const ing = ingredientes.find(i => i.id === id);
     if (!ing) return;
+    if (!window.confirm(`Excluir o insumo "${ing.nome}"? Esta ação não pode ser desfeita.`)) return;
 
-    const newQte = Math.max(0, parseFloat(ing.quantidade) + delta);
-    ing.quantidade = newQte;
+    try {
+      await NeoAPI.excluirIngrediente(token, id);
+      await carregarTudo();
+      NeoUI.toast('Insumo excluído.', 'success');
+    } catch (err) {
+      NeoUI.toast(err.message || 'Não foi possível excluir o insumo.', 'error', 7000);
+      tratarSessao(err);
+    }
+  }
 
-    const client = getClient();
-    if (client && typeof client.from === 'function') {
-      client.from('estoque').update({ quantidade: newQte, atualizado_em: new Date().toISOString() }).eq('id', id).then();
+  // ---------------------------------------------------------------------------
+  // Modal de prato
+  // ---------------------------------------------------------------------------
+
+  function abrirPrato(id) {
+    const form = document.getElementById('dishForm');
+    if (form) form.reset();
+
+    const prato = id ? pratos.find(p => p.id === id) : null;
+
+    setVal('dishId', prato ? prato.id : '');
+    setVal('dishNome', prato ? prato.nome : '');
+    setVal('dishDescricao', prato ? prato.descricao : '');
+    setVal('dishPreco', prato ? prato.preco : '');
+    setVal('dishImagem', prato ? prato.imagem : '');
+    setChecked('dishDestaque', prato ? prato.destaque : false);
+    setChecked('dishAtivo', prato ? prato.ativo : true);
+
+    setText('dishModalTitle', prato ? 'Editar Prato' : 'Novo Prato');
+
+    const container = document.getElementById('recipeContainer');
+    if (container) container.innerHTML = '';
+
+    if (prato && Array.isArray(prato.receita)) {
+      prato.receita.forEach(item =>
+        adicionarLinhaReceita(item.ingrediente_id, item.quantidade));
     }
 
-    renderKPIs();
-    renderIngredientsTable();
-    renderDishesTable();
+    abrirModal('dishModal');
   }
 
-  function openIngredientModal(id = null) {
-    if (ingredientForm) ingredientForm.reset();
-    document.getElementById('ingredientId').value = '';
+  function adicionarLinhaReceita(ingredienteId = '', quantidade = '') {
+    const container = document.getElementById('recipeContainer');
+    if (!container) return;
 
-    if (id) {
-      const ing = ingredients.find(i => i.id === id);
-      if (ing) {
-        document.getElementById('ingredientId').value = ing.id;
-        document.getElementById('ingredientNome').value = ing.nome;
-        document.getElementById('ingredientUnidade').value = ing.unidade;
-        document.getElementById('ingredientQuantidade').value = ing.quantidade;
-        document.getElementById('ingredientModalTitle').textContent = 'Editar Insumo';
-      }
-    } else {
-      document.getElementById('ingredientModalTitle').textContent = 'Novo Insumo';
+    if (container.querySelector('p')) container.innerHTML = '';
+
+    if (!ingredientes.length) {
+      container.innerHTML = '<p class="text-muted" style="font-size:13px;">Cadastre insumos antes de montar a ficha técnica.</p>';
+      return;
     }
 
-    if (ingredientModal) ingredientModal.style.display = 'flex';
-  }
-
-  function closeIngredientModal() {
-    if (ingredientModal) ingredientModal.style.display = 'none';
-  }
-
-  if (btnNewIngredient) btnNewIngredient.addEventListener('click', () => openIngredientModal());
-  if (btnCloseIngredientModal) btnCloseIngredientModal.addEventListener('click', closeIngredientModal);
-  if (btnCancelIngredientModal) btnCancelIngredientModal.addEventListener('click', closeIngredientModal);
-
-  if (ingredientForm) {
-    ingredientForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const id = document.getElementById('ingredientId').value;
-      const nome = document.getElementById('ingredientNome').value.trim();
-      const unidade = document.getElementById('ingredientUnidade').value;
-      const quantidade = parseFloat(document.getElementById('ingredientQuantidade').value);
-
-      closeIngredientModal();
-
-      const client = getClient();
-      if (id) {
-        const ing = ingredients.find(i => i.id === id);
-        if (ing) {
-          ing.nome = nome;
-          ing.unidade = unidade;
-          ing.quantidade = quantidade;
-
-          if (client && typeof client.from === 'function') {
-            client.from('estoque').update({ nome, unidade, quantidade, atualizado_em: new Date().toISOString() }).eq('id', id).then();
-          }
-        }
-      } else {
-        const newIng = {
-          id: crypto.randomUUID(),
-          nome,
-          unidade,
-          quantidade,
-          criado_em: new Date().toISOString()
-        };
-        ingredients.push(newIng);
-
-        if (client && typeof client.from === 'function') {
-          client.from('estoque').insert(newIng).then();
-        }
-      }
-
-      renderKPIs();
-      renderIngredientsTable();
-      renderDishesTable();
-    });
-  }
-
-  async function deleteIngredient(id) {
-    if (!confirm('Deseja realmente remover este insumo do estoque?')) return;
-
-    ingredients = ingredients.filter(i => i.id !== id);
-    const client = getClient();
-    if (client && typeof client.from === 'function') {
-      client.from('estoque').delete().eq('id', id).then();
-    }
-
-    renderKPIs();
-    renderIngredientsTable();
-    renderDishesTable();
-  }
-
-  // --- DISH & RECIPE ACTIONS ---
-
-  function addRecipeRow(ingredienteId = '', quantidade = '') {
-    if (!recipeContainer) return;
     const row = document.createElement('div');
     row.className = 'recipe-row';
-    row.style.cssText = 'display: flex; gap: var(--space-xs); align-items: center;';
+    row.style.cssText = 'display:grid;grid-template-columns:1fr 110px 36px;gap:8px;align-items:center;';
 
-    const ingOptions = ingredients.map(ing => `
-      <option value="${ing.id}" ${ing.id === ingredienteId ? 'selected' : ''}>
-        ${ing.nome} (${ing.unidade})
-      </option>
-    `).join('');
+    const options = ingredientes.map(ing => {
+      const selected = String(ing.id) === String(ingredienteId) ? ' selected' : '';
+      return `<option value="${ing.id}"${selected}>${escapeHtml(ing.nome)} (${escapeHtml(ing.unidade)})</option>`;
+    }).join('');
 
     row.innerHTML = `
-      <select class="input-field recipe-ing-select" style="padding-left: 10px; flex: 2;">
-        <option value="">Selecione o Insumo (Opcional)</option>
-        ${ingOptions}
-      </select>
-      <input type="number" class="input-field recipe-ing-qte" step="0.001" min="0.001" placeholder="Qte por porção" value="${quantidade}" style="padding-left: 10px; flex: 1;">
-      <button type="button" class="btn btn-danger btn-remove-recipe-row" style="padding: 4px 8px; min-height: 36px;">
-        <span class="material-symbols-outlined" style="font-size: 18px;">close</span>
-      </button>
-    `;
+      <select class="input-field" data-ingrediente style="padding-left:14px;">${options}</select>
+      <input type="number" class="input-field" data-quantidade min="0.001" step="0.001"
+             placeholder="Qtd." value="${quantidade !== '' ? escapeHtml(String(quantidade)) : ''}" required>
+      <button type="button" class="btn btn-danger" style="padding:6px;min-height:36px;" title="Remover">
+        <span class="material-symbols-outlined" style="font-size:16px;">close</span>
+      </button>`;
 
-    row.querySelector('.btn-remove-recipe-row').addEventListener('click', () => {
+    row.querySelector('button').addEventListener('click', () => {
       row.remove();
+      if (!container.children.length) {
+        container.innerHTML = '<p class="text-muted" style="font-size:13px;">Nenhum insumo na ficha. O prato ficará sempre disponível.</p>';
+      }
     });
 
-    recipeContainer.appendChild(row);
+    container.appendChild(row);
   }
 
-  if (btnAddRecipeRow) btnAddRecipeRow.addEventListener('click', () => addRecipeRow());
-
-  function openDishModal(id = null) {
-    if (dishForm) dishForm.reset();
-    if (recipeContainer) recipeContainer.innerHTML = '';
-    document.getElementById('dishId').value = '';
-
-    if (id) {
-      const dish = dishes.find(d => d.id === id);
-      if (dish) {
-        document.getElementById('dishId').value = dish.id;
-        document.getElementById('dishNome').value = dish.nome;
-        document.getElementById('dishDescricao').value = dish.descricao || '';
-        document.getElementById('dishPreco').value = dish.preco;
-        document.getElementById('dishImagem').value = dish.imagem || '';
-        document.getElementById('dishDestaque').checked = !!dish.destaque;
-        document.getElementById('dishAtivo').checked = !!dish.ativo;
-        document.getElementById('dishModalTitle').textContent = 'Editar Prato';
-
-        const recipes = pratoIngredientesMap[dish.id] || [];
-        recipes.forEach(r => addRecipeRow(r.ingrediente_id, r.quantidade));
+  function coletarReceita() {
+    const rows = document.querySelectorAll('#recipeContainer .recipe-row');
+    const receita = [];
+    rows.forEach(row => {
+      const ingredienteId = row.querySelector('[data-ingrediente]').value;
+      const quantidade = Number(row.querySelector('[data-quantidade]').value);
+      if (ingredienteId && Number.isFinite(quantidade) && quantidade > 0) {
+        receita.push({ ingrediente_id: ingredienteId, quantidade });
       }
-    } else {
-      document.getElementById('dishModalTitle').textContent = 'Novo Prato';
+    });
+    return receita;
+  }
+
+  async function salvarPrato(e) {
+    e.preventDefault();
+
+    const id = getVal('dishId') || null;
+    const nome = getVal('dishNome').trim();
+    const preco = Number(getVal('dishPreco'));
+
+    if (!nome) return NeoUI.toast('Informe o nome do prato.', 'error');
+    if (!Number.isFinite(preco) || preco < 0) return NeoUI.toast('Informe um preço válido.', 'error');
+
+    const dados = {
+      nome,
+      descricao: getVal('dishDescricao').trim(),
+      preco,
+      imagem: getVal('dishImagem').trim(),
+      destaque: isChecked('dishDestaque'),
+      ativo: isChecked('dishAtivo')
+    };
+
+    const button = e.target.querySelector('button[type="submit"]');
+    NeoUI.setBusy(button, true, 'Salvando...');
+
+    try {
+      await NeoAPI.salvarPrato(token, id, dados, coletarReceita());
+      fecharModal('dishModal');
+      await carregarTudo();
+      NeoUI.toast('Prato salvo com sucesso.', 'success');
+    } catch (err) {
+      NeoUI.toast(err.message || 'Não foi possível salvar o prato.', 'error', 7000);
+      tratarSessao(err);
+    } finally {
+      NeoUI.setBusy(button, false);
     }
-
-    if (dishModal) dishModal.style.display = 'flex';
   }
 
-  function closeDishModal() {
-    if (dishModal) dishModal.style.display = 'none';
+  async function excluirPrato(id) {
+    const prato = pratos.find(p => p.id === id);
+    if (!prato) return;
+    if (!window.confirm(`Remover o prato "${prato.nome}" do cardápio?`)) return;
+
+    try {
+      const res = await NeoAPI.excluirPrato(token, id);
+      await carregarTudo();
+      NeoUI.toast(res && res.mensagem ? res.mensagem : 'Prato removido.', 'success', 5000);
+    } catch (err) {
+      NeoUI.toast(err.message || 'Não foi possível excluir o prato.', 'error', 7000);
+      tratarSessao(err);
+    }
   }
 
-  if (btnNewDish) btnNewDish.addEventListener('click', () => openDishModal());
-  if (btnCloseDishModal) btnCloseDishModal.addEventListener('click', closeDishModal);
-  if (btnCancelDishModal) btnCancelDishModal.addEventListener('click', closeDishModal);
+  // ---------------------------------------------------------------------------
+  // Eventos e utilidades
+  // ---------------------------------------------------------------------------
 
-  if (dishForm) {
-    dishForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const id = document.getElementById('dishId').value;
-      const nome = document.getElementById('dishNome').value.trim();
-      const descricao = document.getElementById('dishDescricao').value.trim();
-      const preco = parseFloat(document.getElementById('dishPreco').value);
-      const imagem = document.getElementById('dishImagem').value.trim();
-      const destaque = document.getElementById('dishDestaque').checked;
-      const ativo = document.getElementById('dishAtivo').checked;
+  function bindEventos() {
+    const btnNewIng = document.getElementById('btnNewIngredient');
+    if (btnNewIng) btnNewIng.addEventListener('click', () => abrirIngrediente(null));
 
-      closeDishModal();
+    const btnNewDish = document.getElementById('btnNewDish');
+    if (btnNewDish) btnNewDish.addEventListener('click', () => abrirPrato(null));
 
-      const recipeRows = recipeContainer ? recipeContainer.querySelectorAll('.recipe-row') : [];
-      const newRecipes = [];
-      recipeRows.forEach(row => {
-        const ingId = row.querySelector('.recipe-ing-select').value;
-        const qte = parseFloat(row.querySelector('.recipe-ing-qte').value);
-        if (ingId && qte > 0) {
-          newRecipes.push({ ingrediente_id: ingId, quantidade: qte });
-        }
+    const formIng = document.getElementById('ingredientForm');
+    if (formIng) formIng.addEventListener('submit', salvarIngrediente);
+
+    const formDish = document.getElementById('dishForm');
+    if (formDish) formDish.addEventListener('submit', salvarPrato);
+
+    const btnAddRow = document.getElementById('btnAddRecipeRow');
+    if (btnAddRow) btnAddRow.addEventListener('click', () => adicionarLinhaReceita());
+
+    const tabEstoque = document.getElementById('tabViewEstoque');
+    const tabPratos = document.getElementById('tabViewPratos');
+    if (tabEstoque) tabEstoque.addEventListener('click', () => trocarAba('estoque'));
+    if (tabPratos) tabPratos.addEventListener('click', () => trocarAba('pratos'));
+
+    const fechar = {
+      'btnCloseIngredientModal': 'ingredientModal',
+      'btnCancelIngredientModal': 'ingredientModal',
+      'btnCloseDishModal': 'dishModal',
+      'btnCancelDishModal': 'dishModal'
+    };
+    Object.entries(fechar).forEach(([btnId, modalId]) => {
+      const btn = document.getElementById(btnId);
+      if (btn) btn.addEventListener('click', () => fecharModal(modalId));
+    });
+
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', e => {
+        if (e.target === overlay) overlay.style.display = 'none';
       });
-
-      let dishId = id;
-      const client = getClient();
-
-      if (id) {
-        const dish = dishes.find(d => d.id === id);
-        if (dish) {
-          dish.nome = nome;
-          dish.descricao = descricao;
-          dish.preco = preco;
-          dish.imagem = imagem;
-          dish.destaque = destaque;
-          dish.ativo = ativo;
-
-          if (client && typeof client.from === 'function') {
-            const res = await window.safeSupabaseQuery(
-              client.from('pratos').update({ nome, descricao, preco, imagem, destaque, ativo }).eq('id', id)
-            );
-            if (res.error) console.error("Erro ao atualizar prato:", res.error);
-          }
-        }
-      } else {
-        dishId = crypto.randomUUID();
-        const newDish = {
-          id: dishId,
-          nome,
-          descricao,
-          preco,
-          imagem,
-          destaque,
-          ativo,
-          criado_em: new Date().toISOString()
-        };
-        dishes.push(newDish);
-
-        if (client && typeof client.from === 'function') {
-          const res = await window.safeSupabaseQuery(
-            client.from('pratos').insert(newDish)
-          );
-          if (res.error) console.error("Erro ao inserir prato:", res.error);
-        }
-      }
-
-      pratoIngredientesMap[dishId] = newRecipes;
-
-      if (client && typeof client.from === 'function') {
-        await window.safeSupabaseQuery(client.from('prato_ingredientes').delete().eq('prato_id', dishId));
-        if (newRecipes.length > 0) {
-          const piInserts = newRecipes.map(r => ({
-            prato_id: dishId,
-            ingrediente_id: r.ingrediente_id,
-            quantidade: r.quantidade
-          }));
-          const piRes = await window.safeSupabaseQuery(
-            client.from('prato_ingredientes').upsert(piInserts, { onConflict: 'prato_id,ingrediente_id' })
-          );
-          if (piRes.error) console.error("Erro ao realizar upsert em prato_ingredientes:", piRes.error);
-        }
-      }
-
-      renderKPIs();
-      renderDishesTable();
     });
   }
 
-  async function deleteDish(id) {
-    if (!confirm('Deseja realmente remover este prato do cardápio?')) return;
+  function trocarAba(aba) {
+    abaAtual = aba;
+    const painelEstoque = document.getElementById('panelEstoque');
+    const painelPratos = document.getElementById('panelPratos');
+    const tabEstoque = document.getElementById('tabViewEstoque');
+    const tabPratos = document.getElementById('tabViewPratos');
 
-    dishes = dishes.filter(d => d.id !== id);
-    delete pratoIngredientesMap[id];
-
-    const client = getClient();
-    if (client && typeof client.from === 'function') {
-      client.from('prato_ingredientes').delete().eq('prato_id', id).then();
-      client.from('pratos').delete().eq('id', id).then();
-    }
-
-    renderKPIs();
-    renderDishesTable();
+    const estoqueAtivo = aba === 'estoque';
+    if (painelEstoque) painelEstoque.style.display = estoqueAtivo ? 'block' : 'none';
+    if (painelPratos) painelPratos.style.display = estoqueAtivo ? 'none' : 'block';
+    if (tabEstoque) tabEstoque.classList.toggle('active', estoqueAtivo);
+    if (tabPratos) tabPratos.classList.toggle('active', !estoqueAtivo);
   }
 
-  // Realtime Subscription
-  function setupRealtime() {
-    const client = getClient();
-    if (client && typeof client.channel === 'function') {
-      client
-        .channel('estoque-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-          loadData();
-        })
-        .subscribe();
-    }
+  function abrirModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'flex';
   }
 
-  // Initialize
-  await loadData();
-  setupRealtime();
-});
+  function fecharModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
+
+  function getVal(id) {
+    const el = document.getElementById(id);
+    return el ? el.value : '';
+  }
+
+  function setVal(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.value = value === null || value === undefined ? '' : value;
+  }
+
+  function isChecked(id) {
+    const el = document.getElementById(id);
+    return el ? el.checked : false;
+  }
+
+  function setChecked(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.checked = Boolean(value);
+  }
+
+  function formatarNumero(valor) {
+    const n = Number(valor);
+    return n.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+  }
+
+  function linhaVazia(colspan, mensagem) {
+    return `<tr><td colspan="${colspan}" style="text-align:center;color:var(--text-muted);padding:var(--space-xl);">${escapeHtml(mensagem)}</td></tr>`;
+  }
+
+  function linhaErro(colspan, mensagem) {
+    return `<tr><td colspan="${colspan}" style="text-align:center;color:var(--danger);padding:var(--space-xl);">${escapeHtml(mensagem || 'Erro ao carregar dados.')}</td></tr>`;
+  }
+})();
