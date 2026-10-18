@@ -44,6 +44,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 29/09/2026 | 2.0 | Refatoracao | Infraestrutura/Supabase | Centralização de credenciais e cabeçalhos em js/supabase.js, substituição de IDs simples por UUIDs válidos em atendimento.js e faturamento.js (resolução de erro 400), e verificação das correções de subtópicos 1.1 a 1.5. | Jules | Concluido |
 | 29/09/2026 | 2.1 | Correcao | Pedidos/Supabase | Remoção do campo 'id' na inserção de pedido_itens (resolução de erro 409 Conflict) e garantia de geração de UUID válido via crypto.randomUUID() na tabela pedidos (resolução de erro 400 Bad Request). | Jules | Concluido |
 | 08/10/2026 | 2.2 | Correcao | Geral/Autenticação & HTTP | Resolução dos erros HTTP 401, 400 e 409 em estoque.js, cardapio.js, atendimento.js e faturamento.js, inclusão da função utilitária window.getSupabase(), eliminação de referências à variável 'db' e prevenção de loading infinito com tratamento de exceções no auth.js. | Jules | Concluido |
+| 17/10/2026 | 2.3 | Correcao | Geral/Cardápio, Pedidos, Supabase e Responsividade | Registro das regressões de disponibilidade dos pratos, imagens repetidas, falha no envio de pedidos (400 e 409), verificação dos erros 401 e revisão da responsividade e funcionalidades pendentes. (execução detalhada na seção 5). | Stakeholder | Concluido |
 | 18/10/2026 | 2.3 | Correcao | Banco/Migração | Criação e aplicação da migração idempotente `supabase/migrations/20261017_neoorder_hardening.sql` (1.800+ linhas, 15 seções): tabelas de sessão de funcionário e auditoria de login, normalização dos status, 24 RPCs e comentários de contrato. | Arena Agent | Concluido |
 | 18/10/2026 | 2.3 | Correcao | Segurança/RLS | RLS habilitada nas 11 tabelas com remoção de **todas** as policies permissivas; `REVOKE ALL` de tabelas/sequences para `PUBLIC`, `anon` e `authenticated`; `EXECUTE` concedido apenas às 24 RPCs de negócio. A publishable key deixou de acessar dados diretamente. | Arena Agent | Concluido |
 | 18/10/2026 | 2.3 | Correcao | Autenticação | Login real com bcrypt no banco (`autenticar_usuario`), token opaco de 64 caracteres com hash SHA-256 e validade de 12 h, bloqueio de força bruta (5 falhas/15 min), `encerrar_sessao` e bootstrap do primeiro gerente (`criar_gerente_inicial`). Removidos o backdoor de senha `123456`, as contas mock e a regra que aceitava qualquer senha. | Arena Agent | Concluido |
@@ -260,3 +261,35 @@ Backup, migração e scripts foram validados por SQL; o sandbox de desenvolvimen
 3. **Backup de contas:** `backup_importar` não restaura `usuarios` de propósito (evita sobrescrever senhas e permitir escalada). Contas devem ser recriadas pelo painel.
 4. **Tempo real:** substituído por polling de 8 s. Habilitar `postgres_changes` exigiria policy de `SELECT` em `pedidos`/`chamados`, reabrindo o acesso direto que esta versão fechou.
 5. **Testes automatizados:** existe um smoke test de interface (`tests/smoke.js`, `npm test`) que valida as 8 telas contra o contrato das RPCs. Faltam testes de integração com o banco real e E2E em navegador (Playwright + Supabase local).
+
+---
+
+## 6. Análise Técnica de 17/10/2026 — Pendências Identificadas
+
+> Registro histórico da análise entregue pelo stakeholder junto com o backlog v2.3 (status "Pendente").
+> Todos os itens foram executados e validados em 18/10/2026; o resultado está na **seção 5**.
+
+
+### 6.1. Prioridade Alta — Integridade e Funcionamento do Sistema
+
+- **Consistência dos Status dos Pedidos:** Revisar os status utilizados no frontend e no banco de dados, garantindo compatibilidade com as restrições existentes e evitando falhas nas atualizações.
+- **Correção do Registro de Chamados:** Verificar a utilização dos campos da tabela `chamados`, especialmente a correspondência entre `motivo` e `justificativa`.
+- **Autenticação e Perfis de Acesso:** Revisar a validação dos perfis de Gerente, Atendente, Mesa e Cliente, garantindo compatibilidade com o esquema real do banco de dados e evitando verificações baseadas em campos inexistentes.
+- **Segurança das Operações:** Revisar as políticas RLS das tabelas utilizadas pelos módulos do sistema, garantindo que cada perfil tenha somente as permissões necessárias.
+- **Operações no Banco de Dados:** Avaliar a utilização das funções RPC existentes ou necessárias para operações críticas, como criação de pedidos, atualização de status, consulta de pedidos da mesa, faturamento e criação de chamados.
+- **Tratamento de Erros:** Eliminar mensagens de sucesso falsas e garantir que falhas de gravação ou consulta sejam informadas corretamente ao usuário.
+- **Dados Iniciais:** Verificar a existência e a consistência dos dados necessários para o funcionamento do sistema, incluindo mesas, pratos, ingredientes, estoque e fichas técnicas.
+
+### 6.2. Prioridade Média — Funcionalidades e Experiência de Uso
+
+- **Atualização em Tempo Real:** Verificar a configuração do Supabase Realtime e garantir a atualização dos pedidos e chamados nos módulos correspondentes.
+- **Chamados de Atendimento:** Garantir que a solicitação de atendimento funcione corretamente nas telas aplicáveis e que os chamados sejam registrados e exibidos aos funcionários.
+- **Faturamento:** Validar os cálculos financeiros, os filtros por período, a quantidade de pedidos, o ticket médio e os pratos mais vendidos.
+- **Estoque e Cancelamentos:** Verificar a baixa de ingredientes na criação de pedidos e o estorno correspondente em cancelamentos, evitando inconsistências no estoque.
+- **Navegação e Interface:** Revisar os links entre módulos, os menus e a adaptação das telas para dispositivos móveis.
+
+### 6.3. Prioridade Baixa — Documentação e Qualidade
+
+- **Testes de Regressão:** Criar ou atualizar testes para os principais fluxos do sistema, incluindo autenticação, disponibilidade, imagens, pedidos, chamados, estoque e faturamento.
+- **Documentação Técnica:** Conferir se o `backlog.md` e o `supabase-schema.md` correspondem ao comportamento real do sistema e ao esquema atual do banco de dados.
+- **Validação Final:** Executar os fluxos principais antes de registrar tarefas como concluídas, documentando os erros encontrados e as correções efetivamente validadas.
