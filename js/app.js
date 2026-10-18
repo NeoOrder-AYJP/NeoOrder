@@ -12,8 +12,78 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     setupCarouselControls();
+    setupCallStaff();
     loadMenu();
   });
+
+  // ---------------------------------------------------------------------------
+  // RF-26: "Chamar Funcionário" também na landing page, quando há sessão de mesa
+  // ---------------------------------------------------------------------------
+
+  function setupCallStaff() {
+    const session = window.NeoAPI && window.NeoAPI.Session ? window.NeoAPI.Session.get() : null;
+    if (!session || !session.usuario || session.usuario.tipo !== 'mesa') return;
+
+    const fab = document.getElementById('btnCallStaffGlobal');
+    const modal = document.getElementById('callStaffGlobalModal');
+    const form = document.getElementById('callStaffGlobalForm');
+    const select = document.getElementById('callGlobalReason');
+    const otherGroup = document.getElementById('callGlobalOtherGroup');
+    const otherInput = document.getElementById('callGlobalJustification');
+
+    if (!fab || !modal || !form) return;
+
+    fab.style.display = 'inline-flex';
+
+    // Mesa já autenticada vai direto para o cardápio, sem passar pelo login.
+    const pedir = document.getElementById('btn-fazer-pedido');
+    if (pedir) {
+      pedir.setAttribute('href', 'cardapio.html');
+      pedir.innerHTML = '<i class="fas fa-book-open"></i> Ir para o Cardápio';
+    }
+
+    const abrir = () => { modal.style.display = 'flex'; };
+    const fechar = () => { modal.style.display = 'none'; };
+
+    fab.addEventListener('click', abrir);
+    ['btnCloseCallStaffGlobal', 'btnCancelCallStaffGlobal'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', fechar);
+    });
+
+    if (select) {
+      select.addEventListener('change', () => {
+        if (otherGroup) otherGroup.style.display = select.value === 'Outro' ? 'block' : 'none';
+      });
+    }
+
+    modal.addEventListener('click', e => { if (e.target === modal) fechar(); });
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+
+      let motivo = select ? select.value : '';
+      if (motivo === 'Outro') {
+        motivo = otherInput && otherInput.value.trim() ? otherInput.value.trim() : 'Outro motivo';
+      }
+      if (!motivo) return;
+
+      const button = document.getElementById('btnSubmitCallStaffGlobal');
+      NeoUI.setBusy(button, true, 'Enviando...');
+
+      try {
+        await NeoAPI.criarChamado(session.token, motivo);
+        fechar();
+        form.reset();
+        if (otherGroup) otherGroup.style.display = 'none';
+        NeoUI.toast('Chamado enviado. Um atendente já foi avisado.', 'success', 5000);
+      } catch (err) {
+        NeoUI.toast(err.message || 'Não foi possível enviar o chamado.', 'error', 7000);
+      } finally {
+        NeoUI.setBusy(button, false);
+      }
+    });
+  }
 
   async function loadMenu() {
     const grid = document.getElementById('menu-grid');

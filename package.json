@@ -1,0 +1,13 @@
+{
+  "name": "neoorder",
+  "version": "2.3.0",
+  "private": true,
+  "description": "Sistema de gerenciamento de pedidos de restaurante (HTML/CSS/JS + Supabase)",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node tests/smoke.js"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.0"
+  }
+}

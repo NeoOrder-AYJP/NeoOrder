@@ -6,7 +6,7 @@
 
 (function () {
   let token = null;
-  let periodo = 'hoje';
+  let periodo = 'mes'; // RF-32: a visão inicial é o mês corrente
   let ultimoRelatorio = null;
 
   document.addEventListener('DOMContentLoaded', async () => {

@@ -212,6 +212,8 @@ Nenhuma quantidade de estoque é exposta ao cliente (RF-25).
 - `js/supabase.js` virou o único ponto de acesso ao banco: `NeoAPI.callRpc`, sessão em `sessionStorage`, tradução de SQLSTATE, `NeoUI` (toasts, dinheiro, datas, badges, spinner, estado vazio) e tema.
 - Removidos `safeSupabaseQuery`, `MOCK_DISHES`, contas mock e todos os fallbacks fictícios.
 - `cardapio.js`: carrinho persistido por mesa, contador, envio transacional, histórico com barra de progresso e chamado de funcionário com limite de 3 por 30 min (regra do banco).
+- **RF-26:** botão flutuante "Chamar Funcionário" também na landing page (`index.html`) sempre que houver sessão de mesa ativa, reaproveitando a mesma RPC de chamados.
+- **RF-32:** a dashboard de faturamento abre no período **mês corrente** (antes abria em "Hoje"), mantendo os filtros de dia/semana.
 - `atendimento.js`: polling de 8 s (pausa com a aba oculta), colunas Pendente/Em Preparo/Pronto, ações de avanço, cancelamento com confirmação e som consertado.
 - `estoque.js`: CRUD de insumos, pratos com ficha técnica dinâmica e indicador de porções; `contas.js`: CRUD de mesas e funcionários com perfil; `faturamento.js`: período, KPIs e backup.
 - `styles.css`: novos componentes (`toast`, `empty-state`, `spinner`, `order-card`, `call-card`, `qty-control`, `badge-*`, `dish-thumb`), mantendo a paleta `#E85D04/#FFF8F0/#2B2D42`, Poppins e o breakpoint único de 767 px.
@@ -239,7 +241,7 @@ Nenhuma quantidade de estoque é exposta ao cliente (RF-25).
 | 17 | Força bruta (7 tentativas) | bloqueio a partir da 6ª (`42901`) |
 | 18 | Fluxo completo executado **como `anon`** (login mesa → pedido → login atendente → Em Preparo → Pronto → Entregue) | pedido 70,00 entregue, `entregue_em` gravado |
 | 19 | Atendente chamando `relatorio_faturamento` | bloqueado (`42501`) |
-| 20 | Smoke test de front-end (jsdom + RPC simulada) | 7 páginas sem erros de execução |
+| 20 | `npm test` (`tests/smoke.js`, jsdom + RPC simulada) | 8 cenários, nenhuma exceção |
 
 Backup, migração e scripts foram validados por SQL; o sandbox de desenvolvimento não acessa `*.supabase.co` por HTTP, portanto o teste de interface usou um cliente simulado com o mesmo contrato das RPCs.
 
@@ -257,4 +259,4 @@ Backup, migração e scripts foram validados por SQL; o sandbox de desenvolvimen
 2. **QR Code das mesas:** colunas `qr_code_ativo`/`qr_token_hash` reservadas, sem fluxo implementado.
 3. **Backup de contas:** `backup_importar` não restaura `usuarios` de propósito (evita sobrescrever senhas e permitir escalada). Contas devem ser recriadas pelo painel.
 4. **Tempo real:** substituído por polling de 8 s. Habilitar `postgres_changes` exigiria policy de `SELECT` em `pedidos`/`chamados`, reabrindo o acesso direto que esta versão fechou.
-5. **Testes automatizados:** a validação atual é manual/SQL. Uma suíte com Playwright + Supabase local é o próximo passo natural.
+5. **Testes automatizados:** existe um smoke test de interface (`tests/smoke.js`, `npm test`) que valida as 8 telas contra o contrato das RPCs. Faltam testes de integração com o banco real e E2E em navegador (Playwright + Supabase local).

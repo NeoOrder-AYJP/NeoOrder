@@ -1109,3 +1109,43 @@ a {
     row-gap: var(--space-sm);
   }
 }
+
+/* Botão flutuante de chamado (RF-26) */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  transition: transform 160ms ease, background-color 160ms ease;
+}
+
+.fab:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+}
+
+.fab .material-symbols-outlined {
+  font-size: 20px;
+}
+
+@media (max-width: 767px) {
+  .fab {
+    right: 14px;
+    bottom: 14px;
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+}

@@ -95,6 +95,19 @@ Contas criadas pelo seed:
 - Nenhuma tabela é acessível pela publishable key; todo acesso passa por RPC.
 - O primeiro gerente só pode ser criado enquanto não existir gerente ativo.
 
+## Testes
+
+Teste de fumaça de interface (jsdom + Supabase simulado, sem rede):
+
+```bash
+npm install
+npm test
+```
+
+O teste executa as 8 telas reais com os scripts do projeto e respostas
+fictícias no mesmo contrato das RPCs, verificando renderização, carrinho,
+kanban, filtros e o botão de chamado.
+
 ## Testes manuais sugeridos
 
 1. `index.html` → cards e carrossel com as 8 imagens locais (sem imagens repetidas).
