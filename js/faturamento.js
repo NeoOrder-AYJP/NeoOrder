@@ -1,365 +1,245 @@
-/**
- * NeoOrder - Faturamento & Backup (Gerente)
- */
+// js/faturamento.js — Faturamento e backup (gerente)
+//
+// Indicadores vêm de `relatorio_faturamento`, que considera apenas pedidos
+// com status 'Entregue' e entregue_em dentro do período (RN-08).
+// Backup completo via `backup_exportar` / `backup_importar`.
 
-document.addEventListener('DOMContentLoaded', async () => {
-  // 1. Ensure user is authenticated and is a Gerente (RF-36)
-  const user = NeoAuth.requireAuth(['gerente']);
-  if (!user) return;
+(function () {
+  let token = null;
+  let periodo = 'mes'; // RF-32: a visão inicial é o mês corrente
+  let ultimoRelatorio = null;
 
-  const userInfoEl = document.getElementById('userInfo');
-  if (userInfoEl) {
-    userInfoEl.textContent = `${user.nome} (${(user.perfil || user.tipo).toUpperCase()})`;
-  }
+  document.addEventListener('DOMContentLoaded', async () => {
+    const user = window.NeoAuth.requireAuth(['gerente']);
+    if (!user) return;
 
-  // Bind logout button
-  const btnLogout = document.getElementById('btnLogout');
-  if (btnLogout) {
-    btnLogout.addEventListener('click', () => NeoAuth.logout());
-  }
+    token = window.NeoAuth.getToken();
 
-  // Helper to get Supabase client
-  function getClient() {
-    return (window.getSupabase && window.getSupabase()) || window.supabaseClient || window.getSupabaseClient();
-  }
+    const userInfo = document.getElementById('userInfo');
+    if (userInfo) userInfo.textContent = `${user.nome} (GERENTE)`;
 
-  // State
-  let selectedPeriod = 'today'; // 'today', 'week', 'month'
-  let rawOrders = [];
-  let rawDishes = [];
+    bindEventos();
+    await carregarRelatorio();
+  });
 
-  // DOM Elements
-  const filterToday = document.getElementById('filterToday');
-  const filterWeek = document.getElementById('filterWeek');
-  const filterMonth = document.getElementById('filterMonth');
+  // ---------------------------------------------------------------------------
+  // Períodos
+  // ---------------------------------------------------------------------------
 
-  const kpiTotalRevenue = document.getElementById('kpiTotalRevenue');
-  const kpiCompletedOrders = document.getElementById('kpiCompletedOrders');
-  const kpiAverageTicket = document.getElementById('kpiAverageTicket');
-  const kpiCancelledOrders = document.getElementById('kpiCancelledOrders');
+  function intervalo(escolha) {
+    const agora = new Date();
+    const inicio = new Date(agora);
+    inicio.setHours(0, 0, 0, 0);
 
-  const topDishesTableBody = document.getElementById('topDishesTableBody');
-  const salesLogTableBody = document.getElementById('salesLogTableBody');
-
-  const btnExportJson = document.getElementById('btnExportJson');
-  const importJsonInput = document.getElementById('importJsonInput');
-
-  // Tab switching for period filters
-  if (filterToday) filterToday.addEventListener('click', () => setPeriod('today'));
-  if (filterWeek) filterWeek.addEventListener('click', () => setPeriod('week'));
-  if (filterMonth) filterMonth.addEventListener('click', () => setPeriod('month'));
-
-  function setPeriod(period) {
-    selectedPeriod = period;
-    if (filterToday) filterToday.classList.toggle('active', period === 'today');
-    if (filterWeek) filterWeek.classList.toggle('active', period === 'week');
-    if (filterMonth) filterMonth.classList.toggle('active', period === 'month');
-    calculateAndRenderMetrics();
-  }
-
-  // Default Mock Fallback Data
-  const mockOrders = [
-    {
-      id: 'f1001000-0000-0000-0000-000000001001',
-      mesa_id: '10000000-0000-0000-0000-000000000001',
-      mesa_nome: 'Mesa 01',
-      valor_total: 89.90,
-      status: 'Entregue',
-      criado_em: new Date().toISOString(),
-      pedido_itens: [
-        { id: 'f1010000-0000-0000-0000-000000000101', prato_id: 'd1111111-1111-1111-1111-111111111111', quantidade: 1, preco_unitario: 89.90, pratos: { nome: 'Filé Mignon ao Roti' } }
-      ]
-    },
-    {
-      id: 'f1002000-0000-0000-0000-000000001002',
-      mesa_id: '10000000-0000-0000-0000-000000000002',
-      mesa_nome: 'Mesa 02',
-      valor_total: 149.00,
-      status: 'Entregue',
-      criado_em: new Date(Date.now() - 86400000).toISOString(),
-      pedido_itens: [
-        { id: 'f1020000-0000-0000-0000-000000000102', prato_id: 'd2222222-2222-2222-2222-222222222222', quantidade: 2, preco_unitario: 74.50, pratos: { nome: 'Risoto de Cogumelos Frescos' } }
-      ]
-    },
-    {
-      id: 'f1003000-0000-0000-0000-000000001003',
-      mesa_id: '10000000-0000-0000-0000-000000000003',
-      mesa_nome: 'Mesa 03',
-      valor_total: 98.00,
-      status: 'Cancelado',
-      criado_em: new Date().toISOString(),
-      pedido_itens: [
-        { id: 'f1030000-0000-0000-0000-000000000103', prato_id: 'd3333333-3333-3333-3333-333333333333', quantidade: 1, preco_unitario: 98.00, pratos: { nome: 'Salmão Grelhado com Alcaparras' } }
-      ]
+    if (escolha === 'semana') {
+      const diaSemana = inicio.getDay(); // 0 = domingo
+      inicio.setDate(inicio.getDate() - diaSemana);
+    } else if (escolha === 'mes') {
+      inicio.setDate(1);
     }
-  ];
 
-  // Fetch Orders and Dishes Data
-  async function loadData() {
+    const fim = new Date(agora);
+    fim.setHours(23, 59, 59, 999);
+    // Inclui o restante do dia atual (o relatório usa < p_data_fim)
+    fim.setDate(fim.getDate() + 1);
+    fim.setHours(0, 0, 0, 0);
+
+    return { inicio, fim };
+  }
+
+  function rotuloPeriodo(escolha) {
+    return escolha === 'semana' ? 'esta semana' : escolha === 'mes' ? 'este mês' : 'hoje';
+  }
+
+  async function carregarRelatorio() {
+    const { inicio, fim } = intervalo(periodo);
+
     try {
-      const client = getClient();
-      if (client && typeof client.from === 'function') {
-        const { data: orderData, error: orderErr } = await client
-          .from('pedidos')
-          .select('*, pedido_itens(*, pratos(nome)), usuarios(nome, login)')
-          .order('criado_em', { ascending: false });
-
-        if (!orderErr && orderData && orderData.length > 0) {
-          rawOrders = orderData.map(o => ({
-            ...o,
-            mesa_nome: o.usuarios ? (o.usuarios.nome || `Mesa ${o.usuarios.login}`) : (o.mesa_nome || 'Mesa')
-          }));
-        } else {
-          rawOrders = [...mockOrders];
-        }
-
-        const { data: dishData } = await client.from('pratos').select('*');
-        if (dishData) rawDishes = dishData;
-      } else {
-        rawOrders = [...mockOrders];
-      }
+      const rel = await NeoAPI.relatorioFaturamento(token, inicio.toISOString(), fim.toISOString());
+      ultimoRelatorio = rel;
+      renderRelatorio(rel);
     } catch (err) {
-      console.warn("Faturamento fetch error:", err);
-      rawOrders = [...mockOrders];
-    }
+      console.error('Erro ao carregar faturamento:', err);
+      NeoUI.toast(err.message || 'Não foi possível carregar o relatório.', 'error', 6000);
 
-    calculateAndRenderMetrics();
-  }
-
-  // Date Filter Check
-  function isDateInPeriod(dateString, period) {
-    const date = new Date(dateString);
-    const now = new Date();
-
-    if (period === 'today') {
-      return date.toDateString() === now.toDateString();
-    }
-
-    if (period === 'week') {
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
-      startOfWeek.setHours(0, 0, 0, 0);
-      return date >= startOfWeek;
-    }
-
-    if (period === 'month') {
-      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    }
-
-    return true;
-  }
-
-  // Calculate & Render Financial KPIs and Tables
-  function calculateAndRenderMetrics() {
-    // 1. Filter orders by selected period
-    const periodOrders = rawOrders.filter(o => isDateInPeriod(o.criado_em, selectedPeriod));
-
-    // 2. Separate delivered and cancelled
-    const deliveredOrders = periodOrders.filter(o => o.status === 'Entregue' || o.status === 'Pronto');
-    const cancelledOrders = periodOrders.filter(o => o.status === 'Cancelado');
-
-    // 3. Compute Metrics
-    const totalRevenue = deliveredOrders.reduce((acc, curr) => acc + parseFloat(curr.valor_total || 0), 0);
-    const completedCount = deliveredOrders.length;
-    const avgTicket = completedCount > 0 ? (totalRevenue / completedCount) : 0;
-    const cancelledCount = cancelledOrders.length;
-
-    // Render KPIs
-    if (kpiTotalRevenue) kpiTotalRevenue.textContent = `R$ ${totalRevenue.toFixed(2).replace('.', ',')}`;
-    if (kpiCompletedOrders) kpiCompletedOrders.textContent = completedCount;
-    if (kpiAverageTicket) kpiAverageTicket.textContent = `R$ ${avgTicket.toFixed(2).replace('.', ',')}`;
-    if (kpiCancelledOrders) kpiCancelledOrders.textContent = cancelledCount;
-
-    // 4. Compute Top Selling Dishes
-    const dishSalesMap = {}; // dishName -> { count: number, totalRevenue: number }
-
-    deliveredOrders.forEach(ord => {
-      (ord.pedido_itens || []).forEach(pi => {
-        const name = pi.pratos ? pi.pratos.nome : 'Prato';
-        const qte = parseInt(pi.quantidade || 0, 10);
-        const subtotal = parseFloat(pi.preco_unitario || 0) * qte;
-
-        if (!dishSalesMap[name]) {
-          dishSalesMap[name] = { count: 0, totalRevenue: 0 };
-        }
-        dishSalesMap[name].count += qte;
-        dishSalesMap[name].totalRevenue += subtotal;
-      });
-    });
-
-    const topDishes = Object.keys(dishSalesMap)
-      .map(name => ({
-        nome: name,
-        count: dishSalesMap[name].count,
-        totalRevenue: dishSalesMap[name].totalRevenue
-      }))
-      .sort((a, b) => b.count - a.count);
-
-    if (topDishesTableBody) {
-      if (topDishes.length === 0) {
-        topDishesTableBody.innerHTML = `
-          <tr>
-            <td colspan="3" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
-              Nenhum prato faturado no período selecionado.
-            </td>
-          </tr>`;
-      } else {
-        topDishesTableBody.innerHTML = topDishes.map((dish, index) => `
-          <tr>
-            <td>
-              <div style="font-weight: 600; color: var(--text-main);">${index + 1}. ${dish.nome}</div>
-            </td>
-            <td style="text-align: center; font-weight: 600; color: var(--text-main);">
-              ${dish.count}
-            </td>
-            <td style="text-align: right; font-weight: 700; color: var(--primary);">
-              R$ ${dish.totalRevenue.toFixed(2).replace('.', ',')}
-            </td>
-          </tr>
-        `).join('');
-      }
-    }
-
-    // 5. Render Sales Log
-    if (salesLogTableBody) {
-      if (periodOrders.length === 0) {
-        salesLogTableBody.innerHTML = `
-          <tr>
-            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
-              Nenhum registro encontrado no período selecionado.
-            </td>
-          </tr>`;
-      } else {
-        salesLogTableBody.innerHTML = periodOrders.map(ord => {
-          const timeStr = new Date(ord.criado_em).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-          let badgeStyle = 'background: rgba(42, 157, 143, 0.15); color: #2A9D8F;';
-          if (ord.status === 'Cancelado') badgeStyle = 'background: rgba(157, 2, 8, 0.15); color: #9D0208;';
-          else if (ord.status === 'Recebido') badgeStyle = 'background: rgba(232, 93, 4, 0.15); color: #E85D04;';
-
-          return `
-            <tr>
-              <td style="font-family: monospace; font-weight: 600;">#${ord.id.substring(0, 8)}</td>
-              <td style="font-weight: 500;">${ord.mesa_nome}</td>
-              <td style="color: var(--text-muted); font-size: 13px;">${timeStr}</td>
-              <td><span class="status-badge" style="${badgeStyle}">${ord.status}</span></td>
-              <td style="text-align: right; font-weight: 700; color: var(--text-main);">
-                R$ ${parseFloat(ord.valor_total || 0).toFixed(2).replace('.', ',')}
-              </td>
-            </tr>
-          `;
-        }).join('');
+      if (err.code === '28000' || /sess[aã]o/i.test(err.message || '')) {
+        setTimeout(() => window.NeoAuth.logout(), 1500);
       }
     }
   }
 
-  // --- JSON BACKUP EXPORT & IMPORT ---
+  function renderRelatorio(rel) {
+    if (!rel) return;
 
-  if (btnExportJson) {
-    btnExportJson.addEventListener('click', async () => {
-      btnExportJson.disabled = true;
-      btnExportJson.innerHTML = `<span>Exportando...</span>`;
+    setText('kpiTotalRevenue', NeoUI.money(rel.faturamento_total));
+    setText('kpiCompletedOrders', String(rel.qtd_pedidos || 0));
+    setText('kpiAverageTicket', NeoUI.money(rel.ticket_medio));
+    setText('kpiCancelledOrders', String(rel.qtd_cancelados || 0));
 
-      const backupData = {
-        exportDate: new Date().toISOString(),
-        systemVersion: 'NeoOrder 1.0',
-        tables: {}
-      };
+    renderTopPratos(rel.pratos_mais_vendidos || []);
+    renderPedidos(rel.pedidos || []);
+  }
 
-      const tablesToExport = ['usuarios', 'pratos', 'estoque', 'prato_ingredientes', 'pedidos', 'pedido_itens', 'chamados'];
+  function renderTopPratos(pratos) {
+    const body = document.getElementById('topDishesTableBody');
+    if (!body) return;
 
+    if (!pratos.length) {
+      body.innerHTML = `<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:var(--space-xl);">
+        Nenhum pedido entregue ${rotuloPeriodo(periodo)}.
+      </td></tr>`;
+      return;
+    }
+
+    body.innerHTML = pratos.map(prato => `
+      <tr>
+        <td><strong>${escapeHtml(prato.nome)}</strong></td>
+        <td style="text-align:center;">${prato.quantidade}</td>
+        <td style="text-align:right;">${NeoUI.money(prato.receita)}</td>
+      </tr>`).join('');
+  }
+
+  function renderPedidos(pedidos) {
+    const body = document.getElementById('salesLogTableBody');
+    if (!body) return;
+
+    if (!pedidos.length) {
+      body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:var(--space-xl);">
+        Nenhum pedido registrado ${rotuloPeriodo(periodo)}.
+      </td></tr>`;
+      return;
+    }
+
+    body.innerHTML = pedidos.map(pedido => `
+      <tr>
+        <td><code style="font-size:12px;">#${String(pedido.id).slice(0, 8)}</code></td>
+        <td>${escapeHtml(pedido.mesa_nome || 'Mesa')}</td>
+        <td>${NeoUI.dateTime(pedido.criado_em)}</td>
+        <td>${NeoUI.statusBadge(pedido.status)}</td>
+        <td style="text-align:right;${pedido.status === 'Cancelado' ? 'color:var(--text-muted);text-decoration:line-through;' : ''}">
+          ${NeoUI.money(pedido.valor_total)}
+        </td>
+      </tr>`).join('');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Backup
+  // ---------------------------------------------------------------------------
+
+  async function exportarBackup() {
+    const button = document.getElementById('btnExportJson');
+    NeoUI.setBusy(button, true, 'Gerando...');
+
+    try {
+      const backup = await NeoAPI.backupExportar(token);
+      const json = JSON.stringify(backup, null, 2);
+      const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      a.href = url;
+      a.download = `neoorder-backup-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      const tabelas = backup && backup.tabelas ? Object.keys(backup.tabelas).length : 0;
+      NeoUI.toast(`Backup exportado com ${tabelas} tabelas.`, 'success', 5000);
+    } catch (err) {
+      NeoUI.toast(err.message || 'Não foi possível exportar o backup.', 'error', 7000);
+    } finally {
+      NeoUI.setBusy(button, false);
+    }
+  }
+
+  function importarBackup(e) {
+    const input = e.target;
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      NeoUI.toast('Arquivo muito grande (limite de 15 MB).', 'error');
+      input.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let payload;
       try {
-        const client = getClient();
-        if (client && typeof client.from === 'function') {
-          for (const table of tablesToExport) {
-            const { data, error } = await client.from(table).select('*');
-            backupData.tables[table] = (!error && data) ? data : [];
-          }
-        } else {
-          backupData.tables = {
-            usuarios: [],
-            pratos: rawDishes,
-            pedidos: rawOrders
-          };
-        }
-
-        const jsonStr = JSON.stringify(backupData, null, 2);
-        const blob = new Blob([jsonStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `neoorder_backup_${new Date().toISOString().slice(0, 10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        alert('Backup do sistema exportado com sucesso!');
+        payload = JSON.parse(reader.result);
       } catch (err) {
-        console.error("Export backup error:", err);
-        alert('Erro ao exportar backup.');
-      } finally {
-        btnExportJson.disabled = false;
-        btnExportJson.innerHTML = `<span class="material-symbols-outlined">download</span><span>Exportar Backup (JSON)</span>`;
-      }
-    });
-  }
-
-  if (importJsonInput) {
-    importJsonInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      if (!confirm('ATENÇÃO: A importação de backup atualizará os dados no sistema. Deseja prosseguir?')) {
-        importJsonInput.value = '';
+        NeoUI.toast('Arquivo JSON inválido.', 'error');
+        input.value = '';
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const backupData = JSON.parse(event.target.result);
-          if (!backupData || !backupData.tables) {
-            throw new Error('Formato de arquivo de backup inválido.');
-          }
+      const substituir = window.confirm(
+        'Como deseja importar?\n\nOK = SUBSTITUIR os dados atuais (remove registros existentes).\nCancelar = MESCLAR (atualiza e insere sem apagar).'
+      );
+      const modo = substituir ? 'replace' : 'merge';
 
-          const client = getClient();
-          if (client && typeof client.from === 'function') {
-            for (const tableName of Object.keys(backupData.tables)) {
-              const rows = backupData.tables[tableName];
-              if (Array.isArray(rows) && rows.length > 0) {
-                await client.from(tableName).upsert(rows);
-              }
-            }
-          }
+      const confirmar = window.confirm(
+        `Confirmar importação em modo "${modo}"? Esta operação altera o banco de dados.`
+      );
+      if (!confirmar) {
+        input.value = '';
+        return;
+      }
 
-          alert('Backup importado e restaurado com sucesso!');
-          await loadData();
-        } catch (err) {
-          console.error("Import backup error:", err);
-          alert(`Erro ao importar backup: ${err.message}`);
-        } finally {
-          importJsonInput.value = '';
-        }
-      };
-      reader.readAsText(file);
+      try {
+        const resultado = await NeoAPI.backupImportar(token, payload, modo);
+        NeoUI.toast(resultado && resultado.mensagem ? resultado.mensagem : 'Backup importado com sucesso.', 'success', 6000);
+        await carregarRelatorio();
+      } catch (err) {
+        NeoUI.toast(err.message || 'Não foi possível importar o backup.', 'error', 8000);
+      } finally {
+        input.value = '';
+      }
+    };
+
+    reader.onerror = () => {
+      NeoUI.toast('Não foi possível ler o arquivo.', 'error');
+      input.value = '';
+    };
+
+    reader.readAsText(file, 'utf-8');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Eventos
+  // ---------------------------------------------------------------------------
+
+  function bindEventos() {
+    const botoes = {
+      filterToday: 'hoje',
+      filterWeek: 'semana',
+      filterMonth: 'mes'
+    };
+
+    Object.entries(botoes).forEach(([btnId, valor]) => {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        periodo = valor;
+        Object.keys(botoes).forEach(otherId => {
+          const other = document.getElementById(otherId);
+          if (other) other.classList.toggle('active', otherId === btnId);
+        });
+        await carregarRelatorio();
+      });
     });
+
+    const btnExport = document.getElementById('btnExportJson');
+    if (btnExport) btnExport.addEventListener('click', exportarBackup);
+
+    const inputImport = document.getElementById('importJsonInput');
+    if (inputImport) inputImport.addEventListener('change', importarBackup);
   }
 
-  // Realtime Subscription
-  function setupRealtime() {
-    const client = getClient();
-    if (client && typeof client.channel === 'function') {
-      client
-        .channel('faturamento-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-          loadData();
-        })
-        .subscribe();
-    }
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
   }
-
-  // Initialize
-  await loadData();
-  setupRealtime();
-});
+})();

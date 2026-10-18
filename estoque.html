@@ -234,11 +234,24 @@
           </div>
 
           <div class="form-group">
-            <label for="dishImagem" class="form-label">URL da Imagem</label>
+            <label for="dishImagem" class="form-label">Imagem do Prato</label>
             <div class="input-wrapper">
               <span class="material-symbols-outlined input-icon">image</span>
-              <input type="url" id="dishImagem" class="input-field" placeholder="https://...">
+              <input type="text" id="dishImagem" class="input-field" list="dishImageOptions"
+                     placeholder="assets/pratos/risoto-cogumelos.jpg">
             </div>
+            <datalist id="dishImageOptions">
+              <option value="assets/pratos/arroz-feijao-preto.jpg"></option>
+              <option value="assets/pratos/burger-artesanal.jpg"></option>
+              <option value="assets/pratos/cogumelos-salteados.jpg"></option>
+              <option value="assets/pratos/file-mignon.jpg"></option>
+              <option value="assets/pratos/pasta-carbonara.jpg"></option>
+              <option value="assets/pratos/pizza-quatro-queijos.jpg"></option>
+              <option value="assets/pratos/risoto-cogumelos.jpg"></option>
+              <option value="assets/pratos/salmao-grelhado.jpg"></option>
+              <option value="assets/pratos/sem-imagem.svg"></option>
+            </datalist>
+            <small style="font-size:12px;color:var(--text-muted);">Use um caminho local de <code>assets/pratos/</code> ou uma URL https. Vazio = imagem padrão.</small>
           </div>
         </div>
 

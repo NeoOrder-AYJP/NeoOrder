@@ -50,7 +50,7 @@
           <span class="material-symbols-outlined" style="color: var(--primary);">manage_accounts</span>
           <span>Gerenciamento de Contas</span>
         </h1>
-        <p style="color: var(--text-muted); font-size: 14px;">Crie e gerencie acessos de mesas, clientes e colaboradores do restaurante.</p>
+        <p style="color: var(--text-muted); font-size: 14px;">Crie e gerencie acessos de mesas e colaboradores do restaurante.</p>
       </div>
 
       <button type="button" id="btnNewAccount" class="btn btn-primary">
@@ -60,15 +60,12 @@
     </div>
 
     <!-- Segmented Tab Filter -->
-    <div class="segmented-control" style="max-width: 480px; margin-bottom: var(--space-lg);">
+    <div class="segmented-control" style="max-width: 380px; margin-bottom: var(--space-lg);">
       <button type="button" class="tab-btn active" id="tabFilterAll">
         <span>Todas</span>
       </button>
       <button type="button" class="tab-btn" id="tabFilterMesas">
         <span>Mesas</span>
-      </button>
-      <button type="button" class="tab-btn" id="tabFilterClientes">
-        <span>Clientes</span>
       </button>
       <button type="button" class="tab-btn" id="tabFilterStaff">
         <span>Funcionários</span>
@@ -112,8 +109,7 @@
         <div class="form-group">
           <label for="accountTipo" class="form-label">Tipo de Conta</label>
           <select id="accountTipo" class="input-field" style="padding-left: 14px;" required>
-            <option value="mesa">Mesa (Cliente)</option>
-            <option value="cliente">Cliente Fidelidade</option>
+            <option value="mesa">Mesa</option>
             <option value="funcionario">Funcionário / Colaborador</option>
           </select>
         </div>
@@ -138,8 +134,9 @@
           <label for="accountSenha" class="form-label">Senha de Acesso</label>
           <div class="input-wrapper">
             <span class="material-symbols-outlined input-icon">lock</span>
-            <input type="text" id="accountSenha" class="input-field" placeholder="Ex: 123456 (Padrão: 123)">
+            <input type="password" id="accountSenha" class="input-field" placeholder="Mínimo de 6 caracteres" autocomplete="new-password">
           </div>
+          <small style="font-size:12px;color:var(--text-muted);">Em branco mantém a senha atual (na edição). Obrigatória ao criar uma conta.</small>
         </div>
 
         <div class="form-group" id="groupPerfil" style="display: none;">

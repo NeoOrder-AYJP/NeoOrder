@@ -1,272 +1,227 @@
-// js/app.js - Landing Page Logic for NeoOrder
+// js/app.js — Landing page (cardápio público)
+//
+// Consome exclusivamente a RPC pública `pratos_cardapio()`. Não há fallback
+// para dados fictícios: se o banco responder vazio, a página informa isso.
 
-// Fallback mock dishes if database is empty initially
-const MOCK_DISHES = [
-  {
-    id: 'mock-1',
-    nome: 'Risoto de Cogumelos Selvagens',
-    descricao: 'Arroz arbóreo cremoso com mix de cogumelos frescos, azeite trufado e parmesão artesanal.',
-    preco: 58.00,
-    imagem: 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?auto=format&fit=crop&w=800&q=80',
-    destaque: true,
-    ativo: true,
-    disponivel: true
-  },
-  {
-    id: 'mock-2',
-    nome: 'Filé Mignon ao Molho Roti',
-    descricao: 'Tornedor de filé mignon grelhado com batatas rústicas e aspargos salteados na manteiga.',
-    preco: 82.00,
-    imagem: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80',
-    destaque: true,
-    ativo: true,
-    disponivel: true
-  },
-  {
-    id: 'mock-3',
-    nome: 'Salmão Grelhado com Ervas',
-    descricao: 'Posta de salmão fresco grelhado acompanhado de purê de mandioquinha e legumes grelhados.',
-    preco: 74.50,
-    imagem: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=800&q=80',
-    destaque: true,
-    ativo: true,
-    disponivel: true
-  },
-  {
-    id: 'mock-4',
-    nome: 'Pasta Carbonara Tradicional',
-    descricao: 'Spaghetti com guanciale artesanal, gemas de ovos caipiras, pecorino romano e pimenta preta.',
-    preco: 49.00,
-    imagem: 'https://images.unsplash.com/photo-1612874742237-6526221588e3?auto=format&fit=crop&w=800&q=80',
-    destaque: false,
-    ativo: true,
-    disponivel: true
-  },
-  {
-    id: 'mock-5',
-    nome: 'Burger Artesanal NeoOrder',
-    descricao: 'Blend de 180g de Angus, queijo cheddar inglês, bacon crocante e maionese da casa no pão brioche.',
-    preco: 42.00,
-    imagem: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80',
-    destaque: false,
-    ativo: true,
-    disponivel: false
+(function () {
+  const PLACEHOLDER = 'assets/pratos/sem-imagem.svg';
+
+  let carouselIndex = 0;
+  let carouselTimer = null;
+  let dishes = [];
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setupCarouselControls();
+    setupCallStaff();
+    loadMenu();
+  });
+
+  // ---------------------------------------------------------------------------
+  // RF-26: "Chamar Funcionário" também na landing page, quando há sessão de mesa
+  // ---------------------------------------------------------------------------
+
+  function setupCallStaff() {
+    const session = window.NeoAPI && window.NeoAPI.Session ? window.NeoAPI.Session.get() : null;
+    if (!session || !session.usuario || session.usuario.tipo !== 'mesa') return;
+
+    const fab = document.getElementById('btnCallStaffGlobal');
+    const modal = document.getElementById('callStaffGlobalModal');
+    const form = document.getElementById('callStaffGlobalForm');
+    const select = document.getElementById('callGlobalReason');
+    const otherGroup = document.getElementById('callGlobalOtherGroup');
+    const otherInput = document.getElementById('callGlobalJustification');
+
+    if (!fab || !modal || !form) return;
+
+    fab.style.display = 'inline-flex';
+
+    // Mesa já autenticada vai direto para o cardápio, sem passar pelo login.
+    const pedir = document.getElementById('btn-fazer-pedido');
+    if (pedir) {
+      pedir.setAttribute('href', 'cardapio.html');
+      pedir.innerHTML = '<i class="fas fa-book-open"></i> Ir para o Cardápio';
+    }
+
+    const abrir = () => { modal.style.display = 'flex'; };
+    const fechar = () => { modal.style.display = 'none'; };
+
+    fab.addEventListener('click', abrir);
+    ['btnCloseCallStaffGlobal', 'btnCancelCallStaffGlobal'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', fechar);
+    });
+
+    if (select) {
+      select.addEventListener('change', () => {
+        if (otherGroup) otherGroup.style.display = select.value === 'Outro' ? 'block' : 'none';
+      });
+    }
+
+    modal.addEventListener('click', e => { if (e.target === modal) fechar(); });
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+
+      let motivo = select ? select.value : '';
+      if (motivo === 'Outro') {
+        motivo = otherInput && otherInput.value.trim() ? otherInput.value.trim() : 'Outro motivo';
+      }
+      if (!motivo) return;
+
+      const button = document.getElementById('btnSubmitCallStaffGlobal');
+      NeoUI.setBusy(button, true, 'Enviando...');
+
+      try {
+        await NeoAPI.criarChamado(session.token, motivo);
+        fechar();
+        form.reset();
+        if (otherGroup) otherGroup.style.display = 'none';
+        NeoUI.toast('Chamado enviado. Um atendente já foi avisado.', 'success', 5000);
+      } catch (err) {
+        NeoUI.toast(err.message || 'Não foi possível enviar o chamado.', 'error', 7000);
+      } finally {
+        NeoUI.setBusy(button, false);
+      }
+    });
   }
-];
 
-let carouselIndex = 0;
-let carouselTimer = null;
-let featuredDishes = [];
-let allDishes = [];
+  async function loadMenu() {
+    const grid = document.getElementById('menu-grid');
+    const slides = document.getElementById('carousel-slides');
 
-document.addEventListener('DOMContentLoaded', async () => {
-  await loadMenuData();
-  setupCarouselControls();
-  setupRealtimeSubscription();
-});
+    if (grid) {
+      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><span class="spinner"></span><span>Carregando cardápio...</span></div>';
+    }
 
-function setupRealtimeSubscription() {
-  const client = window.supabaseClient;
-  if (client && typeof client.channel === 'function') {
-    client
-      .channel('app-landing-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pratos' }, () => {
-        loadMenuData();
-      })
-      .subscribe();
-  }
-}
-
-async function loadMenuData() {
-  try {
-    let dishes = [];
-    const client = (window.getSupabase && window.getSupabase()) || window.supabaseClient || window.getSupabaseClient();
-
-    if (client && typeof client.from === 'function') {
-      const query = client.from('pratos').select('*').eq('ativo', true);
-      const { data, error } = await window.safeSupabaseQuery(query, 2500);
-
-      if (!error && data && data.length > 0) {
-        dishes = data.map(dish => ({
-          ...dish,
-          disponivel: dish.disponivel !== undefined ? dish.disponivel : true
-        }));
+    try {
+      const data = await NeoAPI.pratosCardapio();
+      dishes = Array.isArray(data) ? data : [];
+    } catch (err) {
+      console.error('Falha ao carregar cardápio:', err);
+      dishes = [];
+      if (grid) {
+        NeoUI.empty(grid, 'cloud_off', 'Não foi possível carregar o cardápio',
+          err.message || 'Verifique a conexão e tente novamente.');
       }
     }
 
-    if (dishes.length === 0) {
-      console.log('Utilizando dados de demonstração...');
-      dishes = MOCK_DISHES;
+    if (!dishes.length) {
+      if (grid) NeoUI.empty(grid, 'restaurant_menu', 'Cardápio em montagem', 'Em breve nossos pratos estarão disponíveis.');
+      if (slides) slides.innerHTML = '';
+      return;
     }
 
-    allDishes = dishes;
-    featuredDishes = dishes.filter(d => d.destaque) || dishes.slice(0, 3);
-
-    if (featuredDishes.length === 0) {
-      featuredDishes = dishes.slice(0, 3);
-    }
-
-    renderCarousel(featuredDishes);
-    renderMenuGrid(allDishes);
-  } catch (err) {
-    console.error('Erro ao carregar cardápio:', err);
-    renderCarousel(MOCK_DISHES.filter(d => d.destaque));
-    renderMenuGrid(MOCK_DISHES);
+    const featured = dishes.filter(d => d.destaque);
+    renderCarousel(featured.length ? featured : dishes.slice(0, 3));
+    renderMenuGrid(dishes);
   }
-}
 
-function renderCarousel(dishes) {
-  const container = document.getElementById('carousel-slides');
-  const indicatorsContainer = document.getElementById('carousel-indicators');
+  function imageUrl(dish) {
+    const src = dish && dish.imagem ? String(dish.imagem).trim() : '';
+    return src || PLACEHOLDER;
+  }
 
-  if (!container || !indicatorsContainer) return;
+  function renderCarousel(items) {
+    const container = document.getElementById('carousel-slides');
+    const indicators = document.getElementById('carousel-indicators');
+    if (!container || !indicators) return;
 
-  container.innerHTML = '';
-  indicatorsContainer.innerHTML = '';
+    container.innerHTML = '';
+    indicators.innerHTML = '';
+    carouselIndex = 0;
 
-  dishes.forEach((dish, idx) => {
-    const slide = document.createElement('div');
-    slide.className = `carousel-slide ${idx === 0 ? 'active' : ''}`;
-    slide.dataset.index = idx;
+    items.forEach((dish, idx) => {
+      const slide = document.createElement('div');
+      slide.className = `carousel-slide ${idx === 0 ? 'active' : ''}`;
+      slide.innerHTML = `
+        <div class="slide-content">
+          <span class="badge badge-pending">Especial em Destaque</span>
+          <h1>${escapeHtml(dish.nome)}</h1>
+          <p>${escapeHtml(dish.descricao || '')}</p>
+          <div class="slide-price">${NeoUI.money(dish.preco)}</div>
+          <a href="#cardapio" class="btn btn-primary">
+            <i class="fas fa-utensils"></i> Ver no Cardápio
+          </a>
+        </div>
+        <div class="slide-image-wrapper">
+          <img src="${escapeHtml(imageUrl(dish))}" alt="${escapeHtml(dish.nome)}"
+               onerror="this.onerror=null;this.src='${PLACEHOLDER}'">
+        </div>`;
+      container.appendChild(slide);
 
-    const formattedPrice = new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(dish.preco);
+      const indicator = document.createElement('div');
+      indicator.className = `indicator ${idx === 0 ? 'active' : ''}`;
+      indicator.addEventListener('click', () => goToSlide(idx));
+      indicators.appendChild(indicator);
+    });
 
-    slide.innerHTML = `
-      <div class="slide-content">
-        <span class="badge badge-pending">Especial em Destaque</span>
-        <h1>${escapeHtml(dish.nome)}</h1>
-        <p>${escapeHtml(dish.descricao || '')}</p>
-        <div class="slide-price">${formattedPrice}</div>
-        <a href="#cardapio" class="btn btn-primary">
-          <i class="fas fa-utensils"></i> Ver no Cardápio
-        </a>
-      </div>
-      <div class="slide-image-wrapper">
-        <img src="${escapeHtml(dish.imagem || 'https://via.placeholder.com/600x400?text=Sem+Imagem')}" alt="${escapeHtml(dish.nome)}">
-      </div>
-    `;
+    startCarouselAutoRotate();
+  }
 
-    container.appendChild(slide);
+  function renderMenuGrid(items) {
+    const grid = document.getElementById('menu-grid');
+    if (!grid) return;
 
-    const indicator = document.createElement('div');
-    indicator.className = `indicator ${idx === 0 ? 'active' : ''}`;
-    indicator.dataset.index = idx;
-    indicator.addEventListener('click', () => goToSlide(idx));
-    indicatorsContainer.appendChild(indicator);
-  });
+    grid.innerHTML = '';
 
-  startCarouselAutoRotate();
-}
+    items.forEach(dish => {
+      const available = dish.disponivel !== false;
+      const card = document.createElement('div');
+      card.className = `card-dish ${available ? '' : 'unavailable'}`;
 
-function renderMenuGrid(dishes) {
-  const grid = document.getElementById('menu-grid');
-  if (!grid) return;
+      const badge = available
+        ? '<span class="badge badge-available"><i class="fas fa-check-circle"></i> Disponível</span>'
+        : '<span class="badge badge-unavailable"><i class="fas fa-times-circle"></i> Indisponível</span>';
 
-  grid.innerHTML = '';
-
-  dishes.forEach(dish => {
-    const card = document.createElement('div');
-    const isAvailable = dish.disponivel !== false;
-    card.className = `card-dish ${isAvailable ? '' : 'unavailable'}`;
-
-    const formattedPrice = new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(dish.preco);
-
-    const badgeHtml = isAvailable
-      ? '<span class="badge badge-available"><i class="fas fa-check-circle"></i> Disponível</span>'
-      : '<span class="badge badge-unavailable"><i class="fas fa-times-circle"></i> Indisponível</span>';
-
-    card.innerHTML = `
-      <img src="${escapeHtml(dish.imagem || 'https://via.placeholder.com/300x200?text=Sem+Imagem')}" class="card-dish-img" alt="${escapeHtml(dish.nome)}">
-      <div class="card-dish-header">
-        <h3 class="card-dish-title">${escapeHtml(dish.nome)}</h3>
-      </div>
-      <div style="margin-bottom: var(--space-xs);">${badgeHtml}</div>
-      <p class="card-dish-desc">${escapeHtml(dish.descricao || '')}</p>
-      <div class="card-dish-footer">
-        <span class="card-dish-price">${formattedPrice}</span>
-        <a href="login.html?type=client" class="btn btn-secondary btn-sm" style="padding: 8px 16px; font-size: 13px;">
-          Peça na Mesa
-        </a>
-      </div>
-    `;
-
-    grid.appendChild(card);
-  });
-}
-
-function setupCarouselControls() {
-  const prevBtn = document.getElementById('carousel-prev');
-  const nextBtn = document.getElementById('carousel-next');
-
-  if (prevBtn) {
-    prevBtn.addEventListener('click', () => {
-      prevSlide();
-      resetCarouselTimer();
+      card.innerHTML = `
+        <img src="${escapeHtml(imageUrl(dish))}" class="card-dish-img" alt="${escapeHtml(dish.nome)}"
+             loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER}'">
+        <div class="card-dish-header">
+          <h3 class="card-dish-title">${escapeHtml(dish.nome)}</h3>
+        </div>
+        <div style="margin-bottom: var(--space-xs);">${badge}</div>
+        <p class="card-dish-desc">${escapeHtml(dish.descricao || '')}</p>
+        <div class="card-dish-footer">
+          <span class="card-dish-price">${NeoUI.money(dish.preco)}</span>
+          ${available
+            ? '<a href="login.html?type=mesa" class="btn btn-secondary btn-sm" style="padding: 8px 16px; font-size: 13px;">Peça na Mesa</a>'
+            : '<span class="badge badge-unavailable" style="font-size:12px;">Esgotado</span>'}
+        </div>`;
+      grid.appendChild(card);
     });
   }
 
-  if (nextBtn) {
-    nextBtn.addEventListener('click', () => {
-      nextSlide();
-      resetCarouselTimer();
+  function setupCarouselControls() {
+    const prevBtn = document.getElementById('carousel-prev');
+    const nextBtn = document.getElementById('carousel-next');
+    if (prevBtn) prevBtn.addEventListener('click', () => { goToSlide(carouselIndex - 1); resetCarouselTimer(); });
+    if (nextBtn) nextBtn.addEventListener('click', () => { goToSlide(carouselIndex + 1); resetCarouselTimer(); });
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft') { goToSlide(carouselIndex - 1); resetCarouselTimer(); }
+      if (e.key === 'ArrowRight') { goToSlide(carouselIndex + 1); resetCarouselTimer(); }
     });
   }
-}
 
-function goToSlide(index) {
-  const slides = document.querySelectorAll('.carousel-slide');
-  const indicators = document.querySelectorAll('.indicator');
+  function goToSlide(index) {
+    const slides = document.querySelectorAll('.carousel-slide');
+    const indicators = document.querySelectorAll('.indicator');
+    if (!slides.length) return;
 
-  if (slides.length === 0) return;
+    slides.forEach(s => s.classList.remove('active'));
+    indicators.forEach(i => i.classList.remove('active'));
 
-  slides.forEach(s => s.classList.remove('active'));
-  indicators.forEach(i => i.classList.remove('active'));
-
-  carouselIndex = (index + slides.length) % slides.length;
-
-  slides[carouselIndex].classList.add('active');
-  if (indicators[carouselIndex]) {
-    indicators[carouselIndex].classList.add('active');
+    carouselIndex = (index + slides.length) % slides.length;
+    slides[carouselIndex].classList.add('active');
+    if (indicators[carouselIndex]) indicators[carouselIndex].classList.add('active');
   }
-}
 
-function nextSlide() {
-  const slides = document.querySelectorAll('.carousel-slide');
-  if (slides.length > 0) {
-    goToSlide(carouselIndex + 1);
+  function startCarouselAutoRotate() {
+    clearInterval(carouselTimer);
+    carouselTimer = setInterval(() => goToSlide(carouselIndex + 1), 6000);
   }
-}
 
-function prevSlide() {
-  const slides = document.querySelectorAll('.carousel-slide');
-  if (slides.length > 0) {
-    goToSlide(carouselIndex - 1);
+  function resetCarouselTimer() {
+    startCarouselAutoRotate();
   }
-}
-
-function startCarouselAutoRotate() {
-  clearInterval(carouselTimer);
-  carouselTimer = setInterval(() => {
-    nextSlide();
-  }, 5000);
-}
-
-function resetCarouselTimer() {
-  startCarouselAutoRotate();
-}
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+})();

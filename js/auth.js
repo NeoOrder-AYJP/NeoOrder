@@ -1,259 +1,291 @@
-// Authentication Logic for NeoOrder
+// js/auth.js — Autenticação NeoOrder
+//
+// A senha é verificada no banco (bcrypt via pgcrypto) pela RPC
+// `autenticar_usuario`. O front-end nunca lê a tabela `usuarios`.
+// A sessão devolvida é um token opaco de 64 caracteres com validade de 12 h.
 
-document.addEventListener('DOMContentLoaded', () => {
-  const tabMesaBtn = document.getElementById('tabMesaBtn');
-  const tabClientBtn = document.getElementById('tabClientBtn');
-  const tabAttendantBtn = document.getElementById('tabAttendantBtn');
-  const tabManagerBtn = document.getElementById('tabManagerBtn');
+(function () {
+  const TABS = {
+    mesa: { btn: 'tabMesaBtn', content: 'mesaTabContent' },
+    atendente: { btn: 'tabAttendantBtn', content: 'attendantTabContent' },
+    gerente: { btn: 'tabManagerBtn', content: 'managerTabContent' }
+  };
 
-  const mesaTabContent = document.getElementById('mesaTabContent');
-  const clientTabContent = document.getElementById('clientTabContent');
-  const attendantTabContent = document.getElementById('attendantTabContent');
-  const managerTabContent = document.getElementById('managerTabContent');
+  let currentTab = 'mesa';
 
-  const authAlert = document.getElementById('authAlert');
+  document.addEventListener('DOMContentLoaded', async () => {
+    bindTabs();
+    bindForms();
 
-  // Check URL params for pre-selected tab (e.g. login.html?type=staff)
-  const urlParams = new URLSearchParams(window.location.search);
-  const typeParam = urlParams.get('type');
-  if (typeParam === 'staff' || typeParam === 'atendente') {
-    switchTab('atendente');
-  } else if (typeParam === 'gerente') {
-    switchTab('gerente');
-  } else if (typeParam === 'client' || typeParam === 'cliente') {
-    switchTab('cliente');
-  } else {
-    switchTab('mesa');
+    const type = new URLSearchParams(window.location.search).get('type');
+    if (type === 'staff' || type === 'atendente') switchTab('atendente');
+    else if (type === 'gerente') switchTab('gerente');
+    else switchTab('mesa');
+
+    await checkBootstrap();
+  });
+
+  function bindTabs() {
+    Object.entries(TABS).forEach(([key, cfg]) => {
+      const btn = document.getElementById(cfg.btn);
+      if (btn) btn.addEventListener('click', () => switchTab(key));
+    });
   }
-
-  // Tab switching logic
-  if (tabMesaBtn) tabMesaBtn.addEventListener('click', () => switchTab('mesa'));
-  if (tabClientBtn) tabClientBtn.addEventListener('click', () => switchTab('cliente'));
-  if (tabAttendantBtn) tabAttendantBtn.addEventListener('click', () => switchTab('atendente'));
-  if (tabManagerBtn) tabManagerBtn.addEventListener('click', () => switchTab('gerente'));
 
   function switchTab(profile) {
+    if (!TABS[profile]) return;
+    currentTab = profile;
     hideAlert();
-    const tabs = [
-      { btn: tabMesaBtn, content: mesaTabContent, key: 'mesa' },
-      { btn: tabClientBtn, content: clientTabContent, key: 'cliente' },
-      { btn: tabAttendantBtn, content: attendantTabContent, key: 'atendente' },
-      { btn: tabManagerBtn, content: managerTabContent, key: 'gerente' }
-    ];
 
-    tabs.forEach(t => {
-      if (t.btn && t.content) {
-        if (t.key === profile) {
-          t.btn.classList.add('active');
-          t.content.style.display = 'block';
-        } else {
-          t.btn.classList.remove('active');
-          t.content.style.display = 'none';
-        }
-      }
+    Object.entries(TABS).forEach(([key, cfg]) => {
+      const btn = document.getElementById(cfg.btn);
+      const content = document.getElementById(cfg.content);
+      if (!btn || !content) return;
+      const active = key === profile;
+      btn.classList.toggle('active', active);
+      content.style.display = active ? 'block' : 'none';
     });
   }
 
-  // Form Submissions
-  const mesaForm = document.getElementById('mesaForm');
-  if (mesaForm) {
-    mesaForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const login = document.getElementById('tableLogin').value.trim();
-      const pass = document.getElementById('tablePassword').value.trim();
-      await handleLogin(login, pass, 'mesa');
-    });
+  function bindForms() {
+    const mesaForm = document.getElementById('mesaForm');
+    if (mesaForm) {
+      mesaForm.addEventListener('submit', e => {
+        e.preventDefault();
+        handleLogin(
+          document.getElementById('tableLogin').value,
+          document.getElementById('tablePassword').value,
+          'mesa',
+          document.getElementById('btnMesaSubmit')
+        );
+      });
+    }
+
+    const attendantForm = document.getElementById('attendantForm');
+    if (attendantForm) {
+      attendantForm.addEventListener('submit', e => {
+        e.preventDefault();
+        handleLogin(
+          document.getElementById('attendantLogin').value,
+          document.getElementById('attendantPassword').value,
+          'atendente',
+          document.getElementById('btnAttendantSubmit')
+        );
+      });
+    }
+
+    const managerForm = document.getElementById('managerForm');
+    if (managerForm) {
+      managerForm.addEventListener('submit', e => {
+        e.preventDefault();
+        handleLogin(
+          document.getElementById('managerLogin').value,
+          document.getElementById('managerPassword').value,
+          'gerente',
+          document.getElementById('btnManagerSubmit')
+        );
+      });
+    }
+
+    const bootstrapForm = document.getElementById('bootstrapForm');
+    if (bootstrapForm) {
+      bootstrapForm.addEventListener('submit', e => {
+        e.preventDefault();
+        handleBootstrap();
+      });
+    }
   }
 
-  const clientForm = document.getElementById('clientForm');
-  if (clientForm) {
-    clientForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const login = document.getElementById('clientUserLogin').value.trim();
-      const pass = document.getElementById('clientPassword').value.trim();
-      const phone = document.getElementById('clientPhone') ? document.getElementById('clientPhone').value.trim() : '';
-      await handleLogin(login, pass, 'cliente', phone);
-    });
-  }
+  // ---------------------------------------------------------------------------
+  // Login
+  // ---------------------------------------------------------------------------
 
-  const attendantForm = document.getElementById('attendantForm');
-  if (attendantForm) {
-    attendantForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const login = document.getElementById('attendantLogin').value.trim();
-      const pass = document.getElementById('attendantPassword').value.trim();
-      await handleLogin(login, pass, 'atendente');
-    });
-  }
-
-  const managerForm = document.getElementById('managerForm');
-  if (managerForm) {
-    managerForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const login = document.getElementById('managerLogin').value.trim();
-      const pass = document.getElementById('managerPassword').value.trim();
-      await handleLogin(login, pass, 'gerente');
-    });
-  }
-
-  async function handleLogin(loginInput, passwordInput, expectedProfile, optionalPhone = '') {
+  async function handleLogin(loginRaw, senhaRaw, expected, button) {
     hideAlert();
-    if (!loginInput || !passwordInput) {
-      showAlert('Por favor, informe o login e a senha.');
+    const login = String(loginRaw || '').trim();
+    const senha = String(senhaRaw || '');
+
+    if (!login || !senha) {
+      showAlert('Informe o usuário e a senha.');
       return;
     }
 
+    NeoUI.setBusy(button, true, 'Entrando...');
+
     try {
-      let user = null;
-      const client = (window.getSupabase && window.getSupabase()) || window.supabaseClient || window.getSupabaseClient();
+      const data = await NeoAPI.autenticar(login, senha);
 
-      // Try fetching from Supabase with quick timeout
-      if (client && typeof client.from === 'function') {
-        try {
-          const query = client
-            .from('usuarios')
-            .select('*')
-            .eq('login', loginInput)
-            .eq('ativo', true)
-            .maybeSingle();
-
-          const res = await (window.safeSupabaseQuery ? window.safeSupabaseQuery(query, 2000) : query);
-          if (res && res.data) {
-            user = res.data;
-          }
-        } catch (e) {
-          console.warn('Supabase login query timed out or failed, using local check:', e);
-        }
-      }
-
-      // Fallback mock accounts
-      if (!user) {
-        const mockUsers = [
-          { id: '11111111-1111-1111-1111-111111111111', tipo: 'mesa', nome: 'Mesa 01', login: 'Mesa 01', senha: '123', perfil: 'mesa', ativo: true },
-          { id: '44444444-4444-4444-4444-444444444444', tipo: 'cliente', nome: 'Cliente Maria', login: 'cliente1', senha: '123', perfil: 'cliente', telefone: '11999998888', pontos: 120, visitas: 5, ativo: true },
-          { id: '22222222-2222-2222-2222-222222222222', tipo: 'funcionario', nome: 'Atendente Carlos', login: 'atendente1', senha: '123', perfil: 'atendente', ativo: true },
-          { id: '33333333-3333-3333-3333-333333333333', tipo: 'funcionario', nome: 'Gerente Ana', login: 'gerente1', senha: '123', perfil: 'gerente', ativo: true }
-        ];
-
-        const found = mockUsers.find(u => u.login.toLowerCase() === loginInput.toLowerCase());
-        if (found) {
-          if (found.senha && passwordInput !== found.senha && passwordInput !== '123456') {
-            showAlert('Senha incorreta.');
-            return;
-          }
-          user = found;
-        }
-      }
-
-      if (!user || !user.ativo) {
-        showAlert('Usuário não encontrado ou inativo.');
+      if (!data || !data.session_token || !data.usuario) {
+        showAlert('Resposta inválida do servidor. Tente novamente.');
         return;
       }
 
-      // Check password if set
-      if (user.senha && user.senha !== passwordInput && passwordInput !== '123456') {
-        showAlert('Senha incorreta.');
+      const perfilEfetivo = data.usuario.tipo === 'mesa' ? 'mesa' : (data.usuario.perfil || 'atendente');
+
+      // Impede escalada de privilégio: a aba escolhida precisa bater com o perfil real.
+      if (expected === 'mesa' && perfilEfetivo !== 'mesa') {
+        await NeoAPI.encerrarSessao(data.session_token).catch(() => {});
+        showAlert('Esta conta não é uma mesa. Use a aba correta para entrar.');
+        return;
+      }
+      if (expected === 'gerente' && perfilEfetivo !== 'gerente') {
+        await NeoAPI.encerrarSessao(data.session_token).catch(() => {});
+        showAlert('Esta conta não possui perfil de gerente.');
+        return;
+      }
+      if (expected === 'atendente' && perfilEfetivo === 'mesa') {
+        await NeoAPI.encerrarSessao(data.session_token).catch(() => {});
+        showAlert('Esta conta é de mesa. Use a aba Mesa.');
         return;
       }
 
-      // Check expected profile / tipo
-      const userProfile = user.perfil || user.tipo;
-      if (expectedProfile === 'mesa' && user.tipo !== 'mesa') {
-        showAlert('Este usuário não é uma conta de mesa.');
-        return;
-      }
-      if (expectedProfile === 'cliente' && user.tipo !== 'cliente' && user.perfil !== 'cliente') {
-        showAlert('Este usuário não é uma conta de cliente.');
-        return;
-      }
-      if ((expectedProfile === 'atendente' || expectedProfile === 'gerente') && user.tipo !== 'funcionario') {
-        showAlert('Este usuário não é uma conta de funcionário.');
-        return;
-      }
+      NeoAPI.Session.save(data);
 
-      const phoneToSave = optionalPhone || user.telefone || '';
-
-      // Save user session
-      sessionStorage.setItem('neoorder_user', JSON.stringify({
-        id: user.id,
-        nome: user.nome,
-        login: user.login,
-        tipo: user.tipo,
-        perfil: user.perfil || expectedProfile,
-        telefone: phoneToSave,
-        pontos: user.pontos || 120,
-        visitas: user.visitas || 5
-      }));
-
-      // Redirect based on profile
-      if (expectedProfile === 'gerente' || userProfile === 'gerente') {
-        window.location.href = 'faturamento.html';
-      } else if (expectedProfile === 'atendente' || userProfile === 'atendente') {
-        window.location.href = 'atendimento.html';
-      } else {
+      if (perfilEfetivo === 'mesa') {
         window.location.href = 'cardapio.html';
+      } else if (perfilEfetivo === 'gerente') {
+        window.location.href = 'faturamento.html';
+      } else {
+        window.location.href = 'atendimento.html';
       }
-
     } catch (err) {
-      console.error('Erro de autenticação:', err);
-      showAlert('Erro ao processar login. Tente novamente.');
+      console.warn('Falha no login:', err);
+      showAlert(err.message || 'Não foi possível entrar. Tente novamente.');
+    } finally {
+      NeoUI.setBusy(button, false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bootstrap: primeiro acesso (não existe gerente ativo)
+  // ---------------------------------------------------------------------------
+
+  async function checkBootstrap() {
+    const panel = document.getElementById('bootstrapPanel');
+    if (!panel) return;
+
+    try {
+      const precisa = await NeoAPI.precisaBootstrap();
+      panel.style.display = precisa ? 'block' : 'none';
+      if (precisa) {
+        const card = document.querySelector('.auth-card');
+        if (card) card.style.maxWidth = '560px';
+      }
+    } catch (err) {
+      // Se a checagem falhar (ex.: offline), o formulário normal continua disponível.
+      console.warn('Não foi possível verificar o bootstrap:', err);
+      panel.style.display = 'none';
+    }
+  }
+
+  async function handleBootstrap() {
+    const nome = document.getElementById('bootstrapNome').value.trim();
+    const login = document.getElementById('bootstrapLogin').value.trim();
+    const senha = document.getElementById('bootstrapSenha').value;
+    const senha2 = document.getElementById('bootstrapSenha2').value;
+    const button = document.getElementById('btnBootstrapSubmit');
+
+    hideAlert();
+
+    if (!login || !nome) {
+      showAlert('Informe o nome e o usuário do gerente inicial.');
+      return;
+    }
+    if (senha.length < 8) {
+      showAlert('A senha do gerente deve ter no mínimo 8 caracteres.');
+      return;
+    }
+    if (senha !== senha2) {
+      showAlert('As senhas não conferem.');
+      return;
+    }
+
+    NeoUI.setBusy(button, true, 'Criando...');
+
+    try {
+      await NeoAPI.criarGerenteInicial(login, senha, nome);
+      NeoUI.toast('Gerente inicial criado. Faça login para continuar.', 'success', 6000);
+      document.getElementById('bootstrapPanel').style.display = 'none';
+      document.getElementById('managerLogin').value = login;
+      switchTab('gerente');
+      document.getElementById('managerPassword').focus();
+    } catch (err) {
+      showAlert(err.message || 'Não foi possível criar o gerente inicial.');
+    } finally {
+      NeoUI.setBusy(button, false);
     }
   }
 
   function showAlert(msg) {
-    if (authAlert) {
-      authAlert.textContent = msg;
-      authAlert.style.display = 'flex';
-    }
+    const el = document.getElementById('authAlert');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'flex';
   }
 
   function hideAlert() {
-    if (authAlert) {
-      authAlert.style.display = 'none';
-      authAlert.textContent = '';
-    }
+    const el = document.getElementById('authAlert');
+    if (!el) return;
+    el.style.display = 'none';
+    el.textContent = '';
   }
-});
 
-// Helper functions exported globally
-window.NeoAuth = {
-  getUser() {
-    try {
-      const data = sessionStorage.getItem('neoorder_user');
-      return data ? JSON.parse(data) : null;
-    } catch (e) {
-      console.error('Erro ao ler usuario da sessao:', e);
-      return null;
-    }
-  },
-  logout() {
-    try {
-      sessionStorage.removeItem('neoorder_user');
-    } catch (e) {
-      console.error('Erro ao encerrar sessao:', e);
-    }
-    window.location.href = 'login.html';
-  },
-  requireAuth(allowedProfiles = []) {
-    try {
+  // ---------------------------------------------------------------------------
+  // API de sessão usada pelas páginas internas
+  // ---------------------------------------------------------------------------
+
+  window.NeoAuth = {
+    getUser() {
+      const session = NeoAPI.Session.get();
+      return session ? session.usuario : null;
+    },
+    getToken() {
+      return NeoAPI.Session.token();
+    },
+    profile() {
+      const user = this.getUser();
+      if (!user) return null;
+      return user.tipo === 'mesa' ? 'mesa' : (user.perfil || 'atendente');
+    },
+    async logout() {
+      const token = this.getToken();
+      try {
+        if (token) await NeoAPI.encerrarSessao(token);
+      } catch (err) {
+        console.warn('Falha ao encerrar sessão no servidor:', err);
+      } finally {
+        NeoAPI.Session.clear();
+        window.location.href = 'login.html';
+      }
+    },
+    requireAuth(allowedProfiles = []) {
       const user = this.getUser();
       if (!user) {
         window.location.href = 'login.html';
         return null;
       }
-      const userProfile = user.perfil || user.tipo;
-      if (allowedProfiles.length > 0 &&
-          !allowedProfiles.includes(userProfile) &&
-          !allowedProfiles.includes(user.tipo)) {
-        alert('Acesso negado: Perfil sem permissão para esta área.');
-        window.location.href = 'index.html';
+      const perfil = this.profile();
+      if (allowedProfiles.length && !allowedProfiles.includes(perfil)) {
+        NeoAPI.Session.clear();
+        window.location.href = 'login.html?type=' + (perfil === 'mesa' ? 'mesa' : 'staff');
         return null;
       }
       return user;
-    } catch (err) {
-      console.error('Erro em requireAuth:', err);
-      window.location.href = 'login.html';
-      return null;
     }
-  }
-};
+  };
+
+  // Ajustes de interface comuns às páginas internas.
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('btnLogout');
+    if (btn) btn.addEventListener('click', () => window.NeoAuth.logout());
+
+    // Esconde atalhos que o perfil atual não pode executar (ex.: atendente
+    // não acessa gestão). O servidor já bloqueia via _exigir_gerente; aqui
+    // evitamos apenas o link que levaria a um redirecionamento.
+    const perfil = window.NeoAuth.profile();
+    document.querySelectorAll('[data-requires]').forEach(el => {
+      const exigido = el.getAttribute('data-requires');
+      if (exigido && perfil !== exigido) el.style.display = 'none';
+    });
+  });
+})();

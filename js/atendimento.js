@@ -1,531 +1,352 @@
-/**
- * NeoOrder - Operação e Atendimento (Atendente & Gerente)
- */
+// js/atendimento.js — Operação e atendimento (atendente e gerente)
+//
+// Painel alimentado por `painel_atendimento(token)`; toda mudança de status
+// passa por `atualizar_status_pedido`, que valida transições e estorna o
+// estoque no cancelamento (RN-04) dentro do banco.
 
-document.addEventListener('DOMContentLoaded', async () => {
-  // 1. Auth check: Allow atendente or gerente
-  const user = NeoAuth.requireAuth(['atendente', 'gerente']);
-  if (!user) return;
+(function () {
+  const POLL_MS = 8000;
 
-  const userInfoEl = document.getElementById('userInfo');
-  if (userInfoEl) {
-    userInfoEl.textContent = `${user.nome} (${(user.perfil || user.tipo).toUpperCase()})`;
-  }
-
-  // Logout button
-  const btnLogout = document.getElementById('btnLogout');
-  if (btnLogout) {
-    btnLogout.addEventListener('click', () => NeoAuth.logout());
-  }
-
-  // Audio Alerts State & Web Audio API
-  let audioAlertsActive = false;
-  let audioContext = null;
-
-  const btnAudioToggle = document.getElementById('btnAudioToggle');
-  const audioIcon = document.getElementById('audioIcon');
-  const audioLabel = document.getElementById('audioLabel');
-
-  function toggleAudioAlerts() {
-    if (!audioContext) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) audioContext = new AudioCtx();
-    }
-
-    if (audioContext && audioContext.state === 'suspended') {
-      audioContext.resume();
-    }
-
-    audioAlertsActive = !audioAlertsActive;
-
-    if (audioAlertsActive) {
-      btnAudioToggle.style.background = 'var(--success)';
-      btnAudioToggle.style.color = '#FFFFFF';
-      audioIcon.style.color = '#FFFFFF';
-      audioLabel.textContent = 'Alertas Sonoros Ativos';
-      playSampleBeep(880, 0.15);
-    } else {
-      btnAudioToggle.style.background = 'var(--surface-card)';
-      btnAudioToggle.style.color = 'var(--text-main)';
-      audioIcon.style.color = 'var(--primary)';
-      audioLabel.textContent = 'Ativar Alertas Sonoros';
-    }
-  }
-
-  function playSampleBeep(frequency = 880, duration = 0.2) {
-    if (!audioAlertsActive || !audioContext) return;
-    try {
-      const osc = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = frequency;
-      gain.gain.setValueAtTime(0.2, audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
-      osc.connect(gain);
-      gain.connect(audioContext.destination);
-      osc.start();
-      osc.stop(audioContext.currentTime + duration);
-    } catch (e) {
-      console.warn("Audio playback error:", e);
-    }
-  }
-
-  if (btnAudioToggle) {
-    btnAudioToggle.addEventListener('click', toggleAudioAlerts);
-  }
-
-  // Helper for Supabase Client
-  function getClient() {
-    return (window.getSupabase && window.getSupabase()) || window.supabaseClient || window.getSupabaseClient();
-  }
-
-  // Data State
-  let calls = [];
-  let orders = [];
-  let dishes = [];
-  let ingredients = [];
-  let pratoIngredientesMap = {};
+  let user = null;
+  let token = null;
+  let chamados = [];
+  let pedidos = [];
   let knownCallIds = new Set();
-  let knownOrderIds = new Set();
-  let selectedCancelOrderId = null;
+  let primeiraCarga = true;
+  let timer = null;
+  let audioAtivo = false;
+  let audioCtx = null;
+  let selectedCancelId = null;
 
-  // Default Mock Data Fallbacks
-  const mockCalls = [
-    {
-      id: 'c1111111-1111-1111-1111-111111111111',
-      mesa_id: '10000000-0000-0000-0000-000000000004',
-      mesa_nome: 'Mesa 04',
-      motivo: 'Solicitação de 2 taças extras de vinho e verificar reposição de azeite.',
-      status: 'Pendente',
-      criado_em: new Date(Date.now() - 2 * 60000).toISOString()
-    },
-    {
-      id: 'c2222222-2222-2222-2222-222222222222',
-      mesa_id: '10000000-0000-0000-0000-000000000008',
-      mesa_nome: 'Mesa 08',
-      motivo: 'Dúvida sobre o ponto da carne no prato Filé Mignon.',
-      status: 'Pendente',
-      criado_em: new Date(Date.now() - 4 * 60000).toISOString()
+  document.addEventListener('DOMContentLoaded', async () => {
+    user = window.NeoAuth.requireAuth(['atendente', 'gerente']);
+    if (!user) return;
+
+    token = window.NeoAuth.getToken();
+
+    const userInfo = document.getElementById('userInfo');
+    if (userInfo) {
+      const perfil = (user.perfil || 'atendente').toUpperCase();
+      userInfo.textContent = `${user.nome} (${perfil})`;
     }
-  ];
 
-  const mockOrders = [
-    {
-      id: 'a1033000-0000-0000-0000-000000001033',
-      mesa_id: '10000000-0000-0000-0000-000000000002',
-      mesa_nome: 'Mesa 02',
-      valor_total: 89.90,
-      status: 'Recebido',
-      criado_em: new Date(Date.now() - 3 * 60000).toISOString(),
-      pedido_itens: [
-        { id: 'b1010000-0000-0000-0000-000000000001', prato_id: 'd1111111-1111-1111-1111-111111111111', quantidade: 1, preco_unitario: 89.90, pratos: { nome: 'Filé Mignon ao Roti' } }
-      ]
-    },
-    {
-      id: 'a1032000-0000-0000-0000-000000001032',
-      mesa_id: '10000000-0000-0000-0000-000000000008',
-      mesa_nome: 'Mesa 08',
-      valor_total: 149.00,
-      status: 'Em preparo',
-      criado_em: new Date(Date.now() - 10 * 60000).toISOString(),
-      pedido_itens: [
-        { id: 'b1020000-0000-0000-0000-000000000002', prato_id: 'd2222222-2222-2222-2222-222222222222', quantidade: 2, preco_unitario: 74.50, pratos: { nome: 'Risoto de Cogumelos Frescos' } }
-      ]
-    },
-    {
-      id: 'a1030000-0000-0000-0000-000000001030',
-      mesa_id: '10000000-0000-0000-0000-000000000001',
-      mesa_nome: 'Mesa 01',
-      valor_total: 98.00,
-      status: 'Entregue',
-      criado_em: new Date(Date.now() - 25 * 60000).toISOString(),
-      pedido_itens: [
-        { id: 'b1030000-0000-0000-0000-000000000003', prato_id: 'd3333333-3333-3333-3333-333333333333', quantidade: 1, preco_unitario: 98.00, pratos: { nome: 'Salmão Grelhado com Alcaparras' } }
-      ]
-    }
-  ];
+    setupAudio();
+    setupCancelModal();
+    setupVisibilityHandling();
 
-  // DOM Elements
-  const callsContainer = document.getElementById('callsContainer');
-  const badgePendingCalls = document.getElementById('badgePendingCalls');
+    await carregarPainel();
+    iniciarPolling();
+  });
 
-  const colReceived = document.getElementById('colReceived');
-  const colInPrep = document.getElementById('colInPrep');
-  const colDone = document.getElementById('colDone');
+  // ---------------------------------------------------------------------------
+  // Dados
+  // ---------------------------------------------------------------------------
 
-  const countReceived = document.getElementById('countReceived');
-  const countInPrep = document.getElementById('countInPrep');
-  const countDone = document.getElementById('countDone');
-
-  const cancelModal = document.getElementById('cancelModal');
-  const btnCloseCancelModal = document.getElementById('btnCloseCancelModal');
-  const btnCancelModalBack = document.getElementById('btnCancelModalBack');
-  const btnConfirmCancelOrder = document.getElementById('btnConfirmCancelOrder');
-  const modalOrderId = document.getElementById('modalOrderId');
-  const modalOrderMesa = document.getElementById('modalOrderMesa');
-
-  // Load Recipe and Stock Mappings for Stock Reversal (RN-04)
-  async function loadStockAndRecipes() {
-    try {
-      const client = window.supabaseClient;
-      if (client && typeof client.from === 'function') {
-        const { data: ingData } = await client.from('estoque').select('*');
-        if (ingData) ingredients = ingData;
-
-        const { data: piData } = await client.from('prato_ingredientes').select('*');
-        if (piData) {
-          pratoIngredientesMap = {};
-          piData.forEach(row => {
-            if (!pratoIngredientesMap[row.prato_id]) pratoIngredientesMap[row.prato_id] = [];
-            pratoIngredientesMap[row.prato_id].push({
-              ingrediente_id: row.ingrediente_id,
-              quantidade: parseFloat(row.quantidade)
-            });
-          });
-        }
-      }
-    } catch (e) {
-      console.warn("Error loading stock mappings:", e);
-    }
+  function iniciarPolling() {
+    clearInterval(timer);
+    timer = setInterval(() => {
+      if (!document.hidden) carregarPainel(true);
+    }, POLL_MS);
   }
 
-  // Poll Data
-  async function fetchAllData() {
-    await fetchCalls();
-    await fetchOrders();
-  }
-
-  // Fetch Calls
-  async function fetchCalls() {
-    let freshCalls = [];
-    try {
-      const client = window.supabaseClient;
-      if (client && typeof client.from === 'function') {
-        const { data, error } = await client
-          .from('chamados')
-          .select('*, usuarios(nome, login)')
-          .eq('status', 'Pendente')
-          .order('criado_em', { ascending: false });
-
-        if (!error && data && data.length > 0) {
-          freshCalls = data.map(c => ({
-            ...c,
-            mesa_nome: c.usuarios ? (c.usuarios.nome || `Mesa ${c.usuarios.login}`) : (c.mesa_nome || 'Mesa')
-          }));
-        } else {
-          freshCalls = mockCalls.filter(c => c.status === 'Pendente');
-        }
-      } else {
-        freshCalls = mockCalls.filter(c => c.status === 'Pendente');
-      }
-    } catch (err) {
-      freshCalls = mockCalls.filter(c => c.status === 'Pendente');
-    }
-
-    // Check for new calls to play alert
-    let hasNew = false;
-    freshCalls.forEach(c => {
-      if (!knownCallIds.has(c.id)) {
-        hasNew = true;
-        knownCallIds.add(c.id);
-      }
+  function setupVisibilityHandling() {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) carregarPainel(true);
     });
-
-    if (hasNew && knownCallIds.size > freshCalls.length) {
-      playSampleBeep(880, 0.25);
-    }
-
-    calls = freshCalls;
-    renderCalls();
   }
 
-  // Render Calls
-  function renderCalls() {
-    if (badgePendingCalls) badgePendingCalls.textContent = `${calls.length} pendente${calls.length === 1 ? '' : 's'}`;
+  async function carregarPainel(silencioso = false) {
+    try {
+      const data = await NeoAPI.painelAtendimento(token);
+      chamados = Array.isArray(data.chamados) ? data.chamados : [];
+      pedidos = Array.isArray(data.pedidos) ? data.pedidos : [];
 
-    if (!callsContainer) return;
+      const novosChamados = chamados.filter(c => !knownCallIds.has(c.id));
+      if (!primeiraCarga && novosChamados.length && audioAtivo) {
+        tocarAlerta();
+      }
+      chamados.forEach(c => knownCallIds.add(c.id));
+      primeiraCarga = false;
 
-    if (calls.length === 0) {
-      callsContainer.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: var(--space-xl); background: var(--surface-card); border-radius: 12px; border: 1px solid var(--border-subtle);">
-          <span class="material-symbols-outlined" style="color: var(--success); font-size: 32px; display: block; margin-bottom: 4px;">check_circle</span>
-          <span style="font-weight: 600; color: var(--text-main);">Nenhum chamado pendente</span>
-          <p style="font-size: 13px; margin-top: 2px;">Todas as solicitações de mesas foram atendidas.</p>
-        </div>`;
+      renderChamados();
+      renderPedidos();
+    } catch (err) {
+      console.error('Erro ao carregar painel:', err);
+      if (err.code === '28000' || /sess[aã]o/i.test(err.message || '')) {
+        NeoUI.toast('Sessão expirada. Faça login novamente.', 'error', 6000);
+        setTimeout(() => window.NeoAuth.logout(), 1500);
+        return;
+      }
+      if (!silencioso) NeoUI.toast(err.message || 'Não foi possível atualizar o painel.', 'error');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chamados
+  // ---------------------------------------------------------------------------
+
+  function renderChamados() {
+    const container = document.getElementById('callsContainer');
+    const badge = document.getElementById('badgePendingCalls');
+    if (badge) badge.textContent = `${chamados.length} pendente${chamados.length === 1 ? '' : 's'}`;
+    if (!container) return;
+
+    if (!chamados.length) {
+      NeoUI.empty(container, 'notifications_off', 'Nenhum chamado pendente', 'As mesas não fizeram chamados recentes.');
       return;
     }
 
-    callsContainer.innerHTML = calls.map(c => {
-      const timeStr = new Date(c.criado_em).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      return `
-        <div class="card flex-col" style="justify-content: space-between; border-left: 4px solid var(--danger);">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-xs);">
-            <div>
-              <div style="font-weight: 700; font-size: 16px; color: var(--primary);">${c.mesa_nome}</div>
-              <div style="font-size: 12px; color: var(--text-muted);">Horário: ${timeStr}</div>
-            </div>
-            <span class="status-badge" style="background: rgba(157, 2, 8, 0.15); color: var(--danger);">Pendente</span>
-          </div>
-
-          <div style="background: var(--surface-container-low); padding: var(--space-sm); border-radius: 8px; margin-bottom: var(--space-md); font-size: 13px; color: var(--text-main);">
-            "${c.motivo}"
-          </div>
-
-          <div style="display: flex; justify-content: flex-end;">
-            <button type="button" class="btn btn-primary btn-resolve-call" data-id="${c.id}" style="background: var(--success); border: none; padding: 6px 14px; min-height: 36px;">
-              <span class="material-symbols-outlined" style="font-size: 18px;">check</span>
-              <span>Marcar como Atendido</span>
-            </button>
-          </div>
+    container.innerHTML = '';
+    chamados.forEach(chamado => {
+      const card = document.createElement('div');
+      card.className = 'call-card';
+      card.innerHTML = `
+        <div class="flex-between">
+          <span class="call-card-title">
+            <span class="material-symbols-outlined" style="font-size:18px;color:var(--danger);">notifications_active</span>
+            ${escapeHtml(chamado.mesa_nome || 'Mesa')}
+          </span>
+          <span class="order-card-meta">${horaRelativa(chamado.criado_em)}</span>
         </div>
-      `;
-    }).join('');
+        <div class="call-card-reason">${escapeHtml(chamado.justificativa || '')}</div>
+        <div class="order-card-actions" style="justify-content:flex-end;">
+          <button type="button" class="btn btn-primary" data-resolve="${chamado.id}">
+            <span class="material-symbols-outlined" style="font-size:16px;">task_alt</span>
+            <span>Marcar como atendido</span>
+          </button>
+        </div>`;
 
-    // Attach listeners
-    callsContainer.querySelectorAll('.btn-resolve-call').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const id = e.currentTarget.dataset.id;
-        await resolveCall(id);
-      });
+      card.querySelector('[data-resolve]').addEventListener('click', e => resolverChamado(chamado.id, e.currentTarget));
+      container.appendChild(card);
     });
   }
 
-  // Resolve Call
-  async function resolveCall(callId) {
-    const call = calls.find(c => c.id === callId);
-    if (call) call.status = 'Atendido';
-
+  async function resolverChamado(id, button) {
+    NeoUI.setBusy(button, true, '...');
     try {
-      const client = window.supabaseClient;
-      if (client && typeof client.from === 'function') {
-        await client.from('chamados').update({ status: 'Atendido' }).eq('id', callId);
-      }
-    } catch (e) {
-      console.warn("Resolve call error:", e);
+      await NeoAPI.resolverChamado(token, id);
+      knownCallIds.delete(id);
+      await carregarPainel(true);
+      NeoUI.toast('Chamado atendido.', 'success', 2600);
+    } catch (err) {
+      NeoUI.toast(err.message || 'Não foi possível atender o chamado.', 'error');
+      NeoUI.setBusy(button, false);
     }
-
-    calls = calls.filter(c => c.id !== callId);
-    renderCalls();
   }
 
-  // Fetch Orders
-  async function fetchOrders() {
-    let freshOrders = [];
-    try {
-      const client = window.supabaseClient;
-      if (client && typeof client.from === 'function') {
-        const { data, error } = await client
-          .from('pedidos')
-          .select('*, pedido_itens(*, pratos(nome)), usuarios(nome, login)')
-          .order('criado_em', { ascending: false });
+  // ---------------------------------------------------------------------------
+  // Pedidos (kanban)
+  // ---------------------------------------------------------------------------
 
-        if (!error && data && data.length > 0) {
-          freshOrders = data.map(o => ({
-            ...o,
-            mesa_nome: o.usuarios ? (o.usuarios.nome || `Mesa ${o.usuarios.login}`) : (o.mesa_nome || 'Mesa')
-          }));
+  function renderPedidos() {
+    const colunas = {
+      Pendente: document.getElementById('colReceived'),
+      'Em Preparo': document.getElementById('colInPrep'),
+      Pronto: document.getElementById('colDone')
+    };
+    const contadores = {
+      Pendente: document.getElementById('countReceived'),
+      'Em Preparo': document.getElementById('countInPrep'),
+      Pronto: document.getElementById('countDone')
+    };
+
+    Object.values(colunas).forEach(col => { if (col) col.innerHTML = ''; });
+
+    const grupos = { Pendente: [], 'Em Preparo': [], Pronto: [] };
+    pedidos.forEach(p => {
+      if (grupos[p.status]) grupos[p.status].push(p);
+    });
+
+    Object.keys(colunas).forEach(status => {
+      if (contadores[status]) contadores[status].textContent = String(grupos[status].length);
+
+      const col = colunas[status];
+      if (!col) return;
+
+      if (!grupos[status].length) {
+        col.innerHTML = `<div class="order-card-meta" style="text-align:center;padding:var(--space-lg);">Nenhum pedido</div>`;
+        return;
+      }
+
+      grupos[status].forEach(pedido => {
+        const card = document.createElement('div');
+        card.className = 'order-card';
+        const itens = (pedido.itens || [])
+          .map(i => `<span>${i.quantidade}× ${escapeHtml(i.nome)}</span>`)
+          .join('');
+
+        let acao = '';
+        if (status === 'Pendente') {
+          acao = `<button type="button" class="btn btn-primary" data-status="Em Preparo">
+                    <span class="material-symbols-outlined" style="font-size:16px;">skillet</span>
+                    <span>Iniciar preparo</span>
+                  </button>`;
+        } else if (status === 'Em Preparo') {
+          acao = `<button type="button" class="btn btn-primary" data-status="Pronto">
+                    <span class="material-symbols-outlined" style="font-size:16px;">room_service</span>
+                    <span>Marcar pronto</span>
+                  </button>`;
         } else {
-          freshOrders = [...mockOrders];
+          acao = `<button type="button" class="btn btn-primary" data-status="Entregue" style="background:var(--success);border:none;">
+                    <span class="material-symbols-outlined" style="font-size:16px;">check_circle</span>
+                    <span>Entregar</span>
+                  </button>`;
         }
-      } else {
-        freshOrders = [...mockOrders];
-      }
-    } catch (e) {
-      freshOrders = [...mockOrders];
-    }
 
-    orders = freshOrders;
-    renderOrdersKanban();
-  }
-
-  // Render Orders Kanban
-  function renderOrdersKanban() {
-    const receivedList = orders.filter(o => o.status === 'Recebido');
-    const inPrepList = orders.filter(o => o.status === 'Em preparo');
-    const doneList = orders.filter(o => o.status === 'Pronto' || o.status === 'Entregue');
-
-    if (countReceived) countReceived.textContent = receivedList.length;
-    if (countInPrep) countInPrep.textContent = inPrepList.length;
-    if (countDone) countDone.textContent = doneList.length;
-
-    if (colReceived) colReceived.innerHTML = renderOrderCardsGroup(receivedList, 'Recebido');
-    if (colInPrep) colInPrep.innerHTML = renderOrderCardsGroup(inPrepList, 'Em preparo');
-    if (colDone) colDone.innerHTML = renderOrderCardsGroup(doneList, 'Pronto');
-
-    attachOrderActionListeners();
-  }
-
-  function renderOrderCardsGroup(groupOrders, currentStage) {
-    if (groupOrders.length === 0) {
-      return `<div style="text-align: center; color: var(--text-muted); padding: var(--space-md); font-size: 13px;">Sem pedidos nesta coluna.</div>`;
-    }
-
-    return groupOrders.map(ord => {
-      const timeStr = new Date(ord.criado_em).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      const itemsHtml = (ord.pedido_itens || []).map(pi => `
-        <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-main);">
-          <span>${pi.quantidade}x ${pi.pratos ? pi.pratos.nome : 'Item'}</span>
-          <span style="color: var(--text-muted);">R$ ${(parseFloat(pi.preco_unitario) * pi.quantidade).toFixed(2).replace('.', ',')}</span>
-        </div>
-      `).join('');
-
-      let actionBtn = '';
-      if (currentStage === 'Recebido') {
-        actionBtn = `
-          <button type="button" class="btn btn-primary btn-advance-order" data-id="${ord.id}" data-next="Em preparo" style="padding: 4px 10px; min-height: 32px; font-size: 13px;">
-            <span>Iniciar Preparo</span>
-            <span class="material-symbols-outlined" style="font-size: 16px;">arrow_forward</span>
-          </button>
-        `;
-      } else if (currentStage === 'Em preparo') {
-        actionBtn = `
-          <button type="button" class="btn btn-primary btn-advance-order" data-id="${ord.id}" data-next="Entregue" style="background: var(--success); border: none; padding: 4px 10px; min-height: 32px; font-size: 13px;">
-            <span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span>
-            <span>Marcar Entregue</span>
-          </button>
-        `;
-      }
-
-      return `
-        <div class="card flex-col" style="padding: var(--space-md); gap: var(--space-xs); border: 1px solid var(--border-subtle); background: var(--surface-card);">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div style="font-weight: 700; font-size: 15px; color: var(--primary);">${ord.mesa_nome}</div>
-            <div style="font-size: 12px; color: var(--text-muted);">${timeStr}</div>
+        card.innerHTML = `
+          <div class="order-card-header">
+            <span class="order-card-title">${escapeHtml(pedido.mesa_nome || 'Mesa')}</span>
+            <span class="order-card-meta">${horaRelativa(pedido.criado_em)}</span>
           </div>
+          <div class="order-card-meta">Pedido #${String(pedido.id).slice(0, 8)}</div>
+          <div class="order-card-items">${itens || '<span class="order-card-meta">Sem itens</span>'}</div>
+          <div class="order-card-total">${NeoUI.money(pedido.valor_total)}</div>
+          <div class="order-card-actions">
+            <button type="button" class="btn btn-danger" data-cancel>
+              <span class="material-symbols-outlined" style="font-size:16px;">cancel</span>
+              <span>Cancelar</span>
+            </button>
+            ${acao}
+          </div>`;
 
-          <div style="background: var(--surface-container-low); padding: var(--space-xs) var(--space-sm); border-radius: 6px; margin: 4px 0;" class="flex-col">
-            ${itemsHtml}
-          </div>
-
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-            <span style="font-weight: 700; font-size: 14px; color: var(--text-main);">
-              R$ ${parseFloat(ord.valor_total).toFixed(2).replace('.', ',')}
-            </span>
-
-            <div style="display: flex; gap: 6px;">
-              ${currentStage !== 'Pronto' && currentStage !== 'Entregue' ? `
-                <button type="button" class="btn btn-danger btn-open-cancel" data-id="${ord.id}" data-mesa="${ord.mesa_nome}" style="padding: 4px 8px; min-height: 32px; font-size: 12px;">
-                  Cancelar
-                </button>
-              ` : ''}
-              ${actionBtn}
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  function attachOrderActionListeners() {
-    document.querySelectorAll('.btn-advance-order').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const id = e.currentTarget.dataset.id;
-        const nextStatus = e.currentTarget.dataset.next;
-        await updateOrderStatus(id, nextStatus);
-      });
-    });
-
-    document.querySelectorAll('.btn-open-cancel').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.currentTarget.dataset.id;
-        const mesa = e.currentTarget.dataset.mesa;
-        openCancelModal(id, mesa);
+        card.querySelector('[data-status]').addEventListener('click', e =>
+          mudarStatus(pedido.id, e.currentTarget.dataset.status, e.currentTarget));
+        card.querySelector('[data-cancel]').addEventListener('click', () =>
+          abrirCancelamento(pedido));
+        col.appendChild(card);
       });
     });
   }
 
-  async function updateOrderStatus(orderId, newStatus) {
-    const ord = orders.find(o => o.id === orderId);
-    if (ord) ord.status = newStatus;
-
+  async function mudarStatus(pedidoId, novoStatus, button) {
+    NeoUI.setBusy(button, true, '...');
     try {
-      const client = window.supabaseClient;
-      if (client && typeof client.from === 'function') {
-        await client.from('pedidos').update({ status: newStatus }).eq('id', orderId);
-      }
-    } catch (e) {
-      console.warn("Update order status error:", e);
+      await NeoAPI.atualizarStatusPedido(token, pedidoId, novoStatus);
+      await carregarPainel(true);
+      NeoUI.toast(`Pedido atualizado para "${novoStatus}".`, 'success', 2600);
+    } catch (err) {
+      NeoUI.toast(err.message || 'Não foi possível atualizar o pedido.', 'error', 6000);
+      NeoUI.setBusy(button, false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cancelamento com confirmação (o estorno é feito no banco)
+  // ---------------------------------------------------------------------------
+
+  function setupCancelModal() {
+    const modal = document.getElementById('cancelModal');
+    if (!modal) return;
+
+    const fechar = () => {
+      modal.style.display = 'none';
+      selectedCancelId = null;
+    };
+
+    ['btnCloseCancelModal', 'btnCancelModalBack'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', fechar);
+    });
+
+    const confirmar = document.getElementById('btnConfirmCancelOrder');
+    if (confirmar) {
+      confirmar.addEventListener('click', async () => {
+        if (!selectedCancelId) return;
+        NeoUI.setBusy(confirmar, true, 'Cancelando...');
+        try {
+          await NeoAPI.atualizarStatusPedido(token, selectedCancelId, 'Cancelado');
+          fechar();
+          await carregarPainel(true);
+          NeoUI.toast('Pedido cancelado e estoque estornado.', 'success', 4000);
+        } catch (err) {
+          NeoUI.toast(err.message || 'Não foi possível cancelar o pedido.', 'error', 6000);
+        } finally {
+          NeoUI.setBusy(confirmar, false);
+        }
+      });
     }
 
-    renderOrdersKanban();
-  }
-
-  // Cancel & Restock (RN-04)
-  function openCancelModal(orderId, mesaName) {
-    selectedCancelOrderId = orderId;
-    if (modalOrderId) modalOrderId.textContent = `#${orderId.substring(0, 8)}`;
-    if (modalOrderMesa) modalOrderMesa.textContent = mesaName;
-    if (cancelModal) cancelModal.style.display = 'flex';
-  }
-
-  function closeCancelModal() {
-    if (cancelModal) cancelModal.style.display = 'none';
-    selectedCancelOrderId = null;
-  }
-
-  if (btnCloseCancelModal) btnCloseCancelModal.addEventListener('click', closeCancelModal);
-  if (btnCancelModalBack) btnCancelModalBack.addEventListener('click', closeCancelModal);
-
-  if (btnConfirmCancelOrder) {
-    btnConfirmCancelOrder.addEventListener('click', async () => {
-      if (!selectedCancelOrderId) return;
-
-      const ord = orders.find(o => o.id === selectedCancelOrderId);
-      if (ord) {
-        ord.status = 'Cancelado';
-
-        // Perform stock reversal (RN-04)
-        if (ord.pedido_itens && ord.pedido_itens.length > 0) {
-          const client = window.supabaseClient;
-          ord.pedido_itens.forEach(pi => {
-            const recipes = pratoIngredientesMap[pi.prato_id] || [];
-            recipes.forEach(r => {
-              const totalEstorno = parseFloat(r.quantidade) * pi.quantidade;
-              const ing = ingredients.find(i => i.id === r.ingrediente_id);
-              if (ing) {
-                ing.quantidade = parseFloat(ing.quantidade) + totalEstorno;
-                if (client && typeof client.from === 'function') {
-                  client.from('estoque').update({ quantidade: ing.quantidade, atualizado_em: new Date().toISOString() }).eq('id', ing.id).then();
-                }
-              }
-            });
-          });
-        }
-
-        // Update order status in Supabase
-        try {
-          const client = window.supabaseClient;
-          if (client && typeof client.from === 'function') {
-            await client.from('pedidos').update({ status: 'Cancelado' }).eq('id', selectedCancelOrderId);
-          }
-        } catch (e) {
-          console.warn("Cancel order error:", e);
-        }
-      }
-
-      closeCancelModal();
-      renderOrdersKanban();
+    modal.addEventListener('click', e => {
+      if (e.target === modal) fechar();
     });
   }
 
-  // Realtime Subscription
-  function setupRealtime() {
-    const client = window.supabaseClient;
-    if (client && typeof client.channel === 'function') {
-      client
-        .channel('atendimento-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-          fetchAllData();
-        })
-        .subscribe();
+  function abrirCancelamento(pedido) {
+    selectedCancelId = pedido.id;
+    const modal = document.getElementById('cancelModal');
+    const idEl = document.getElementById('modalOrderId');
+    const mesaEl = document.getElementById('modalOrderMesa');
+    if (idEl) idEl.textContent = `#${String(pedido.id).slice(0, 8)}`;
+    if (mesaEl) mesaEl.textContent = pedido.mesa_nome || 'Mesa';
+    if (modal) modal.style.display = 'flex';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Alertas sonoros
+  // ---------------------------------------------------------------------------
+
+  function setupAudio() {
+    const btn = document.getElementById('btnAudioToggle');
+    const label = document.getElementById('audioLabel');
+    const icon = document.getElementById('audioIcon');
+    if (!btn) return;
+
+    btn.addEventListener('click', () => {
+      if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) audioCtx = new Ctx();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+      audioAtivo = !audioAtivo;
+
+      if (audioAtivo) {
+        btn.style.background = 'var(--success)';
+        btn.style.color = '#FFFFFF';
+        if (icon) icon.style.color = '#FFFFFF';
+        if (label) label.textContent = 'Alertas Sonoros Ativos';
+        tocarAlerta(); // feedback imediato (corrige o som que nunca tocava)
+      } else {
+        btn.style.background = 'var(--surface-card)';
+        btn.style.color = 'var(--text-main)';
+        if (icon) icon.style.color = 'var(--primary)';
+        if (label) label.textContent = 'Ativar Alertas Sonoros';
+      }
+    });
+  }
+
+  function tocarAlerta() {
+    if (!audioCtx) return;
+    try {
+      [880, 1180].forEach((freq, idx) => {
+        const start = audioCtx.currentTime + idx * 0.18;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.22, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(start);
+        osc.stop(start + 0.18);
+      });
+    } catch (err) {
+      console.warn('Falha ao tocar alerta:', err);
     }
   }
 
-  // Initialize and Set Polling Interval (every 5 seconds)
-  await loadStockAndRecipes();
-  await fetchAllData();
-  setupRealtime();
-  setInterval(fetchAllData, 5000);
-});
+  // ---------------------------------------------------------------------------
+  // Util
+  // ---------------------------------------------------------------------------
+
+  function horaRelativa(iso) {
+    if (!iso) return '—';
+    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (diff < 60) return 'agora';
+    if (diff < 3600) return `há ${Math.floor(diff / 60)} min`;
+    if (diff < 86400) return `há ${Math.floor(diff / 3600)} h`;
+    return NeoUI.dateTime(iso);
+  }
+})();

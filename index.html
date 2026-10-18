@@ -36,7 +36,7 @@
         <button type="button" id="btnToggleTheme" class="btn btn-secondary" style="padding: 6px 12px; min-height: 36px;" title="Alternar Tema Claro/Escuro">
           <span class="material-symbols-outlined" style="font-size: 18px;">dark_mode</span>
         </button>
-        <a href="login.html?type=client" class="btn btn-primary" id="btn-fazer-pedido">
+        <a href="login.html?type=mesa" class="btn btn-primary" id="btn-fazer-pedido">
           <i class="fas fa-qrcode"></i> Fazer Pedido
         </a>
         <a href="login.html?type=staff" class="btn btn-secondary" id="btn-area-funcionario">
@@ -83,6 +83,63 @@
     </section>
 
   </main>
+
+  <!-- RF-26: botão visível em qualquer tela para a mesa autenticada -->
+  <button type="button" id="btnCallStaffGlobal" class="fab" style="display: none;" title="Chamar um funcionário">
+    <span class="material-symbols-outlined">notifications_active</span>
+    <span>Chamar Funcionário</span>
+  </button>
+
+  <div id="callStaffGlobalModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 460px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="material-symbols-outlined" style="color: var(--primary);">notifications_active</span>
+          <h3 class="modal-title">Chamar Funcionário</h3>
+        </div>
+        <button type="button" class="modal-close" id="btnCloseCallStaffGlobal">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <form id="callStaffGlobalForm">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: var(--space-md);">
+          Informe o motivo para que a equipe possa atender a sua mesa.
+        </p>
+
+        <div class="input-group" style="margin-bottom: var(--space-md);">
+          <label class="input-label" for="callGlobalReason">Motivo do Chamado</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">list</span>
+            <select id="callGlobalReason" class="input-field" style="padding-left: 38px;" required>
+              <option value="Pedir a conta">Pedir a conta</option>
+              <option value="Tirar dúvida do menu">Tirar dúvida do menu</option>
+              <option value="Solicitar talheres/copos">Solicitar talheres/copos</option>
+              <option value="Trocar item do pedido">Trocar item do pedido</option>
+              <option value="Limpeza da mesa">Limpeza da mesa</option>
+              <option value="Outro">Outro Motivo...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="input-group" id="callGlobalOtherGroup" style="display: none; margin-bottom: var(--space-lg);">
+          <label class="input-label" for="callGlobalJustification">Especifique o Motivo</label>
+          <div class="input-wrapper">
+            <span class="material-symbols-outlined input-icon">edit_note</span>
+            <input type="text" id="callGlobalJustification" class="input-field" maxlength="200" placeholder="Digite o motivo do chamado...">
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: var(--space-sm);">
+          <button type="button" class="btn btn-secondary" id="btnCancelCallStaffGlobal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitCallStaffGlobal">
+            <span class="material-symbols-outlined">send</span>
+            <span>Enviar Chamado</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- Footer -->
   <footer class="footer">

@@ -23,9 +23,9 @@
 
       <nav class="nav-links">
         <a href="atendimento.html" class="nav-link active">Atendimento</a>
-        <a href="estoque.html" class="nav-link">Estoque & Cardápio</a>
-        <a href="contas.html" class="nav-link">Contas</a>
-        <a href="faturamento.html" class="nav-link">Faturamento & Backup</a>
+        <a href="estoque.html" class="nav-link" data-requires="gerente">Estoque & Cardápio</a>
+        <a href="contas.html" class="nav-link" data-requires="gerente">Contas</a>
+        <a href="faturamento.html" class="nav-link" data-requires="gerente">Faturamento & Backup</a>
       </nav>
 
       <div class="nav-actions">
@@ -53,7 +53,7 @@
           <span class="material-symbols-outlined" style="color: var(--primary);">support_agent</span>
           <span>Operação & Atendimento</span>
         </h1>
-        <p style="color: var(--text-muted); font-size: 14px;">Acompanhamento em tempo real de chamados de mesa e gestão dos pedidos da cozinha.</p>
+        <p style="color: var(--text-muted); font-size: 14px;">Acompanhamento de chamados de mesa e gestão dos pedidos da cozinha.</p>
       </div>
 
       <button type="button" id="btnAudioToggle" class="btn btn-secondary" style="padding: 8px 16px;">
@@ -80,12 +80,12 @@
       </div>
     </div>
 
-    <!-- Section 2: Live Orders Workflow (Kanban: Recebido, Em Preparo, Pronto/Entregue) -->
+    <!-- Section 2: Fluxo de pedidos (Pendente, Em Preparo, Pronto) -->
     <div>
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
         <div>
           <h2 style="font-size: 20px; font-weight: 600; color: var(--text-main);">Fluxo de Pedidos das Mesas</h2>
-          <p style="font-size: 13px; color: var(--text-muted);">Acompanhamento de status de pedidos em tempo real com estorno automático no estoque ao cancelar.</p>
+          <p style="font-size: 13px; color: var(--text-muted);">Atualização automática a cada 8 segundos, com estorno de estoque no cancelamento (RN-04).</p>
         </div>
       </div>
 
@@ -126,10 +126,10 @@
           <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border-subtle); margin-bottom: var(--space-md);">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--success);"></span>
-              <span style="font-weight: 600; color: var(--text-main); font-size: 15px;">Pronto / Entregue</span>
+              <span style="font-weight: 600; color: var(--text-main); font-size: 15px;">Prontos</span>
               <span id="countDone" class="status-badge" style="background: var(--border-subtle); color: var(--text-main);">0</span>
             </div>
-            <span style="font-size: 12px; color: var(--text-muted);">Finalizados</span>
+            <span style="font-size: 12px; color: var(--text-muted);">Aguardando entrega</span>
           </div>
           <div id="colDone" class="flex-col" style="gap: var(--space-md);">
             <!-- Cards appended dynamically -->

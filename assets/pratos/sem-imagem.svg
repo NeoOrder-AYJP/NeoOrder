@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Imagem indisponível">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFF8F0"/>
+      <stop offset="100%" stop-color="#F2E7DA"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <g fill="none" stroke="#E85D04" stroke-opacity="0.35" stroke-width="10" stroke-linecap="round">
+    <circle cx="400" cy="285" r="135"/>
+    <circle cx="400" cy="285" r="96"/>
+  </g>
+  <g fill="#E85D04" fill-opacity="0.9">
+    <circle cx="350" cy="250" r="16"/>
+    <circle cx="446" cy="238" r="12"/>
+    <circle cx="392" cy="330" r="11"/>
+  </g>
+  <path d="M262 150 L300 150 M281 150 L281 210" stroke="#E85D04" stroke-opacity="0.55" stroke-width="10" stroke-linecap="round"/>
+  <path d="M520 150 L520 210 M520 150 C540 165 540 195 520 210" stroke="#E85D04" stroke-opacity="0.55" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <text x="400" y="478" font-family="Poppins, Segoe UI, Arial, sans-serif" font-size="30" font-weight="600" fill="#2B2D42" text-anchor="middle">Imagem em preparação</text>
+  <text x="400" y="516" font-family="Poppins, Segoe UI, Arial, sans-serif" font-size="20" fill="#2B2D42" fill-opacity="0.6" text-anchor="middle">NeoOrder</text>
+</svg>
