@@ -451,3 +451,43 @@ Qualquer um desses itens exige mudança no banco: será apresentada como SQL + i
 - **Testes de Regressão:** Criar ou atualizar testes para os principais fluxos do sistema, incluindo autenticação, disponibilidade, imagens, pedidos, chamados, estoque e faturamento.
 - **Documentação Técnica:** Conferir se o `backlog.md` e o `supabase-schema.md` correspondem ao comportamento real do sistema e ao esquema atual do banco de dados.
 - **Validação Final:** Executar os fluxos principais antes de registrar tarefas como concluídas, documentando os erros encontrados e as correções efetivamente validadas.
+Autenticação por QR Code para gerente e atendente e suporte a múltiplas sessões simultâneas
+
+Prioridade: Alta
+
+Status: Pendente
+
+Descrição:
+
+Revisar e adequar o sistema de autenticação do NeoOrder para permitir acessos simultâneos de vários funcionários em diferentes dispositivos, com login por QR Code para os cargos de gerente e atendente. Garantir que as sessões sejam independentes e que as permissões de cada cargo sejam respeitadas no frontend e no backend.
+
+Requisitos:
+
+* Implementar login por QR Code para gerente e atendente, com permissões específicas para cada cargo.
+* Permitir múltiplos logins simultâneos, sem desconectar automaticamente outras sessões ativas.
+* Garantir que cada dispositivo possua uma sessão independente, com expiração, encerramento e revogação próprios.
+* Utilizar QR Codes seguros, preferencialmente individuais por funcionário, com tokens protegidos, possibilidade de revogação e política de expiração.
+* Manter separados os QR Codes de autenticação dos funcionários e os QR Codes das mesas dos clientes.
+* Validar cargos e permissões no backend, sem depender exclusivamente das verificações do frontend.
+* Preservar o funcionamento do login convencional, dos pedidos, do cardápio e das sessões das mesas.
+* Auditar o esquema do Supabase, as tabelas, as funções RPC, as políticas RLS e as migrações para identificar incompatibilidades com a implementação atual.
+* Documentar as alterações de código e as eventuais mudanças necessárias no banco de dados.
+
+Critérios de validação:
+
+* Gerente e atendente conseguem autenticar-se pelos respectivos QR Codes.
+* As permissões administrativas são exclusivas dos usuários autorizados.
+* Dois ou mais funcionários conseguem permanecer conectados em dispositivos diferentes ao mesmo tempo.
+* Encerrar uma sessão não encerra as demais.
+* QR Codes inválidos, expirados ou revogados são rejeitados corretamente.
+* Um QR Code de mesa não concede acesso às funcionalidades administrativas.
+* O login convencional continua funcionando.
+* Os testes automatizados e os testes de integração são documentados, distinguindo simulações de testes realizados com o Supabase real.
+
+Restrições e segurança:
+
+Não realizar alterações no banco de produção, nas políticas RLS, nas funções RPC ou nas migrações aplicadas sem autorização explícita. Antes de qualquer alteração no banco, apresentar o diagnóstico de compatibilidade, o SQL proposto e os riscos para revisão. Não realizar merge da PR até a revisão e a validação dos requisitos.
+
+Documentação:
+
+Atualizar o histórico de alterações e o backlog com as mudanças realizadas, os testes executados, os problemas encontrados e as pendências restantes.
