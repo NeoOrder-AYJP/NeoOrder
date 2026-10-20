@@ -76,14 +76,14 @@
 
   function qrBadge(conta) {
     if (conta.tipo === 'mesa') {
-      if (!qrDisponivel) return '';
+      if (!qrDisponivel) return '<span class="badge badge-pending qr-badge" title="QR de mesa requer atualização do banco (aguarde deploy da migração)">QR pendente</span>';
       const st = qrStatus.get(conta.id);
       return st && st.ativo
         ? '<span class="badge badge-available qr-badge">QR ativo</span>'
         : '<span class="badge badge-unavailable qr-badge">Sem QR</span>';
     }
     if (conta.tipo === 'funcionario') {
-      if (!qrStaffDisponivel) return '';
+      if (!qrStaffDisponivel) return '<span class="badge badge-pending qr-badge" title="QR de equipe requer atualização do banco (migração 20261020 pendente)">QR pendente</span>';
       const st = qrStatusStaff.get(conta.id);
       return st && st.ativo
         ? '<span class="badge badge-available qr-badge">QR ativo</span>'
@@ -129,8 +129,8 @@
         <td>${conta.ativo
           ? '<span class="badge badge-available">Ativo</span>'
           : '<span class="badge badge-unavailable">Inativo</span>'}${qrBadge(conta)}</td>
-        <td class="cell-actions">${((qrDisponivel && conta.tipo === 'mesa') || (qrStaffDisponivel && conta.tipo === 'funcionario')) ? `
-          <button type="button" class="btn btn-secondary btn-icon" data-qr="${conta.id}" data-qr-tipo="${conta.tipo}" title="QR Code" aria-label="QR Code de ${escapeHtml(conta.nome)}" aria-haspopup="dialog">
+        <td class="cell-actions">${(conta.tipo === 'mesa' || conta.tipo === 'funcionario') ? `
+          <button type="button" class="btn btn-secondary btn-icon" data-qr="${conta.id}" data-qr-tipo="${conta.tipo}" title="${(conta.tipo==='mesa' && !qrDisponivel) || (conta.tipo==='funcionario' && !qrStaffDisponivel) ? 'QR requer atualização do banco' : 'QR Code'}" aria-label="QR Code de ${escapeHtml(conta.nome)}" aria-haspopup="dialog" ${((conta.tipo==='mesa' && !qrDisponivel) || (conta.tipo==='funcionario' && !qrStaffDisponivel)) ? 'disabled' : ''}>
             <span class="material-symbols-outlined" style="font-size:16px;">qr_code_2</span>
           </button>` : ''}
           <button type="button" class="btn btn-secondary btn-icon" data-edit="${conta.id}" title="Editar" aria-label="Editar ${escapeHtml(conta.nome)}">

@@ -64,6 +64,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 20/10/2026 | 2.6 | Correcao | Autenticação/Sessões | Múltiplas sessões simultâneas: `autenticar_usuario` e `iniciar_sessao_mesa` deixaram de invalidar sessões anteriores; cada login gera token independente em `sessoes_mesa`/`sessoes_funcionario` (12 h). `gerar_qr_code_mesa` não encerra mais sessões ativas. Logout de staff continua direto; logout de mesa exige nova RPC. Migração `20261020_neoorder_multisession_qr_staff_logout.sql` criada (pendente de aplicação em produção). | Arena Agent | Em revisão |
 | 20/10/2026 | 2.6 | Adicionado | QR Staff | QR Codes individuais para gerente e atendente: `gerar_qr_code_funcionario`, `iniciar_sessao_funcionario_qr` (FUNC- + 64 hex, hash SHA-256, 12 h), `status_qr_funcionarios`, `desativar_qr_funcionario`. Validação de perfil no backend (gerente só gera), isolamento total entre QR de mesa (MESA-) e de staff (FUNC-). Gestão em `contas.html` (badges, modal unificado, QR local). Login via `login.html?qr=` com detecção de prefixo e redirecionamento por perfil. | Arena Agent | Em revisão |
 | 20/10/2026 | 2.6 | Correcao | Sessão/Mesa | Senha obrigatória para encerrar sessão de mesa: `encerrar_sessao` endurecida para mesa (42501 exige `encerrar_sessao_mesa_autorizada`), nova RPC valida staff (gerente/atendente) com bcrypt + bloqueio 5/15 min, encerra apenas a sessão do token informado, limpa carrinho local e registra auditoria. Modal em `cardapio.html` + fallback dinâmico em `js/auth.js`. | Arena Agent | Em revisão |
+| 21/10/2026 | 2.7 | Auditoria | Geral/Código, Banco e Publicação | Auditoria pós-merge PR #20: código das 3 prioridades presente em `main` (9 arquivos, migração 20261020), frontend com QR staff e logout com senha, mas Supabase ainda sem migração (RPCs `status_qr_funcionarios` etc. retornam PGRST202) e Pages em cache. Correção de UX para exibir QR pendente desabilitado + fallback de logout para funcionar com banco antigo (aviso de migração pendente). Testes 34+10 OK. Migração continua pendente de autorização explícita para produção. | Arena Agent | Em revisão |
 
 
 ---
@@ -462,6 +463,36 @@ Atender as três prioridades máximas do stakeholder (múltiplos acessos simult�
 - QR estático: quem fotografar o QR de mesa ou staff pode reutilizar enquanto não for regenerado (recomendação: regenerar a cada troca de cliente e expirar no fechamento de conta — fluxo de fechamento ainda pendente §1.15.5).
 - Sessões têm 12 h fixas; não há expiração curta para QR. Fragmento `#qr=` para evitar logs de hospedagem ainda pendente (§8.2 item 4).
 - Acesso público de demonstração por QR (pendência de alta prioridade) permanece pendente, sem tarefa numerada no roadmap, conforme orientação.
+
+## 10. Auditoria Pós-Merge — 21/10/2026 (v2.7)
+
+### 10.1 Por que as funcionalidades não apareceram
+Após o merge do PR #20 (8eaf3fe) verificou-se:
+
+**Código:** ✅ **Presente em `main`.** `git show main` confirma: `supabase/migrations/20261020_*.sql` (640 linhas), `js/auth.js` com `FUNC-`/`MESA-` e `logoutMesaComAutorizacao`, `js/supabase.js` com 5 novas RPCs, `js/contas.js` com gestão unificada, `cardapio.html` com modal de logout, `supabase-schema.md` v2.6 e `backlog.md` §9. `git diff main..HEAD` vazio na branch de auditoria confirma que não há código faltando no repositório.
+
+**Supabase (banco):** ❌ **Migração não aplicada.** `backlog.md` §9.5 e `supabase-schema.md` já indicavam “pendente de aplicação em produção”. Ao chamar `status_qr_funcionarios` ou `encerrar_sessao_mesa_autorizada` o PostgREST retorna `PGRST202 / 42883 Could not find function`, fazendo o frontend ocultar botões de QR de staff (antes da correção) e falhar no logout seguro. `autenticar_usuario` antiga ainda invalida sessões anteriores, impedindo P1 multi-sessão. **Causa raiz:** alteração de banco requer autorização explícita (instrução do prompt), não foi aplicada automaticamente.
+
+**Publicação (GitHub Pages):** ✅ **Built em `main`** (`gh api pages` → `status: built`, `source.branch: main`, `https://neoorder-ayjp.github.io/NeoOrder/`). O commit 8eaf3fe já está em Pages; eventual cache de CDN/navegador pode atrasar visibilidade, mas não há branch divergente.
+
+**Conclusão:** problema não é código ausente ou revert, mas **banco desatualizado + UX que escondia funcionalidades quando RPC não existia** (interpretado como “não implementado”).
+
+### 10.2 Correções desta PR (sem alterar banco de produção sem autorização)
+- **UX resiliente:** `js/contas.js` agora exibe QR de mesa e staff sempre (mesmo quando `status_qr_*` falha), com badge `QR pendente` e botão desabilitado + tooltip “QR requer atualização do banco” e `console.warn` com código do erro, em vez de ocultar. Teste `10j` atualizado para validar esse comportamento.
+- **Logout fallback:** `js/auth.js` `logoutMesaComAutorizacao` detecta `PGRST202/42883` (função não encontrada) e faz fallback para `encerrar_sessao` legado com `toast` informativo “validação de senha ainda não ativa no banco (migração pendente)”, garantindo que mesa ainda consiga sair mesmo antes da migração (com aviso de segurança pendente).
+- **Documentação:** nova seção 10, histórico 2.7, e `supabase-schema.md` mantido v2.6 com nota de pendência. A migração continua **não aplicada**; seu conteúdo (idempotente) está em `supabase/migrations/20261020_*.sql` para revisão e aplicação manual via SQL Editor quando autorizada.
+
+### 10.3 Validação pós-correção
+- `npm test` → smoke 8 OK, qr 34 OK (com nova UX).
+- `node tests/prioridades.test.js` → 10 OK (P1 multi-sessão simulado, P2 isolamento, P3 senha correta/incorreta e bloqueio de bypass).
+- Teste manual simulado (jsdom, sem rede): QR de mesa válido → cardápio, QR de staff gerente → faturamento, atendente → atendimento; QR inválido/revogado → 28000 sem distinguir; encerrar mesa com senha errada → 28000, sem senha → 42501, com senha correta → sessão encerrada + carrinho limpo.
+- **Pendente com banco real:** aplicar migração em staging/produção, testar leitura de QR impresso com câmera, Safari/iOS, múltiplos dispositivos reais e expiração.
+
+### 10.4 Próximos passos (requer autorização)
+1. Revisar `supabase/migrations/20261020_neoorder_multisession_qr_staff_logout.sql` (15 seções, sem `DROP` destrutivo) e aplicar no projeto `nurnxrtxdcasrjcwxvky` via SQL Editor.
+2. Verificar no Supabase Dashboard: `SELECT proname FROM pg_proc WHERE proname LIKE '%qr%';` deve listar 8 funções (4 mesa + 4 staff).
+3. Testar em produção: gerar QR de gerente/atendente em `contas.html`, escanear com celular, verificar permissões e isolamento; testar logout de mesa com senha correta/incorreta e tentativa direta via `curl` às RPCs.
+4. Após validação, marcar P1-P3 como concluído em `backlog.md` e publicar nova tag de release.
 
 ## 6. Análise Técnica de 17/10/2026 — Pendências Identificadas
 

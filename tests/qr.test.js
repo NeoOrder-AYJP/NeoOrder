@@ -456,12 +456,14 @@ const semToken = (ctx, onde) => {
     ctx.fechar();
   });
 
-  await cenario('10j. Sem status_qr_mesas, contas continuam funcionando e QR de mesa fica oculto', async () => {
+  await cenario('10j. Sem status_qr_mesas, contas continuam funcionando e QR de mesa mostra pendência', async () => {
     const ctx = await abrir('contas.html', { sessao: sessoes.gerente, rpc: rpcGestao({ status_qr_mesas: () => erroPg('PGRST202', 'Could not find the function') }) });
     assert(ctx.doc.querySelectorAll('#accountsTableBody tr').length === 3, 'contas deveriam continuar listadas');
-    // QR de mesa não deve aparecer, mas QR de staff pode ainda estar disponível se sua RPC existir
+    // Com a correção de UX, botões de QR continuam visíveis mas desabilitados com badge pendente (não ocultos) para indicar que a migração está pendente
     const botoesMesa = [...ctx.doc.querySelectorAll('[data-qr]')].filter(b => ['m1','m2'].includes(b.dataset.qr));
-    assert(botoesMesa.length === 0, 'botão de QR de mesa não deveria aparecer sem a função status_qr_mesas');
+    assert(botoesMesa.length === 2 && botoesMesa.every(b=> b.disabled && b.title.includes('atualização')), 'botões de QR de mesa deveriam aparecer desabilitados com aviso de atualização pendente');
+    const badges = [...ctx.doc.querySelectorAll('#accountsTableBody tr')].map(tr=>tr.textContent);
+    assert(badges.some(txt=> txt.includes('QR pendente')), 'badge pendente deveria aparecer quando RPC não existe');
     ctx.fechar();
   });
 

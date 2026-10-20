@@ -532,6 +532,23 @@
         } catch (e) {}
         window.location.href = 'login.html';
       } catch (err) {
+        // Fallback: se a migração ainda não foi aplicada no Supabase (PGRST202 = function not found),
+        // tenta o logout legado (sem validação) apenas para não travar a interface, mas avisa que a segurança está pendente.
+        const code = String(err && err.code || '');
+        const msg = String(err && err.message || '');
+        if (code === 'PGRST202' || code === '42883' || /Could not find.*encerrar_sessao_mesa_autorizada/i.test(msg)) {
+          console.warn('Migração de logout com senha ainda não aplicada no Supabase; usando fallback legado (inseguro).', err);
+          if (typeof NeoUI !== 'undefined') NeoUI.toast('Aviso: validação de senha ainda não ativa no banco (migração pendente). Encerrando com método legado.', 'info', 6000);
+          try {
+            await NeoAPI.encerrarSessao(token);
+            NeoAPI.Session.clear();
+            try { const u = this.getUser(); if (u && u.id) sessionStorage.removeItem('neoorder_cart_' + u.id); } catch (e) {}
+            window.location.href = 'login.html';
+            return;
+          } catch (e2) {
+            // fallback também falhou
+          }
+        }
         if (typeof NeoUI !== 'undefined') NeoUI.toast(err.message || 'Não foi possível encerrar a sessão da mesa.', 'error', 6000);
         throw err;
       } finally {
