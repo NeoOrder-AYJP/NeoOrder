@@ -80,6 +80,58 @@ const gerenteSession = {
   expiraEm: new Date(Date.now() + 3600000).toISOString()
 };
 
+// Aguarda microtarefas/MutationObservers (NeoModal, NeoNav) do jsdom.
+const tick = window => new Promise(resolve => window.setTimeout(resolve, 0));
+
+function pressionar(window, key, opts = {}) {
+  const alvo = window.document.activeElement || window.document.body;
+  alvo.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...opts }));
+}
+
+// Verificações comuns de responsividade/acessibilidade (v2.5)
+function checarAcessibilidadeBase(doc, pagina) {
+  assert(doc.querySelectorAll('#btnToggleTheme').length === 1, `${pagina}: botão de tema deve ser único`);
+  const icones = [...doc.querySelectorAll('.material-symbols-outlined')];
+  assert(icones.length > 0 && icones.every(i => i.getAttribute('aria-hidden') === 'true'), `${pagina}: ícones de ligadura devem ter aria-hidden`);
+  doc.querySelectorAll('.modal-overlay').forEach(overlay => {
+    const card = overlay.querySelector('.modal-card');
+    assert(card.getAttribute('role') === 'dialog' && card.getAttribute('aria-modal') === 'true', `${pagina}: #${overlay.id} sem role=dialog/aria-modal`);
+    const titulo = doc.getElementById(card.getAttribute('aria-labelledby'));
+    assert(titulo && titulo.textContent.trim(), `${pagina}: #${overlay.id} sem título acessível`);
+    overlay.querySelectorAll('.modal-close').forEach(btn => assert(btn.getAttribute('aria-label'), `${pagina}: botão fechar sem aria-label`));
+  });
+}
+
+function checarMenuGestao(window, pagina) {
+  const doc = window.document;
+  const toggle = doc.getElementById('btnNavToggle');
+  const painel = doc.getElementById('navPanel');
+  assert(doc.querySelector('.header--admin') && toggle && painel, `${pagina}: cabeçalho de gestão sem menu hambúrguer`);
+  assert(toggle.getAttribute('aria-controls') === 'navPanel' && toggle.getAttribute('aria-expanded') === 'false', `${pagina}: estado inicial do menu incorreto`);
+  assert(doc.querySelectorAll('.nav-links').length === 1, `${pagina}: menu de navegação duplicado`);
+  const atual = doc.querySelector('.nav-link[aria-current="page"]');
+  assert(atual && atual.getAttribute('href') === pagina, `${pagina}: link ativo sem aria-current`);
+  toggle.focus();
+  toggle.click();
+  assert(painel.classList.contains('is-open') && toggle.getAttribute('aria-expanded') === 'true', `${pagina}: menu não abriu`);
+  pressionar(window, 'Escape');
+  assert(!painel.classList.contains('is-open') && toggle.getAttribute('aria-expanded') === 'false', `${pagina}: Esc não fechou o menu`);
+  assert(doc.activeElement === toggle, `${pagina}: foco não voltou ao botão do menu`);
+}
+
+function checarTabela(doc, seletorCorpo, pagina) {
+  const corpo = doc.querySelector(seletorCorpo);
+  const caixa = corpo.closest('.table-container');
+  assert(caixa.getAttribute('role') === 'region' && caixa.getAttribute('tabindex') === '0' && caixa.getAttribute('aria-label'), `${pagina}: contêiner da tabela não é região rolável acessível`);
+  assert(corpo.closest('table').classList.contains('data-table--scroll'), `${pagina}: tabela sem data-table--scroll`);
+  assert(corpo.closest('table').querySelector('th.cell-actions'), `${pagina}: cabeçalho de ações sem cell-actions`);
+  corpo.querySelectorAll('tr').forEach(tr => {
+    const acoes = tr.querySelector('td.cell-actions');
+    assert(acoes, `${pagina}: linha sem célula de ações`);
+    acoes.querySelectorAll('button').forEach(b => assert(b.getAttribute('aria-label') && !b.getAttribute('style'), `${pagina}: botão de ação sem aria-label ou com estilo inline`));
+  });
+}
+
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
@@ -131,13 +183,13 @@ function executarPagina(arquivo, scripts, sessao, asserts) {
 
   return new Promise(resolve => {
     setTimeout(() => {
-      try {
-        asserts(window);
-      } catch (err) {
-        erros.push(`${arquivo}: assert falhou: ${err.message}`);
-      }
-      dom.window.close();
-      resolve();
+      Promise.resolve()
+        .then(() => asserts(window))
+        .catch(err => erros.push(`${arquivo}: assert falhou: ${err.message}`))
+        .then(() => {
+          dom.window.close();
+          resolve();
+        });
     }, 600);
   });
 }
@@ -155,23 +207,41 @@ function executarPagina(arquivo, scripts, sessao, asserts) {
     const imgs = [...doc.querySelectorAll('#menu-grid .card-dish-img')].map(i => i.getAttribute('src'));
     assert(imgs.some(src => src === 'assets/pratos/sem-imagem.svg'), 'fallback de imagem não aplicado');
     assert(doc.getElementById('btnCallStaffGlobal').style.display === 'none', 'FAB visível sem sessão de mesa');
+    checarAcessibilidadeBase(doc, 'index.html');
+    const indicadores = [...doc.querySelectorAll('.carousel-indicators .indicator')];
+    assert(indicadores.length === 2 && indicadores.every(i => i.tagName === 'BUTTON' && i.getAttribute('aria-label')), 'indicadores do carrossel devem ser botões com rótulo');
+    assert(indicadores[0].getAttribute('aria-current') === 'true', 'indicador ativo sem aria-current');
+    assert(!doc.body.classList.contains('has-fab'), 'espaço do FAB reservado sem sessão de mesa');
   });
 
-  await executarPagina('index.html', ['js/supabase.js', 'js/app.js'], mesaSession, window => {
+  await executarPagina('index.html', ['js/supabase.js', 'js/app.js'], mesaSession, async window => {
     const doc = window.document;
     const fab = doc.getElementById('btnCallStaffGlobal');
     assert(fab && fab.style.display !== 'none', 'RF-26: FAB não apareceu para a mesa');
+    assert(doc.body.classList.contains('has-fab'), 'FAB visível sem reservar espaço (has-fab)');
+    fab.focus();
     fab.click();
     assert(doc.getElementById('callStaffGlobalModal').style.display === 'flex', 'modal de chamado não abriu');
+    await tick(window);
+    assert(doc.body.classList.contains('modal-open'), 'modal aberto sem travar o scroll do body');
+    assert(doc.getElementById('callStaffGlobalModal').contains(doc.activeElement), 'foco não entrou no modal');
+    pressionar(window, 'Escape');
+    assert(doc.getElementById('callStaffGlobalModal').style.display === 'none', 'Esc não fechou o modal');
+    await tick(window);
+    assert(doc.activeElement === fab, 'foco não voltou ao FAB ao fechar o modal');
+    assert(!doc.body.classList.contains('modal-open'), 'body continuou travado após fechar o modal');
   });
 
   await executarPagina('login.html', ['js/supabase.js', 'js/auth.js'], null, window => {
     const doc = window.document;
     assert(doc.getElementById('tabClientBtn') === null, 'aba Cliente deveria ter sido removida');
     assert(doc.querySelectorAll('.segmented-control .tab-btn').length === 3, 'esperava 3 abas de perfil');
+    assert(!doc.querySelector('.segmented-control').getAttribute('style'), 'segmented-control do login não deve ter grade inline');
+    assert(doc.querySelectorAll('.segmented-control .tab-btn[aria-pressed="true"]').length === 1, 'aba ativa sem aria-pressed');
+    checarAcessibilidadeBase(doc, 'login.html');
   });
 
-  await executarPagina('cardapio.html', ['js/supabase.js', 'js/auth.js', 'js/cardapio.js'], mesaSession, window => {
+  await executarPagina('cardapio.html', ['js/supabase.js', 'js/auth.js', 'js/cardapio.js'], mesaSession, async window => {
     const doc = window.document;
     assert(doc.getElementById('mesaTitle').textContent === 'Mesa 01', 'nome da mesa não renderizado');
     assert(doc.querySelectorAll('#dishesGrid .card-dish').length === 3, 'cardápio da mesa vazio');
@@ -181,11 +251,46 @@ function executarPagina(arquivo, scripts, sessao, asserts) {
     assert(doc.getElementById('cartBadge').textContent === '1', 'badge do carrinho não atualizou');
     assert(doc.getElementById('cartTotalValue').textContent.includes('90'), 'total do carrinho incorreto');
 
+    // Barra inferior da mesa (agents.md §6): 4 destinos, sem novas rotas
+    await tick(window);
+    checarAcessibilidadeBase(doc, 'cardapio.html');
+    const barra = doc.querySelector('nav.bottom-nav');
+    assert(barra && barra.getAttribute('aria-label'), 'barra inferior da mesa ausente');
+    const rotulos = [...barra.querySelectorAll('.bottom-nav-item')].map(i => i.lastElementChild.textContent.trim());
+    assert(JSON.stringify(rotulos) === JSON.stringify(['Cardápio', 'Carrinho', 'Pedidos', 'Chamar']), `rótulos da barra inferior: ${rotulos}`);
+    assert([...barra.querySelectorAll('a[href]')].every(a => a.getAttribute('href').startsWith('#')), 'barra inferior não pode criar rotas');
+    assert(doc.body.classList.contains('has-bottom-nav'), 'body sem reserva de espaço para a barra inferior');
+    assert(doc.querySelectorAll('.header--mesa .mesa-header-action').length === 3, 'ações do cabeçalho da mesa sem classe de ocultação mobile');
+    assert([...doc.querySelectorAll('[data-cart-count]')].every(el => el.textContent === '1'), 'contadores do carrinho dessincronizados');
+    assert(doc.getElementById('bottomNavCart').getAttribute('aria-label') === 'Carrinho (1 item)', 'aria-label do carrinho não atualizou');
+    assert(doc.querySelector('#cartItemsContainer .cart-item-total'), 'total do item sem classe cart-item-total');
+
+    const carrinhoBtn = doc.getElementById('bottomNavCart');
+    carrinhoBtn.focus();
+    carrinhoBtn.click();
+    assert(doc.getElementById('cartModal').style.display === 'flex', 'carrinho não abriu pela barra inferior');
+    await tick(window);
+    assert(doc.getElementById('cartModal').contains(doc.activeElement), 'foco não entrou no carrinho');
+    pressionar(window, 'Escape');
+    assert(doc.getElementById('cartModal').style.display === 'none', 'Esc não fechou o carrinho');
+    await tick(window);
+    assert(doc.activeElement === carrinhoBtn, 'foco não voltou ao botão Carrinho');
+
+    doc.getElementById('bottomNavCall').click();
+    assert(doc.getElementById('callStaffModal').style.display === 'flex', 'Chamar da barra inferior não abriu o modal');
+    pressionar(window, 'Escape');
+    await tick(window);
+
+    doc.getElementById('bottomNavHistory').click();
+    await tick(window);
+    assert(doc.getElementById('historyModal').style.display === 'flex', 'Pedidos da barra inferior não abriu o histórico');
     doc.getElementById('btnOpenHistory').click();
   });
 
   await executarPagina('atendimento.html', ['js/supabase.js', 'js/auth.js', 'js/atendimento.js'], gerenteSession, window => {
     const doc = window.document;
+    checarAcessibilidadeBase(doc, 'atendimento.html');
+    checarMenuGestao(window, 'atendimento.html');
     assert(doc.querySelectorAll('#callsContainer .call-card').length === 1, 'chamados não renderizados');
     assert(doc.getElementById('badgePendingCalls').textContent.includes('1'), 'badge de chamados incorreto');
     assert(doc.querySelectorAll('#colReceived .order-card').length === 1, 'coluna Pendente vazia');
@@ -196,6 +301,8 @@ function executarPagina(arquivo, scripts, sessao, asserts) {
 
   await executarPagina('estoque.html', ['js/supabase.js', 'js/auth.js', 'js/estoque.js'], gerenteSession, window => {
     const doc = window.document;
+    checarAcessibilidadeBase(doc, 'estoque.html');
+    checarMenuGestao(window, 'estoque.html');
     assert(doc.querySelectorAll('#ingredientsTableBody tr').length === 2, 'insumos não renderizados');
     assert(doc.querySelectorAll('#dishesTableBody tr').length === 2, 'pratos não renderizados');
     assert(doc.getElementById('kpiTotalIngredientes').textContent === '2', 'KPI de insumos incorreto');
@@ -206,11 +313,19 @@ function executarPagina(arquivo, scripts, sessao, asserts) {
     assert(doc.getElementById('dishModal').style.display === 'flex', 'modal de prato não abriu');
     doc.getElementById('btnAddRecipeRow').click();
     assert(doc.querySelectorAll('#recipeContainer .recipe-row').length === 1, 'linha de receita não criada');
+    const linha = doc.querySelector('#recipeContainer .recipe-row');
+    assert(!linha.getAttribute('style'), 'linha de receita não deve ter grade inline');
+    assert([...linha.querySelectorAll('select, input, button')].every(el => el.getAttribute('aria-label')), 'campos da receita sem aria-label');
+    checarTabela(doc, '#ingredientsTableBody', 'estoque.html');
+    checarTabela(doc, '#dishesTableBody', 'estoque.html');
   });
 
   await executarPagina('contas.html', ['js/supabase.js', 'js/auth.js', 'js/contas.js'], gerenteSession, window => {
     const doc = window.document;
+    checarAcessibilidadeBase(doc, 'contas.html');
+    checarMenuGestao(window, 'contas.html');
     assert(doc.querySelectorAll('#accountsTableBody tr').length === 2, 'contas não renderizadas');
+    checarTabela(doc, '#accountsTableBody', 'contas.html');
     assert(doc.querySelectorAll('#tabFilterClientes').length === 0, 'filtro de clientes deveria sair');
     doc.getElementById('btnNewAccount').click();
     assert(doc.getElementById('accountModal').style.display === 'flex', 'modal de conta não abriu');
@@ -224,6 +339,15 @@ function executarPagina(arquivo, scripts, sessao, asserts) {
     assert(doc.querySelectorAll('#topDishesTableBody tr').length === 1, 'top pratos vazio');
     assert(doc.querySelectorAll('#salesLogTableBody tr').length === 1, 'extrato vazio');
     assert(doc.getElementById('filterMonth').classList.contains('active'), 'RF-32: mês deveria ser o filtro inicial');
+    assert(doc.getElementById('filterMonth').getAttribute('aria-pressed') === 'true', 'filtro ativo sem aria-pressed');
+    checarAcessibilidadeBase(doc, 'faturamento.html');
+    checarMenuGestao(window, 'faturamento.html');
+    const botaoImportar = doc.getElementById('btnImportJson');
+    assert(botaoImportar && botaoImportar.tagName === 'BUTTON', 'Importar Backup deve ser um botão alcançável por teclado');
+    let abriuSeletor = false;
+    doc.getElementById('importJsonInput').click = () => { abriuSeletor = true; };
+    botaoImportar.click();
+    assert(abriuSeletor, 'botão Importar Backup não aciona o seletor de arquivo');
   });
 
   if (erros.length) {

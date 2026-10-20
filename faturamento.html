@@ -14,40 +14,48 @@
 </head>
 <body>
   <!-- Header / Navbar -->
-  <header class="header">
+  <header class="header header--admin">
     <div class="container header-container">
       <a href="index.html" class="logo-brand">
         <span class="material-symbols-outlined">restaurant_menu</span>
-        <span>NeoOrder</span>
+        <span class="logo-text">NeoOrder</span>
       </a>
 
-      <nav class="nav-links">
-        <a href="atendimento.html" class="nav-link">Atendimento</a>
-        <a href="estoque.html" class="nav-link">Estoque & Cardápio</a>
-        <a href="contas.html" class="nav-link">Contas</a>
-        <a href="faturamento.html" class="nav-link active">Faturamento & Backup</a>
-      </nav>
+      <button type="button" id="btnNavToggle" class="btn btn-secondary btn-compact nav-toggle"
+              aria-expanded="false" aria-controls="navPanel" aria-label="Abrir menu de navegação">
+        <span class="material-symbols-outlined">menu</span>
+        <span class="nav-toggle-label">Menu</span>
+      </button>
 
-      <div class="nav-actions">
-        <button type="button" id="btnToggleTheme" class="btn btn-secondary" style="padding: 6px 12px; min-height: 36px;" title="Alternar Tema Claro/Escuro">
-          <span class="material-symbols-outlined" style="font-size: 18px;">dark_mode</span>
-        </button>
-        <div style="display: flex; align-items: center; gap: 6px; background: var(--surface-container-low); padding: 4px 12px; border-radius: 20px; font-weight: 500; font-size: 14px; color: var(--text-main);">
-          <span class="material-symbols-outlined" style="font-size: 18px; color: var(--primary);">badge</span>
-          <span id="userInfo">Carregando...</span>
+      <div class="nav-panel" id="navPanel">
+        <nav class="nav-links" aria-label="Navegação da gestão">
+          <a href="atendimento.html" class="nav-link">Atendimento</a>
+          <a href="estoque.html" class="nav-link">Estoque &amp; Cardápio</a>
+          <a href="contas.html" class="nav-link">Contas</a>
+          <a href="faturamento.html" class="nav-link active" aria-current="page">Faturamento &amp; Backup</a>
+        </nav>
+
+        <div class="nav-actions">
+          <button type="button" id="btnToggleTheme" class="btn btn-secondary btn-icon" title="Alternar Tema Claro/Escuro" aria-label="Alternar tema claro/escuro">
+            <span class="material-symbols-outlined">dark_mode</span>
+          </button>
+          <div class="user-chip">
+            <span class="material-symbols-outlined">badge</span>
+            <span id="userInfo">Carregando...</span>
+          </div>
+          <button type="button" id="btnLogout" class="btn btn-danger btn-compact" title="Encerrar Sessão">
+            <span class="material-symbols-outlined">logout</span>
+            <span>Sair</span>
+          </button>
         </div>
-
-        <button type="button" id="btnLogout" class="btn btn-danger" style="padding: 6px 10px; min-height: 36px;" title="Encerrar Sessão">
-          <span class="material-symbols-outlined" style="font-size: 18px;">logout</span>
-        </button>
       </div>
     </div>
   </header>
 
   <!-- Main Content Area -->
-  <main class="container" style="margin-top: var(--space-xl); margin-bottom: var(--space-2xl);">
+  <main class="container page-main">
     <!-- Header Title & Period Filters -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl); flex-wrap: wrap; gap: var(--space-md);">
+    <div class="page-header">
       <div>
         <div style="font-size: 12px; font-weight: 600; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;">
           Painel Exclusivo da Gerência (RF-32 a RF-36)
@@ -59,28 +67,29 @@
       </div>
 
       <!-- Filter Controls & Backup Actions -->
-      <div style="display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap;">
-        <div class="segmented-control" style="max-width: 380px;">
+      <div class="page-actions">
+        <div class="segmented-control" style="max-width: 380px;" role="group" aria-label="Período do relatório">
           <button type="button" class="tab-btn" id="filterToday">Hoje</button>
           <button type="button" class="tab-btn" id="filterWeek">Esta Semana</button>
           <button type="button" class="tab-btn active" id="filterMonth">Este Mês</button>
         </div>
 
-        <button type="button" id="btnExportJson" class="btn btn-primary" style="padding: 8px 14px;">
+        <button type="button" id="btnExportJson" class="btn btn-primary btn-compact">
           <span class="material-symbols-outlined">download</span>
           <span>Exportar Backup (JSON)</span>
         </button>
 
-        <label for="importJsonInput" class="btn btn-secondary" style="padding: 8px 14px; cursor: pointer;">
+        <!-- Botão real (alcançável por teclado) que aciona o seletor de arquivo oculto -->
+        <button type="button" id="btnImportJson" class="btn btn-secondary btn-compact" aria-controls="importJsonInput">
           <span class="material-symbols-outlined">upload</span>
           <span>Importar Backup</span>
-        </label>
-        <input type="file" id="importJsonInput" accept=".json" style="display: none;">
+        </button>
+        <input type="file" id="importJsonInput" accept=".json" style="display: none;" tabindex="-1" aria-hidden="true">
       </div>
     </div>
 
     <!-- 4 KPI Cards -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-2xl);">
+    <div class="kpi-grid kpi-grid--4">
       <div class="card flex-col" style="border-left: 4px solid var(--primary);">
         <div style="font-size: 13px; color: var(--text-muted); font-weight: 500; margin-bottom: 4px;">Faturamento Total</div>
         <div style="font-size: 26px; font-weight: 700; color: var(--text-main);" id="kpiTotalRevenue">R$ 0,00</div>
@@ -113,7 +122,7 @@
         <span>Pratos Mais Vendidos</span>
       </h2>
 
-      <div class="table-container">
+      <div class="table-container" tabindex="0" role="region" aria-label="Pratos mais vendidos">
         <table class="data-table">
           <thead>
             <tr>
@@ -140,8 +149,8 @@
         <span>Consolidação de Pedidos Faturados</span>
       </h2>
 
-      <div class="table-container">
-        <table class="data-table">
+      <div class="table-container" tabindex="0" role="region" aria-label="Pedidos faturados (role horizontalmente em telas pequenas)">
+        <table class="data-table data-table--scroll">
           <thead>
             <tr>
               <th>ID Pedido</th>

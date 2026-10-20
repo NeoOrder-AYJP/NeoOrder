@@ -8,6 +8,7 @@
 
   let carouselIndex = 0;
   let carouselTimer = null;
+  let carouselPaused = false;
   let dishes = [];
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -34,6 +35,7 @@
     if (!fab || !modal || !form) return;
 
     fab.style.display = 'inline-flex';
+    document.body.classList.add('has-fab'); // reserva espaço para o botão não cobrir o conteúdo
 
     // Mesa já autenticada vai direto para o cardápio, sem passar pelo login.
     const pedir = document.getElementById('btn-fazer-pedido');
@@ -133,6 +135,9 @@
     items.forEach((dish, idx) => {
       const slide = document.createElement('div');
       slide.className = `carousel-slide ${idx === 0 ? 'active' : ''}`;
+      slide.setAttribute('role', 'group');
+      slide.setAttribute('aria-roledescription', 'slide');
+      slide.setAttribute('aria-label', `${idx + 1} de ${items.length}`);
       slide.innerHTML = `
         <div class="slide-content">
           <span class="badge badge-pending">Especial em Destaque</span>
@@ -149,9 +154,12 @@
         </div>`;
       container.appendChild(slide);
 
-      const indicator = document.createElement('div');
+      const indicator = document.createElement('button');
+      indicator.type = 'button';
       indicator.className = `indicator ${idx === 0 ? 'active' : ''}`;
-      indicator.addEventListener('click', () => goToSlide(idx));
+      indicator.setAttribute('aria-label', `Mostrar destaque ${idx + 1} de ${items.length}: ${dish.nome}`);
+      if (idx === 0) indicator.setAttribute('aria-current', 'true');
+      indicator.addEventListener('click', () => { goToSlide(idx); resetCarouselTimer(); });
       indicators.appendChild(indicator);
     });
 
@@ -197,10 +205,21 @@
     if (prevBtn) prevBtn.addEventListener('click', () => { goToSlide(carouselIndex - 1); resetCarouselTimer(); });
     if (nextBtn) nextBtn.addEventListener('click', () => { goToSlide(carouselIndex + 1); resetCarouselTimer(); });
 
-    document.addEventListener('keydown', e => {
-      if (e.key === 'ArrowLeft') { goToSlide(carouselIndex - 1); resetCarouselTimer(); }
-      if (e.key === 'ArrowRight') { goToSlide(carouselIndex + 1); resetCarouselTimer(); }
+    // Setas do teclado só quando o foco está no carrossel (não interferem em campos e modais)
+    const carousel = document.getElementById('carousel');
+    if (!carousel) return;
+    carousel.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); goToSlide(carouselIndex - 1); resetCarouselTimer(); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); goToSlide(carouselIndex + 1); resetCarouselTimer(); }
     });
+
+    // Pausa a rotação automática durante interação (mouse ou foco)
+    const pause = () => { carouselPaused = true; };
+    const resume = () => { carouselPaused = false; };
+    carousel.addEventListener('mouseenter', pause);
+    carousel.addEventListener('mouseleave', resume);
+    carousel.addEventListener('focusin', pause);
+    carousel.addEventListener('focusout', e => { if (!carousel.contains(e.relatedTarget)) resume(); });
   }
 
   function goToSlide(index) {
@@ -213,12 +232,18 @@
 
     carouselIndex = (index + slides.length) % slides.length;
     slides[carouselIndex].classList.add('active');
-    if (indicators[carouselIndex]) indicators[carouselIndex].classList.add('active');
+    indicators.forEach(i => i.removeAttribute('aria-current'));
+    if (indicators[carouselIndex]) {
+      indicators[carouselIndex].classList.add('active');
+      indicators[carouselIndex].setAttribute('aria-current', 'true');
+    }
   }
 
   function startCarouselAutoRotate() {
     clearInterval(carouselTimer);
-    carouselTimer = setInterval(() => goToSlide(carouselIndex + 1), 6000);
+    // agents.md §10: sem rotação automática para quem prefere movimento reduzido
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    carouselTimer = setInterval(() => { if (!carouselPaused) goToSlide(carouselIndex + 1); }, 6000);
   }
 
   function resetCarouselTimer() {

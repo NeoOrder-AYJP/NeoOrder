@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Acesso ao Sistema — NeoOrder</title>
+  <!-- O link do QR Code da mesa traz um token: não enviá-lo como Referer a terceiros -->
+  <meta name="referrer" content="no-referrer">
   <link rel="stylesheet" href="styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
@@ -17,15 +19,15 @@
     <div class="container header-container">
       <a href="index.html" class="logo-brand">
         <span class="material-symbols-outlined">restaurant_menu</span>
-        <span>NeoOrder</span>
+        <span class="logo-text">NeoOrder</span>
       </a>
       <div class="nav-actions">
-        <button type="button" id="btnToggleTheme" class="btn btn-secondary" style="padding: 6px 12px; min-height: 36px;" title="Alternar Tema Claro/Escuro">
-          <span class="material-symbols-outlined" style="font-size: 18px;">dark_mode</span>
+        <button type="button" id="btnToggleTheme" class="btn btn-secondary btn-icon" title="Alternar Tema Claro/Escuro" aria-label="Alternar tema claro/escuro">
+          <span class="material-symbols-outlined">dark_mode</span>
         </button>
-        <a href="index.html" class="btn btn-secondary" style="padding: 6px 16px; min-height: 36px;">
-          <span class="material-symbols-outlined" style="font-size: 18px;">arrow_back</span>
-          <span>Voltar ao Início</span>
+        <a href="index.html" class="btn btn-secondary btn-compact">
+          <span class="material-symbols-outlined">arrow_back</span>
+          <span class="label-sm-hidden">Voltar ao Início</span>
         </a>
       </div>
     </div>
@@ -83,8 +85,31 @@
         <hr style="border: none; border-top: 1px solid var(--border-subtle); margin: var(--space-lg) 0;">
       </div>
 
+      <!-- Acesso pelo QR Code da mesa (login.html?qr=...) — preenchido por js/auth.js -->
+      <div id="qrLoginPanel" class="qr-login-panel" hidden>
+        <div id="qrLoginStatus" class="qr-login-status" role="status" aria-live="polite">
+          <span class="spinner" id="qrLoginSpinner" aria-hidden="true"></span>
+          <span class="material-symbols-outlined qr-login-icon" id="qrLoginIcon" hidden>error</span>
+          <div>
+            <p class="qr-login-title" id="qrLoginTitle">Validando o QR Code da mesa…</p>
+            <p class="qr-login-message" id="qrLoginMessage">Aguarde alguns segundos.</p>
+          </div>
+        </div>
+        <div class="qr-login-actions" id="qrLoginActions" hidden>
+          <button type="button" id="btnQrRetry" class="btn btn-primary btn-full" hidden>
+            <span class="material-symbols-outlined">refresh</span>
+            <span>Tentar novamente</span>
+          </button>
+          <button type="button" id="btnQrUsePassword" class="btn btn-secondary btn-full">
+            <span class="material-symbols-outlined">password</span>
+            <span>Entrar com usuário e senha</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="passwordLoginArea">
       <!-- 3 perfis reais do sistema (mesa, atendente, gerente) -->
-      <div class="segmented-control" style="grid-template-columns: repeat(3, 1fr); font-size: 12px;">
+      <div class="segmented-control" role="group" aria-label="Perfil de acesso">
         <button type="button" class="tab-btn active" id="tabMesaBtn" title="Acesso por Mesa">
           <span class="material-symbols-outlined" style="font-size: 16px;">table_bar</span>
           <span>Mesa</span>
@@ -172,6 +197,7 @@
           </button>
         </form>
       </div>
+      </div><!-- /#passwordLoginArea -->
 
       <div style="text-align: center; margin-top: var(--space-md);">
         <p style="font-size: 12px; color: var(--text-muted);">NeoOrder • Sistema Integrado de Gestão Gastronômica</p>

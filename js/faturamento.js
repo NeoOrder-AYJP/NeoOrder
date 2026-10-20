@@ -236,6 +236,10 @@
 
     const inputImport = document.getElementById('importJsonInput');
     if (inputImport) inputImport.addEventListener('change', importarBackup);
+
+    // O input de arquivo fica oculto; o botão o aciona (acessível por teclado)
+    const btnImport = document.getElementById('btnImportJson');
+    if (btnImport && inputImport) btnImport.addEventListener('click', () => inputImport.click());
   }
 
   function setText(id, value) {

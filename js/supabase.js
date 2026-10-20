@@ -145,6 +145,15 @@
       return res;
     },
     encerrarSessao: (token) => callRpc('encerrar_sessao', { p_session_token: token }),
+    // QR Code da mesa (assinaturas conferidas no banco em 20/10/2026; ver supabase-schema.md)
+    // A duração de 12 h é a mesma da sessão aberta pelo login com senha.
+    iniciarSessaoMesaQr: (qrToken) =>
+      callRpc('iniciar_sessao_mesa', { p_qr_token: qrToken, p_duracao_horas: 12 }),
+    gerarQrCodeMesa: (token, mesaId) =>
+      callRpc('gerar_qr_code_mesa', { p_session_token: token, p_mesa_id: mesaId }),
+    statusQrMesas: (token) => callRpc('status_qr_mesas', { p_session_token: token }),
+    desativarQrMesa: (token, mesaId) =>
+      callRpc('desativar_qr_mesa', { p_session_token: token, p_mesa_id: mesaId }),
     precisaBootstrap: () => callRpc('sistema_precisa_bootstrap'),
     criarGerenteInicial: (login, senha, nome) =>
       callRpc('criar_gerente_inicial', { p_login: login, p_senha: senha, p_nome: nome }),
@@ -304,6 +313,261 @@
       }
     });
   })();
+
+  // ---------------------------------------------------------------------------
+  // Acessibilidade e navegação responsiva (comum a todas as páginas)
+  // ---------------------------------------------------------------------------
+
+  const ICON_SELECTOR = '.material-symbols-outlined, .fas, .far';
+  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  // Ícones de ligadura ("dark_mode", "close"...) não devem ser lidos como texto.
+  function hideDecorativeIcons(root) {
+    if (!root || !root.querySelectorAll) return;
+    if (root.matches && root.matches(ICON_SELECTOR) && !root.hasAttribute('aria-hidden')) {
+      root.setAttribute('aria-hidden', 'true');
+    }
+    root.querySelectorAll(ICON_SELECTOR).forEach(icon => {
+      if (!icon.hasAttribute('aria-hidden')) icon.setAttribute('aria-hidden', 'true');
+    });
+  }
+
+  function isVisible(el) {
+    if (!el || !el.isConnected) return false;
+    if (el.closest('[hidden]')) return false;
+    for (let node = el; node && node !== document.body; node = node.parentElement) {
+      if (node.style && node.style.display === 'none') return false;
+    }
+    return true;
+  }
+
+  // Menu hambúrguer das páginas de gestão (< 1024px)
+  const NeoNav = {
+    toggle: null,
+    panel: null,
+    isOpen() {
+      return !!(this.panel && this.panel.classList.contains('is-open'));
+    },
+    open() {
+      if (!this.toggle || !this.panel) return;
+      this.panel.classList.add('is-open');
+      this.toggle.setAttribute('aria-expanded', 'true');
+      this.setLabel(true);
+    },
+    close(restoreFocus) {
+      if (!this.toggle || !this.panel || !this.isOpen()) return;
+      this.panel.classList.remove('is-open');
+      this.toggle.setAttribute('aria-expanded', 'false');
+      this.setLabel(false);
+      if (restoreFocus) this.toggle.focus();
+    },
+    setLabel(open) {
+      const icon = this.toggle.querySelector('.material-symbols-outlined');
+      const label = this.toggle.querySelector('.nav-toggle-label');
+      if (icon) icon.textContent = open ? 'close' : 'menu';
+      if (label) label.textContent = open ? 'Fechar' : 'Menu';
+      this.toggle.setAttribute('aria-label', open ? 'Fechar menu de navegação' : 'Abrir menu de navegação');
+    },
+    init() {
+      this.toggle = document.getElementById('btnNavToggle');
+      this.panel = this.toggle ? document.getElementById(this.toggle.getAttribute('aria-controls')) : null;
+      if (!this.toggle || !this.panel) return;
+
+      this.toggle.addEventListener('click', () => (this.isOpen() ? this.close(false) : this.open()));
+
+      // Fecha ao escolher um link
+      this.panel.addEventListener('click', e => {
+        if (e.target.closest('a[href]')) this.close(false);
+      });
+
+      // Fecha ao clicar fora do cabeçalho
+      document.addEventListener('click', e => {
+        if (this.isOpen() && !e.target.closest('.header')) this.close(false);
+      });
+
+      // Fecha quando o foco sai do cabeçalho pelo teclado
+      const header = this.toggle.closest('.header');
+      if (header) {
+        header.addEventListener('focusout', e => {
+          if (this.isOpen() && e.relatedTarget && !header.contains(e.relatedTarget)) this.close(false);
+        });
+      }
+
+      // Volta ao layout de desktop: o painel deixa de ser um menu
+      if (window.matchMedia) {
+        const mq = window.matchMedia('(min-width: 1024px)');
+        const onChange = () => { if (mq.matches) this.close(false); };
+        if (mq.addEventListener) mq.addEventListener('change', onChange);
+        else if (mq.addListener) mq.addListener(onChange);
+      }
+    }
+  };
+
+  // Modais: diálogo acessível sem mudar o contrato das páginas
+  // (as telas continuam abrindo/fechando com style.display = 'flex' | 'none').
+  const NeoModal = {
+    stack: [],
+    openers: new WeakMap(),
+    card(overlay) {
+      return overlay.querySelector('.modal-card') || overlay;
+    },
+    isOpen(overlay) {
+      return overlay.style.display !== '' && overlay.style.display !== 'none';
+    },
+    top() {
+      for (let i = this.stack.length - 1; i >= 0; i--) {
+        if (this.isOpen(this.stack[i])) return this.stack[i];
+      }
+      return null;
+    },
+    prepare(overlay) {
+      const card = this.card(overlay);
+      if (!card.hasAttribute('role')) card.setAttribute('role', 'dialog');
+      card.setAttribute('aria-modal', 'true');
+      if (!card.hasAttribute('tabindex')) card.setAttribute('tabindex', '-1');
+      if (!card.hasAttribute('aria-labelledby') && !card.hasAttribute('aria-label')) {
+        const title = card.querySelector('.modal-title');
+        if (title) {
+          if (!title.id) title.id = `${overlay.id || 'modal'}-titulo`;
+          card.setAttribute('aria-labelledby', title.id);
+        }
+      }
+      overlay.querySelectorAll('.modal-close').forEach(btn => {
+        if (!btn.hasAttribute('aria-label')) btn.setAttribute('aria-label', 'Fechar');
+      });
+    },
+    onOpen(overlay) {
+      if (!this.stack.includes(overlay)) this.stack.push(overlay);
+      const active = document.activeElement;
+      if (active && active !== document.body && !overlay.contains(active)) {
+        this.openers.set(overlay, { el: active, key: this.openerKey(active) });
+      }
+      NeoNav.close(false);
+      document.body.classList.add('modal-open');
+      const card = this.card(overlay);
+      try { card.focus({ preventScroll: true }); } catch (e) { card.focus(); }
+    },
+    onClose(overlay) {
+      this.stack = this.stack.filter(o => o !== overlay);
+      if (!this.top()) document.body.classList.remove('modal-open');
+      const opener = this.openers.get(overlay);
+      this.openers.delete(overlay);
+      if (!opener) return;
+      // A lista pode ter sido re-renderizada com o modal aberto: usa o botão equivalente.
+      let target = opener.el;
+      if (!target.isConnected && opener.key) {
+        try { target = document.querySelector(opener.key); } catch (e) { target = null; }
+      }
+      if (target && isVisible(target)) target.focus();
+    },
+    // Seletor estável do gatilho (id ou primeiro data-*), para reencontrá-lo após re-render.
+    openerKey(el) {
+      const esc = window.CSS && CSS.escape ? CSS.escape : v => String(v).replace(/["\\]/g, '\\$&');
+      if (el.id) return `#${esc(el.id)}`;
+      const attr = [...el.attributes].find(a => a.name.startsWith('data-'));
+      return attr ? `${el.tagName.toLowerCase()}[${attr.name}="${esc(attr.value)}"]` : null;
+    },
+    close(overlay) {
+      // Prefere o botão de fechar da própria tela (mantém resets de formulário).
+      const closeBtn = overlay.querySelector('.modal-close');
+      if (closeBtn) closeBtn.click();
+      if (this.isOpen(overlay)) overlay.style.display = 'none';
+    },
+    trapTab(e, overlay) {
+      const card = this.card(overlay);
+      const items = [...card.querySelectorAll(FOCUSABLE)].filter(el => isVisible(el) && el.getClientRects().length);
+      if (!items.length) { e.preventDefault(); card.focus(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (!card.contains(active)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); return; }
+      if (e.shiftKey && (active === first || active === card)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+    },
+    init() {
+      const overlays = [...document.querySelectorAll('.modal-overlay')];
+      const observer = typeof MutationObserver === 'function'
+        ? new MutationObserver(records => {
+            records.forEach(rec => {
+              const overlay = rec.target;
+              const open = this.isOpen(overlay);
+              const wasOpen = overlay.dataset.neoOpen === '1';
+              if (open && !wasOpen) { overlay.dataset.neoOpen = '1'; this.onOpen(overlay); }
+              if (!open && wasOpen) { overlay.dataset.neoOpen = '0'; this.onClose(overlay); }
+            });
+          })
+        : null;
+      overlays.forEach(overlay => {
+        this.prepare(overlay);
+        overlay.dataset.neoOpen = this.isOpen(overlay) ? '1' : '0';
+        if (observer) observer.observe(overlay, { attributes: true, attributeFilter: ['style'] });
+      });
+
+      document.addEventListener('keydown', e => {
+        const overlay = this.top();
+        if (e.key === 'Escape') {
+          if (overlay) { e.preventDefault(); this.close(overlay); return; }
+          if (NeoNav.isOpen()) { e.preventDefault(); NeoNav.close(true); }
+          return;
+        }
+        if (e.key === 'Tab' && overlay) this.trapTab(e, overlay);
+      });
+    }
+  };
+
+  window.NeoNav = NeoNav;
+  window.NeoModal = NeoModal;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    hideDecorativeIcons(document.body);
+    if (typeof MutationObserver === 'function') {
+      new MutationObserver(records => {
+        records.forEach(rec => rec.addedNodes.forEach(node => {
+          if (node.nodeType === 1) hideDecorativeIcons(node);
+        }));
+      }).observe(document.body, { childList: true, subtree: true });
+    }
+    NeoNav.init();
+    NeoModal.init();
+    syncSegmentedControls();
+    markScrollableTables();
+    syncUserChipTitle();
+  });
+
+  // Chip do usuário pode truncar com reticências: o nome completo fica no title
+  function syncUserChipTitle() {
+    const info = document.getElementById('userInfo');
+    const chip = info && info.closest('.user-chip');
+    if (!chip) return;
+    const sync = () => chip.setAttribute('title', info.textContent.trim());
+    sync();
+    if (typeof MutationObserver === 'function') {
+      new MutationObserver(sync).observe(info, { childList: true, characterData: true, subtree: true });
+    }
+  }
+
+  // Marca tabelas que rolam na horizontal (sombra na coluna de ações fixa)
+  function markScrollableTables() {
+    const containers = document.querySelectorAll('.table-container');
+    if (!containers.length || typeof ResizeObserver !== 'function') return;
+    const update = c => c.classList.toggle('is-scrollable', c.scrollWidth > c.clientWidth + 1);
+    const ro = new ResizeObserver(entries => entries.forEach(e => update(e.target.closest('.table-container'))));
+    containers.forEach(c => {
+      ro.observe(c);
+      const table = c.querySelector('table');
+      if (table) ro.observe(table);
+    });
+  }
+
+  // Botões de filtro/aba (.segmented-control) expõem o estado ativo via aria-pressed
+  function syncSegmentedControls() {
+    const buttons = document.querySelectorAll('.segmented-control .tab-btn');
+    const sync = btn => btn.setAttribute('aria-pressed', String(btn.classList.contains('active')));
+    buttons.forEach(sync);
+    if (typeof MutationObserver !== 'function') return;
+    const observer = new MutationObserver(records => records.forEach(rec => sync(rec.target)));
+    buttons.forEach(btn => observer.observe(btn, { attributes: true, attributeFilter: ['class'] }));
+  }
 
   function updateThemeIcons(theme) {
     document.querySelectorAll('#btnToggleTheme').forEach(btn => {
