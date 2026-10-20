@@ -491,3 +491,32 @@ Não realizar alterações no banco de produção, nas políticas RLS, nas funç
 Documentação:
 
 Atualizar o histórico de alterações e o backlog com as mudanças realizadas, os testes executados, os problemas encontrados e as pendências restantes.
+Pendência de Alta Prioridade — Acesso Público de Demonstração por QR Code
+
+Prioridade: Alta
+Status: Pendente
+
+Objetivo: Permitir que o público conheça e visualize o sistema NeoOrder por meio de um QR Code exclusivo, sem poder realizar alterações ou executar operações.
+
+Requisitos:
+
+* Permitir o acesso a esse perfil exclusivamente por QR Code, sem login por senha.
+* Criar um perfil específico para demonstração pública, separado dos perfis de gerente, atendente e mesa/cliente.
+* Permitir somente a visualização das telas e dos dados autorizados para demonstração.
+* Priorizar dados fictícios ou de demonstração, sem expor informações privadas, financeiras ou administrativas.
+* Bloquear criação, edição, exclusão, envio de pedidos, alteração de status, modificação de estoque, pagamentos, estornos e operações administrativas.
+* Impedir a geração de QR Codes de funcionários e qualquer tentativa de elevar as permissões do perfil público.
+* Implementar as restrições no frontend, backend e Supabase, incluindo as autorizações necessárias nas RPCs e políticas RLS. Esconder botões não é suficiente.
+* Utilizar um QR Code com credencial imprevisível, validade definida e possibilidade de revogação e renovação.
+* Garantir que a expiração ou revogação impeça o acesso conforme a política de sessão definida.
+* Manter esse acesso separado dos QR Codes de gerente, atendente e mesa.
+
+Critérios de validação:
+
+* O público consegue visualizar somente o conteúdo autorizado.
+* Nenhuma operação de escrita pode ser executada, inclusive por chamadas diretas ao Supabase.
+* Dados privados e administrativos permanecem protegidos.
+* QR Codes expirados ou revogados deixam de conceder acesso.
+* Os demais fluxos do sistema continuam funcionando.
+
+Observações técnicas: Antes de implementar, analisar a autenticação, as sessões, as RPCs, as políticas RLS e o esquema atual do Supabase. Não alterar o banco de produção, políticas RLS, RPCs críticas ou migrações já aplicadas sem apresentar o plano e obter autorização explícita. Registrar as mudanças no histórico de alterações e não considerar a pendência concluída sem testes reais.
