@@ -332,8 +332,11 @@ const semToken = (ctx, onde) => {
     if (nome in over) return over[nome](params);
     if (nome === 'listar_contas') return { data: contasFixture, error: null };
     if (nome === 'status_qr_mesas') return { data: statusFixture, error: null };
+    if (nome === 'status_qr_funcionarios') return { data: { funcionarios: [{ funcionario_id: 'u2', funcionario_nome: 'Gerente', login: 'gerente', perfil: 'gerente', ativo: true, qr_code_ativo: false, sessao_aberta: false }], gerado_em: new Date().toISOString() }, error: null };
     if (nome === 'gerar_qr_code_mesa') return { data: { mesa_id: params.p_mesa_id, mesa_nome: 'Mesa 01', qr_token: QR, url_relativa: 'login.html?qr=' + QR, gerado_por: 'Gerente', gerado_em: new Date().toISOString() }, error: null };
     if (nome === 'desativar_qr_mesa') return { data: { mesa_id: params.p_mesa_id, qr_code_ativo: false }, error: null };
+    if (nome === 'gerar_qr_code_funcionario') return { data: { funcionario_id: params.p_funcionario_id, funcionario_nome: 'Gerente', perfil: 'gerente', qr_token: 'FUNC-' + 'a'.repeat(64), url_relativa: 'login.html?qr=FUNC-' + 'a'.repeat(64), gerado_por: 'Gerente', gerado_em: new Date().toISOString() }, error: null };
+    if (nome === 'desativar_qr_funcionario') return { data: { funcionario_id: params.p_funcionario_id, qr_code_ativo: false }, error: null };
     return { data: null, error: null };
   };
 
@@ -343,15 +346,20 @@ const semToken = (ctx, onde) => {
     ctx.fechar();
   });
 
-  await cenario('10b. Gerente vê o estado e só mesas têm o botão de QR', async () => {
+  await cenario('10b. Gerente vê o estado e mesas têm botão de QR (staff QR disponível)', async () => {
     const ctx = await abrir('contas.html', { sessao: sessoes.gerente, rpc: rpcGestao() });
     const st = ctx.chamadas.find(c => c.nome === 'status_qr_mesas');
     assert(st && st.params.p_session_token === sessoes.gerente.token, 'status_qr_mesas deveria usar o token do gerente');
-    const botoes = [...ctx.doc.querySelectorAll('[data-qr]')].map(b => b.dataset.qr);
-    assert(botoes.join(',') === 'm1,m2', `botões de QR esperados só nas mesas, obtido: ${botoes}`);
+    const stStaff = ctx.chamadas.find(c => c.nome === 'status_qr_funcionarios');
+    assert(stStaff && stStaff.params.p_session_token === sessoes.gerente.token, 'status_qr_funcionarios deveria usar o token do gerente');
+    const botoesMesa = [...ctx.doc.querySelectorAll('[data-qr]')].map(b => b.dataset.qr).filter(id => ['m1','m2'].includes(id));
+    assert(botoesMesa.join(',') === 'm1,m2', `botões de QR de mesa esperados m1,m2, obtido: ${botoesMesa}`);
+    // Staff QR também deve estar disponível (u2)
+    const botoesStaff = [...ctx.doc.querySelectorAll('[data-qr]')].map(b => b.dataset.qr);
+    assert(botoesStaff.includes('u2'), `botão de QR de funcionário esperado para u2, obtido: ${botoesStaff}`);
     assert([...ctx.doc.querySelectorAll('[data-qr]')].every(b => b.getAttribute('aria-label') && !b.getAttribute('style')), 'botão de QR sem nome acessível');
     const linhas = [...ctx.doc.querySelectorAll('#accountsTableBody tr')].map(tr => tr.textContent);
-    assert(linhas[0].includes('QR ativo') && linhas[1].includes('Sem QR') && !linhas[2].includes('QR'), 'selos de estado do QR incorretos');
+    assert(linhas[0].includes('QR ativo') && linhas[1].includes('Sem QR'), 'selos de estado do QR de mesa incorretos');
     ctx.fechar();
   });
 
@@ -448,10 +456,12 @@ const semToken = (ctx, onde) => {
     ctx.fechar();
   });
 
-  await cenario('10j. Sem status_qr_mesas, contas continuam funcionando e o QR fica oculto', async () => {
+  await cenario('10j. Sem status_qr_mesas, contas continuam funcionando e QR de mesa fica oculto', async () => {
     const ctx = await abrir('contas.html', { sessao: sessoes.gerente, rpc: rpcGestao({ status_qr_mesas: () => erroPg('PGRST202', 'Could not find the function') }) });
     assert(ctx.doc.querySelectorAll('#accountsTableBody tr').length === 3, 'contas deveriam continuar listadas');
-    assert(!ctx.doc.querySelector('[data-qr]'), 'botão de QR não deveria aparecer sem a função no banco');
+    // QR de mesa não deve aparecer, mas QR de staff pode ainda estar disponível se sua RPC existir
+    const botoesMesa = [...ctx.doc.querySelectorAll('[data-qr]')].filter(b => ['m1','m2'].includes(b.dataset.qr));
+    assert(botoesMesa.length === 0, 'botão de QR de mesa não deveria aparecer sem a função status_qr_mesas');
     ctx.fechar();
   });
 

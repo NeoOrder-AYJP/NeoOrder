@@ -1,8 +1,8 @@
 # NeoOrder — Schema do Banco de Dados (Supabase/PostgreSQL)
 
 Projeto Supabase: `nurnxrtxdcasrjcwxvky`
-Última atualização: **18/10/2026** (v2.3)
-Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql`
+Última atualização: **20/10/2026** (v2.6)
+Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql` + `20261020_neoorder_multisession_qr_staff_logout.sql` (pendente de aplicação em produção)
 
 > Este documento descreve o estado **real** do banco após a migração de endurecimento.
 > O front-end **não acessa tabelas**: toda operação passa por funções RPC
@@ -16,8 +16,8 @@ Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql`
 |--------|-------|
 | Tabelas `public` | RLS **habilitada** em todas as 11 tabelas, **sem nenhuma policy** → `anon` e `authenticated` não leem nem escrevem diretamente. |
 | Privilégios | `REVOKE ALL` de tabelas/sequences para `PUBLIC`, `anon` e `authenticated`. |
-| Funções | Apenas as 24 RPCs de negócio têm `EXECUTE` para `anon, authenticated`. Helpers internos (`_hash_token`, `_normalizar_login`, `validar_sessao_mesa`, `funcionario_da_sessao`) são privados. |
-| Sessão | O login devolve um token opaco de 64 caracteres; o banco guarda apenas o SHA-256. Validade de 12 h, uma sessão ativa por usuário. |
+| Funções | 29 RPCs de negócio têm `EXECUTE` para `anon, authenticated` (24 base + 5 novas: `iniciar_sessao_funcionario_qr`, `gerar_qr_code_funcionario`, `status_qr_funcionarios`, `desativar_qr_funcionario`, `encerrar_sessao_mesa_autorizada`). Helpers internos permanecem privados. |
+| Sessão | O login devolve um token opaco de 64 caracteres; o banco guarda apenas o SHA-256. Validade de 12 h. **Múltiplas sessões por usuário** (multi-dispositivo): cada login gera um token independente; `encerrar_sessao` afeta apenas o token informado. Sessões de mesa exigem autorização de staff para encerramento (v2.6). |
 | Senhas | `pgcrypto`/bcrypt (`gen_salt('bf', 11)`) em `usuarios.senha_hash`. Nunca saem do banco. |
 
 Chaves do cliente (`js/supabase.js`): apenas a URL e a **publishable key** (`sb_publishable_…`), que não concede acesso a tabelas.
@@ -215,15 +215,45 @@ Todas as funções abaixo estão em `public`, são `SECURITY DEFINER` com `searc
 - **RN-05/RN-06:** apenas `perfil = 'gerente'` executam RPCs de gestão; atendentes operam só pedidos e chamados.
 - **RN-08/RN-09:** faturamento considera exclusivamente pedidos `Entregue` com `entregue_em` no período; ticket médio = receita ÷ pedidos entregues.
 
-### 3.6 QR Code das mesas (verificado no banco em 20/10/2026)
+### 3.6 QR Code das mesas (atualizado v2.6 — múltiplas sessões)
 
-As quatro funções acima existem no banco real (definições lidas com `pg_get_functiondef`), mas **não constam** da migração de referência do repositório — ver `backlog.md` §8.3 (divergência banco × repositório). Regras atuais, sem alteração:
+Migração `20261020_neoorder_multisession_qr_staff_logout.sql` redefine o comportamento para compatibilidade com múltiplos dispositivos:
 
-- **Gerar** (`gerar_qr_code_mesa`, só gerente via `_exigir_gerente`): cria `MESA-` + 64 hex (`gen_random_bytes(32)`), grava apenas o hash, marca `qr_code_ativo` e **encerra as sessões da mesa**. Gerar de novo revoga o QR anterior. Mesa inexistente → `P0002`; mesa inativa → `P0001`.
-- **Entrar** (`iniciar_sessao_mesa`, público): exige QR ativo e mesa ativa; abre sessão de 12 h e **encerra as outras sessões da mesa** (uma sessão por mesa). Qualquer falha → `28000`, sem distinguir o motivo.
-- **Status** (`status_qr_mesas`) e **desativar** (`desativar_qr_mesa`, que também encerra as sessões): só gerente.
-- O QR é **estático** até ser gerado de novo ou desativado; fechar/pagar a conta **não** revoga o QR nem a sessão. Inativar/excluir a mesa, importar backup e `encerrar_sessao` encerram as sessões.
+- **Gerar** (`gerar_qr_code_mesa`, só gerente via `_exigir_gerente`): cria `MESA-` + 64 hex (`gen_random_bytes(32)`), grava apenas o hash, marca `qr_code_ativo`. **Não encerra mais as sessões ativas** (P1: multi-sessão). Gerar de novo apenas revoga o token anterior. Mesa inexistente → `P0002`; mesa inativa → `P0001`.
+- **Entrar** (`iniciar_sessao_mesa`, público): exige QR ativo e mesa ativa; abre sessão de 12 h **sem encerrar outras sessões da mesma mesa**. Qualquer falha → `28000`, sem distinguir o motivo (preservado para não revelar mesas existentes).
+- **Status** (`status_qr_mesas`) e **desativar** (`desativar_qr_mesa`): só gerente. Desativar apenas revoga o token; não encerra sessões automaticamente (sessões expiram em 12 h ou via logout autorizado).
+- O QR é **estático** até ser gerado de novo ou desativado. Inativar/excluir a mesa e importação com `replace` revogam tokens conforme regra do negócio.
 - Sessões de mesa não executam RPCs de equipe: `_exigir_gerente` responde `28000` para token que não é de funcionário e `42501` para funcionário sem perfil gerente.
+
+### 3.7 QR Codes de equipe — gerente e atendente (novo v2.6)
+
+QR individual por funcionário, gerado apenas por gerente, com token `FUNC-` + 64 hex (256 bits), hash SHA-256 e revogação manual:
+
+| Função | Quem pode chamar | Comportamento |
+|--------|----------------|---------------|
+| `gerar_qr_code_funcionario(p_session_token, p_funcionario_id)` | gerente | Valida _exigir_gerente, verifica funcionario ativo, gera token, grava hash, marca qr_code_ativo. Não encerra sessões existentes. Inativo → P0001, não encontrado → P0002. |
+| `iniciar_sessao_funcionario_qr(p_qr_token, p_duracao_horas=12)` | público (anon) | Exige prefixo FUNC-, verifica hash ativo e funcionario ativo, cria sessão em sessoes_funcionario 12 h (multi-sessão). Qualquer falha → 28000. Retorna usuario com perfil efetivo (gerente/atendente) e tipo_sessao funcionario. |
+| `status_qr_funcionarios(p_session_token)` | gerente | Retorna {funcionarios:[{funcionario_id, funcionario_nome, login, perfil, ativo, qr_code_ativo, sessao_aberta}], gerado_em}. |
+| `desativar_qr_funcionario(p_session_token, p_funcionario_id)` | gerente | Revoga token (qr_code_ativo=false, hash NULL). Não encerra sessões. |
+
+**Segurança e isolamento:**
+- QR de mesa (MESA-) nunca concede perfil de staff: iniciar_sessao_funcionario_qr rejeita MESA-* (28000), iniciar_sessao_mesa rejeita FUNC-*.
+- QR de staff respeita perfil do funcionario dono do token: um QR de atendente cria sessão atendente, não gerente. O backend valida tipo=funcionario e perfil, o frontend redireciona para atendimento.html (atendente) ou faturamento.html (gerente).
+- Tokens expostos apenas no momento da geração (memória do modal, QR desenhado localmente via qrcode-generator.js). Não são logados nem ficam em URL após redirect (history.replaceState).
+- Validade da sessão 12 h; QR sem expiração por tempo, apenas revogação manual ou inativação da conta.
+
+### 3.8 Encerramento de sessão de mesa com autorização (novo v2.6)
+
+| Função | Parâmetros | Retorno |
+|--------|-----------|---------|
+| `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_staff_login, p_staff_senha)` | text, text, text | {mensagem, mesa_id, autorizado_por} |
+
+**Regras:**
+- Exige credenciais válidas de staff ativo com perfil gerente ou atendente (conforme escolha do stakeholder). Valida com bcrypt no banco (crypt), registra tentativa em login_tentativas e aplica bloqueio de força bruta (5 falhas/15 min → 42901).
+- Apenas a sessão identificada por p_session_token_mesa é encerrada (ativa=false). Não permite encerrar outras mesas sem possuir o token opaco daquela sessão.
+- Sessão já encerrada/expirada é idempotente (retorna mensagem sem erro).
+- `encerrar_sessao(p_session_token)` foi endurecida: se o token for de mesa ativa, retorna 42501 instruindo a usar a função autorizada. Sessões de funcionário continuam sendo encerradas diretamente.
+- Frontend (cardapio.html) exige autorização via modal: staff informa login/senha, o JS chama encerrar_sessao_mesa_autorizada, limpa neoorder_session e o carrinho (neoorder_cart_<mesa_id>) para não vazar dados ao próximo cliente, e redireciona para login.html.
 
 ---
 
