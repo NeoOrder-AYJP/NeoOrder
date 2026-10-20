@@ -13,38 +13,50 @@
   <script src="js/supabase.js"></script>
 </head>
 <body>
-  <header class="header">
+  <header class="header header--admin">
     <div class="container header-container">
       <a href="index.html" class="logo-brand">
         <span class="material-symbols-outlined">restaurant_menu</span>
-        <span>NeoOrder</span>
+        <span class="logo-text">NeoOrder</span>
       </a>
-      <nav class="nav-links">
-        <a href="atendimento.html" class="nav-link">Atendimento</a>
-        <a href="estoque.html" class="nav-link">Estoque & Cardápio</a>
-        <a href="contas.html" class="nav-link active">Contas</a>
-        <a href="faturamento.html" class="nav-link">Faturamento & Backup</a>
-      </nav>
 
-      <div class="nav-actions">
-        <button type="button" id="btnToggleTheme" class="btn btn-secondary" style="padding: 6px 12px; min-height: 36px;" title="Alternar Tema Claro/Escuro">
-          <span class="material-symbols-outlined" style="font-size: 18px;">dark_mode</span>
-        </button>
-        <span id="userInfo" style="font-size: 14px; font-weight: 500; color: var(--text-main);"></span>
-        <a href="index.html" class="btn btn-secondary" style="padding: 6px 14px; min-height: 36px;">
-          <span class="material-symbols-outlined" style="font-size: 18px;">home</span>
-          <span>Início</span>
-        </a>
-        <button type="button" id="btnLogout" class="btn btn-danger" style="padding: 6px 14px; min-height: 36px;">
-          <span class="material-symbols-outlined" style="font-size: 18px;">logout</span>
-          <span>Sair</span>
-        </button>
+      <button type="button" id="btnNavToggle" class="btn btn-secondary btn-compact nav-toggle"
+              aria-expanded="false" aria-controls="navPanel" aria-label="Abrir menu de navegação">
+        <span class="material-symbols-outlined">menu</span>
+        <span class="nav-toggle-label">Menu</span>
+      </button>
+
+      <div class="nav-panel" id="navPanel">
+        <nav class="nav-links" aria-label="Navegação da gestão">
+          <a href="atendimento.html" class="nav-link">Atendimento</a>
+          <a href="estoque.html" class="nav-link">Estoque &amp; Cardápio</a>
+          <a href="contas.html" class="nav-link active" aria-current="page">Contas</a>
+          <a href="faturamento.html" class="nav-link">Faturamento &amp; Backup</a>
+        </nav>
+
+        <div class="nav-actions">
+          <button type="button" id="btnToggleTheme" class="btn btn-secondary btn-icon" title="Alternar Tema Claro/Escuro" aria-label="Alternar tema claro/escuro">
+            <span class="material-symbols-outlined">dark_mode</span>
+          </button>
+          <div class="user-chip">
+            <span class="material-symbols-outlined">badge</span>
+            <span id="userInfo">Carregando...</span>
+          </div>
+          <a href="index.html" class="btn btn-secondary btn-compact">
+            <span class="material-symbols-outlined">home</span>
+            <span>Início</span>
+          </a>
+          <button type="button" id="btnLogout" class="btn btn-danger btn-compact" title="Encerrar Sessão">
+            <span class="material-symbols-outlined">logout</span>
+            <span>Sair</span>
+          </button>
+        </div>
       </div>
     </div>
   </header>
 
-  <main class="container" style="margin-top: var(--space-xl); margin-bottom: var(--space-2xl);">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); flex-wrap: wrap; gap: var(--space-md);">
+  <main class="container page-main">
+    <div class="page-header">
       <div>
         <h1 class="section-title" style="margin-bottom: 4px;">
           <span class="material-symbols-outlined" style="color: var(--primary);">manage_accounts</span>
@@ -60,7 +72,7 @@
     </div>
 
     <!-- Segmented Tab Filter -->
-    <div class="segmented-control" style="max-width: 380px; margin-bottom: var(--space-lg);">
+    <div class="segmented-control" style="max-width: 380px; margin-bottom: var(--space-lg);" role="group" aria-label="Filtrar contas">
       <button type="button" class="tab-btn active" id="tabFilterAll">
         <span>Todas</span>
       </button>
@@ -73,15 +85,15 @@
     </div>
 
     <!-- Accounts Table -->
-    <div class="table-container">
-      <table class="data-table">
+    <div class="table-container" tabindex="0" role="region" aria-label="Tabela de contas (role horizontalmente em telas pequenas)">
+      <table class="data-table data-table--scroll">
         <thead>
           <tr>
             <th>Nome / Identificação</th>
             <th>Login</th>
             <th>Tipo / Perfil</th>
             <th>Status</th>
-            <th style="text-align: right;">Ações</th>
+            <th class="cell-actions" scope="col">Ações</th>
           </tr>
         </thead>
         <tbody id="accountsTableBody">
@@ -95,10 +107,10 @@
 
   <!-- Account Modal (Create / Edit) -->
   <div id="accountModal" class="modal-overlay" style="display: none;">
-    <div class="modal-card">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-header">
         <h3 class="modal-title" id="modalTitle">Nova Conta</h3>
-        <button type="button" class="modal-close" id="btnCloseModal">
+        <button type="button" class="modal-close" id="btnCloseModal" aria-label="Fechar">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
@@ -155,11 +167,62 @@
           </select>
         </div>
 
-        <div style="display: flex; gap: var(--space-md); margin-top: var(--space-md); justify-content: flex-end;">
+        <div class="modal-actions">
           <button type="button" id="btnCancelModal" class="btn btn-secondary">Cancelar</button>
           <button type="submit" class="btn btn-primary">Salvar Conta</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- QR Code da mesa: gerar, visualizar, imprimir, consultar e desativar (gerente) -->
+  <div id="qrModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
+      <div class="modal-header">
+        <h3 class="modal-title" id="qrModalTitle">QR Code da mesa</h3>
+        <button type="button" class="modal-close" id="btnCloseQrModal" aria-label="Fechar">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="qr-manage">
+        <div class="qr-manage-status" id="qrStatus" role="status" aria-live="polite"></div>
+        <p class="qr-manage-note" id="qrNote">
+          Por segurança, o sistema guarda apenas uma assinatura do QR Code: a imagem aparece somente no momento em que é gerada.
+          Para reimprimir, gere um novo — o anterior deixa de funcionar e a sessão aberta nesta mesa é encerrada.
+        </p>
+
+        <div class="qr-result" id="qrResult" hidden>
+          <div class="qr-print-area">
+            <div class="qr-figure" id="qrFigure" role="img" aria-label="QR Code de acesso da mesa"></div>
+            <p class="qr-print-title" id="qrPrintTitle"></p>
+            <p class="qr-print-hint">Aponte a câmera do celular para abrir o cardápio desta mesa.</p>
+          </div>
+          <div class="qr-link">
+            <span>Destino:</span>
+            <code id="qrLinkPreview"></code>
+            <button type="button" id="btnCopyQrLink" class="btn btn-secondary btn-compact">
+              <span class="material-symbols-outlined">content_copy</span>
+              <span>Copiar link</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="btnQrDeactivate" class="btn btn-danger">
+            <span class="material-symbols-outlined">qr_code_scanner</span>
+            <span>Desativar QR Code</span>
+          </button>
+          <button type="button" id="btnQrPrint" class="btn btn-secondary" hidden>
+            <span class="material-symbols-outlined">print</span>
+            <span>Imprimir</span>
+          </button>
+          <button type="button" id="btnQrGenerate" class="btn btn-primary">
+            <span class="material-symbols-outlined">qr_code_2</span>
+            <span>Gerar QR Code</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -171,6 +234,7 @@
 
   <!-- 3º: Demais scripts do sistema -->
   <script src="js/auth.js"></script>
+  <script src="js/vendor/qrcode-generator.js"></script>
   <script src="js/contas.js"></script>
 </body>
 </html>

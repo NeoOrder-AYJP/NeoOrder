@@ -182,11 +182,16 @@
   function renderCarrinho() {
     const container = document.getElementById('cartItemsContainer');
     const totalEl = document.getElementById('cartTotalValue');
-    const badge = document.getElementById('cartBadge');
     const confirmBtn = document.getElementById('btnConfirmOrder');
 
     const qtdTotal = carrinho.reduce((acc, i) => acc + i.quantidade, 0);
-    if (badge) badge.textContent = String(qtdTotal);
+    // Contador no cabeçalho (desktop/tablet) e na barra inferior (mobile)
+    document.querySelectorAll('[data-cart-count]').forEach(el => { el.textContent = String(qtdTotal); });
+    const rotulo = `Carrinho (${qtdTotal} ${qtdTotal === 1 ? 'item' : 'itens'})`;
+    ['btnToggleCart', 'bottomNavCart'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.setAttribute('aria-label', rotulo);
+    });
     if (totalEl) totalEl.textContent = totalCarrinho().toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     if (confirmBtn) confirmBtn.disabled = carrinho.length === 0;
 
@@ -214,11 +219,11 @@
           <div class="cart-item-price">${NeoUI.money(item.preco)} · un.</div>
         </div>
         <div class="qty-control">
-          <button type="button" aria-label="Diminuir" data-dec="${item.id}">−</button>
-          <span>${item.quantidade}</span>
-          <button type="button" aria-label="Aumentar" data-inc="${item.id}">+</button>
+          <button type="button" aria-label="Diminuir quantidade de ${escapeHtml(item.nome)}" data-dec="${item.id}">−</button>
+          <span aria-label="Quantidade">${item.quantidade}</span>
+          <button type="button" aria-label="Aumentar quantidade de ${escapeHtml(item.nome)}" data-inc="${item.id}">+</button>
         </div>
-        <strong style="font-size:14px;min-width:76px;text-align:right;">${NeoUI.money(item.preco * item.quantidade)}</strong>`;
+        <strong class="cart-item-total">${NeoUI.money(item.preco * item.quantidade)}</strong>`;
       container.appendChild(row);
     });
 
@@ -406,6 +411,14 @@
 
     const btnCart = document.getElementById('btnToggleCart');
     if (btnCart) btnCart.addEventListener('click', () => abrirModal('cartModal'));
+
+    // Barra inferior (≤ 767px): mesmas ações do cabeçalho, sem novas rotas
+    const bottomCart = document.getElementById('bottomNavCart');
+    if (bottomCart) bottomCart.addEventListener('click', () => abrirModal('cartModal'));
+    const bottomHistory = document.getElementById('bottomNavHistory');
+    if (bottomHistory) bottomHistory.addEventListener('click', abrirHistorico);
+    const bottomCall = document.getElementById('bottomNavCall');
+    if (bottomCall) bottomCall.addEventListener('click', () => abrirModal('callStaffModal'));
     const btnCloseCart = document.getElementById('btnCloseCartModal');
     if (btnCloseCart) btnCloseCart.addEventListener('click', () => fecharModal('cartModal'));
 
@@ -441,11 +454,6 @@
         if (e.target === overlay) overlay.style.display = 'none';
       });
     });
-
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') {
-        document.querySelectorAll('.modal-overlay').forEach(m => { m.style.display = 'none'; });
-      }
-    });
+    // Esc e foco dos modais: tratados por NeoModal (js/supabase.js)
   }
 })();

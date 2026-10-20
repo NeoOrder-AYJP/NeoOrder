@@ -12,50 +12,51 @@
   <!-- 2º: Inicialização da API e Chaves Globais -->
   <script src="js/supabase.js"></script>
 </head>
-<body>
-  <header class="header">
+<body class="has-bottom-nav">
+  <header class="header header--mesa">
     <div class="container header-container">
       <a href="index.html" class="logo-brand">
         <span class="material-symbols-outlined">restaurant_menu</span>
-        <span>NeoOrder</span>
+        <span class="logo-text label-sm-hidden">NeoOrder</span>
       </a>
 
       <div class="nav-actions">
-        <div style="display: flex; align-items: center; gap: 6px; background: var(--surface-container-low); padding: 4px 12px; border-radius: 20px; font-weight: 500; font-size: 14px; color: var(--text-main);">
-          <span class="material-symbols-outlined" style="font-size: 18px; color: var(--primary);">table_restaurant</span>
+        <div class="user-chip">
+          <span class="material-symbols-outlined">table_restaurant</span>
           <span id="mesaTitle">Mesa --</span>
         </div>
 
-        <button type="button" id="btnToggleTheme" class="btn btn-secondary" style="padding: 6px 12px; min-height: 36px;" title="Alternar Tema Claro/Escuro">
-          <span class="material-symbols-outlined" style="font-size: 18px;">dark_mode</span>
+        <button type="button" id="btnToggleTheme" class="btn btn-secondary btn-icon" title="Alternar Tema Claro/Escuro" aria-label="Alternar tema claro/escuro">
+          <span class="material-symbols-outlined">dark_mode</span>
         </button>
 
-        <button type="button" id="btnCallStaff" class="btn btn-secondary" style="padding: 6px 14px; min-height: 36px; border-color: var(--primary); color: var(--primary);">
-          <span class="material-symbols-outlined" style="font-size: 18px;">notifications_active</span>
-          <span>Chamar Funcionário</span>
+        <!-- Em telas ≤ 767px estas ações ficam na barra inferior (sem duplicar menus) -->
+        <button type="button" id="btnCallStaff" class="btn btn-secondary btn-compact mesa-header-action" aria-haspopup="dialog" aria-label="Chamar funcionário">
+          <span class="material-symbols-outlined">notifications_active</span>
+          <span>Chamar<span class="label-tablet-hidden"> Funcionário</span></span>
         </button>
 
-        <button type="button" id="btnOpenHistory" class="btn btn-secondary" style="padding: 6px 14px; min-height: 36px;">
-          <span class="material-symbols-outlined" style="font-size: 18px;">receipt_long</span>
-          <span>Meus Pedidos</span>
+        <button type="button" id="btnOpenHistory" class="btn btn-secondary btn-compact mesa-header-action" aria-haspopup="dialog" aria-label="Meus pedidos">
+          <span class="material-symbols-outlined">receipt_long</span>
+          <span><span class="label-tablet-hidden">Meus </span>Pedidos</span>
         </button>
 
-        <button type="button" id="btnToggleCart" class="btn btn-primary" style="padding: 6px 14px; min-height: 36px; position: relative;">
-          <span class="material-symbols-outlined" style="font-size: 18px;">shopping_cart</span>
+        <button type="button" id="btnToggleCart" class="btn btn-primary btn-compact mesa-header-action" aria-haspopup="dialog" aria-label="Carrinho (0 itens)">
+          <span class="material-symbols-outlined">shopping_cart</span>
           <span>Carrinho</span>
-          <span id="cartBadge" style="background: var(--danger); color: white; border-radius: 999px; padding: 2px 6px; font-size: 11px; font-weight: 600; margin-left: 4px;">0</span>
+          <span id="cartBadge" class="cart-count" data-cart-count aria-hidden="true">0</span>
         </button>
 
-        <button type="button" id="btnLogout" class="btn btn-danger" style="padding: 6px 10px; min-height: 36px;" title="Encerrar Sessão">
-          <span class="material-symbols-outlined" style="font-size: 18px;">logout</span>
+        <button type="button" id="btnLogout" class="btn btn-danger btn-icon" title="Encerrar Sessão" aria-label="Encerrar sessão">
+          <span class="material-symbols-outlined">logout</span>
         </button>
       </div>
     </div>
   </header>
 
-  <main class="container" style="margin-top: var(--space-xl); margin-bottom: var(--space-2xl);">
+  <main class="container page-main" id="conteudo">
     <!-- Page Welcome Banner -->
-    <div style="margin-bottom: var(--space-xl);">
+    <div id="menuTop" style="margin-bottom: var(--space-xl);">
       <h1 class="section-title" style="margin-bottom: 4px;">
         <span class="material-symbols-outlined" style="color: var(--primary);">restaurant</span>
         <span>Faça seu Pedido</span>
@@ -64,13 +65,14 @@
     </div>
 
     <!-- Search / Filter Bar -->
-    <div style="display: flex; gap: var(--space-md); margin-bottom: var(--space-xl); flex-wrap: wrap; justify-content: space-between; align-items: center;">
-      <div class="input-wrapper" style="max-width: 400px; width: 100%;">
+    <div class="toolbar">
+      <div class="input-wrapper">
         <span class="material-symbols-outlined input-icon">search</span>
-        <input type="text" id="inputSearchDish" class="input-field" placeholder="Buscar prato no cardápio...">
+        <label for="inputSearchDish" class="sr-only">Buscar prato no cardápio</label>
+        <input type="search" id="inputSearchDish" class="input-field" placeholder="Buscar prato no cardápio...">
       </div>
 
-      <div class="segmented-control" style="max-width: 320px;">
+      <div class="segmented-control" style="max-width: 320px;" role="group" aria-label="Filtrar pratos">
         <button type="button" class="tab-btn active" id="filterAll">
           <span>Todos</span>
         </button>
@@ -81,7 +83,7 @@
     </div>
 
     <!-- Dishes Grid -->
-    <div id="dishesGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-lg);">
+    <div id="dishesGrid" class="dishes-grid">
       <div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: var(--space-2xl);">
         Carregando cardápio...
       </div>
@@ -89,28 +91,28 @@
   </main>
 
   <!-- Cart Drawer / Sidebar Modal -->
-  <div id="cartModal" class="modal-overlay" style="display: none; justify-content: flex-end; padding: 0;">
-    <div class="modal-card" style="max-width: 420px; width: 100%; height: 100vh; border-radius: 0; display: flex; flex-direction: column;">
+  <div id="cartModal" class="modal-overlay modal-overlay--drawer" style="display: none;">
+    <div class="modal-card modal-card--drawer" role="dialog" aria-modal="true" aria-labelledby="cartModalTitle">
       <div class="modal-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: var(--space-sm);">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="material-symbols-outlined" style="color: var(--primary); font-size: 24px;">shopping_bag</span>
-          <h3 class="modal-title">Seu Carrinho</h3>
+          <h3 class="modal-title" id="cartModalTitle">Seu Carrinho</h3>
         </div>
-        <button type="button" class="modal-close" id="btnCloseCartModal">
+        <button type="button" class="modal-close" id="btnCloseCartModal" aria-label="Fechar carrinho">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
 
       <!-- Cart Items List -->
-      <div id="cartItemsContainer" style="flex: 1; overflow-y: auto; padding: var(--space-md) 0;" class="flex-col">
+      <div id="cartItemsContainer" class="flex-col cart-items">
         <div style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
           Seu carrinho está vazio.
         </div>
       </div>
 
       <!-- Cart Summary & Action -->
-      <div style="border-top: 1px solid var(--border-subtle); padding-top: var(--space-md); margin-top: auto;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+      <div class="cart-summary">
+        <div class="cart-summary-row">
           <span style="font-size: 15px; font-weight: 500; color: var(--text-muted);">Total do Pedido:</span>
           <span style="font-size: 22px; font-weight: 700; color: var(--primary);" id="cartTotalValue">R$ 0,00</span>
         </div>
@@ -125,13 +127,13 @@
 
   <!-- Call Staff Modal -->
   <div id="callStaffModal" class="modal-overlay" style="display: none;">
-    <div class="modal-card" style="max-width: 480px;">
+    <div class="modal-card" style="max-width: 480px;" role="dialog" aria-modal="true" aria-labelledby="callStaffModalTitle">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="material-symbols-outlined" style="color: var(--primary);">notifications_active</span>
-          <h3 class="modal-title">Chamar Funcionário</h3>
+          <h3 class="modal-title" id="callStaffModalTitle">Chamar Funcionário</h3>
         </div>
-        <button type="button" class="modal-close" id="btnCloseCallStaffModal">
+        <button type="button" class="modal-close" id="btnCloseCallStaffModal" aria-label="Fechar">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
@@ -164,7 +166,7 @@
           </div>
         </div>
 
-        <div style="display: flex; justify-content: flex-end; gap: var(--space-sm);">
+        <div class="modal-actions">
           <button type="button" id="btnCancelCallStaff" class="btn btn-secondary">Cancelar</button>
           <button type="submit" id="btnSubmitCallStaff" class="btn btn-primary">
             <span class="material-symbols-outlined">send</span>
@@ -177,24 +179,47 @@
 
   <!-- Orders History Modal -->
   <div id="historyModal" class="modal-overlay" style="display: none;">
-    <div class="modal-card" style="max-width: 650px;">
+    <div class="modal-card" style="max-width: 650px;" role="dialog" aria-modal="true" aria-labelledby="historyModalTitle">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="material-symbols-outlined" style="color: var(--primary);">receipt_long</span>
-          <h3 class="modal-title">Histórico de Pedidos da Mesa</h3>
+          <h3 class="modal-title" id="historyModalTitle">Histórico de Pedidos da Mesa</h3>
         </div>
-        <button type="button" class="modal-close" id="btnCloseHistoryModal">
+        <button type="button" class="modal-close" id="btnCloseHistoryModal" aria-label="Fechar">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
 
-      <div id="historyOrdersContainer" class="flex-col" style="max-height: 450px; overflow-y: auto; gap: var(--space-md);">
+      <div id="historyOrdersContainer" class="flex-col" style="gap: var(--space-md);" aria-live="polite">
         <div style="text-align: center; color: var(--text-muted); padding: var(--space-xl);">
           Carregando histórico...
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Barra inferior da mesa (≤ 767px) — agents.md §6: ícones com rótulos -->
+  <nav class="bottom-nav" aria-label="Navegação da mesa">
+    <a href="#menuTop" class="bottom-nav-item is-active" aria-current="page" id="bottomNavMenu">
+      <span class="material-symbols-outlined">restaurant_menu</span>
+      <span>Cardápio</span>
+    </a>
+    <button type="button" class="bottom-nav-item" id="bottomNavCart" aria-haspopup="dialog" aria-label="Carrinho (0 itens)">
+      <span class="bottom-nav-icon">
+        <span class="material-symbols-outlined">shopping_cart</span>
+        <span class="cart-count" data-cart-count aria-hidden="true">0</span>
+      </span>
+      <span>Carrinho</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="bottomNavHistory" aria-haspopup="dialog">
+      <span class="material-symbols-outlined">receipt_long</span>
+      <span>Pedidos</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="bottomNavCall" aria-haspopup="dialog">
+      <span class="material-symbols-outlined">notifications_active</span>
+      <span>Chamar</span>
+    </button>
+  </nav>
 
   <footer class="footer">
     <div class="container">

@@ -110,11 +110,11 @@
         <td style="text-align:right;">${formatarNumero(ing.quantidade)}</td>
         <td style="text-align:center;">${escapeHtml(ing.unidade)}</td>
         <td>${statusIngrediente(ing.quantidade)}</td>
-        <td style="text-align:right; white-space:nowrap;">
-          <button type="button" class="btn btn-secondary" style="padding:6px 10px;min-height:32px;" data-edit-ing="${ing.id}">
+        <td class="cell-actions">
+          <button type="button" class="btn btn-secondary btn-icon" data-edit-ing="${ing.id}" aria-label="Editar ${escapeHtml(ing.nome)}" title="Editar">
             <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
           </button>
-          <button type="button" class="btn btn-danger" style="padding:6px 10px;min-height:32px;" data-del-ing="${ing.id}">
+          <button type="button" class="btn btn-danger btn-icon" data-del-ing="${ing.id}" aria-label="Excluir ${escapeHtml(ing.nome)}" title="Excluir">
             <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
           </button>
         </td>`;
@@ -164,11 +164,11 @@
         <td>${prato.destaque ? '<span class="badge badge-pending">Destaque</span>' : '<span class="text-muted">—</span>'}</td>
         <td>${disponibilidade}</td>
         <td>${prato.ativo ? '<span class="badge badge-available">Ativo</span>' : '<span class="badge badge-unavailable">Inativo</span>'}</td>
-        <td style="text-align:right; white-space:nowrap;">
-          <button type="button" class="btn btn-secondary" style="padding:6px 10px;min-height:32px;" data-edit-dish="${prato.id}">
+        <td class="cell-actions">
+          <button type="button" class="btn btn-secondary btn-icon" data-edit-dish="${prato.id}" aria-label="Editar ${escapeHtml(prato.nome)}" title="Editar">
             <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
           </button>
-          <button type="button" class="btn btn-danger" style="padding:6px 10px;min-height:32px;" data-del-dish="${prato.id}">
+          <button type="button" class="btn btn-danger btn-icon" data-del-dish="${prato.id}" aria-label="Excluir ${escapeHtml(prato.nome)}" title="Excluir">
             <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
           </button>
         </td>`;
@@ -286,8 +286,7 @@
     }
 
     const row = document.createElement('div');
-    row.className = 'recipe-row';
-    row.style.cssText = 'display:grid;grid-template-columns:1fr 110px 36px;gap:8px;align-items:center;';
+    row.className = 'recipe-row'; // layout em styles.css (empilha em telas < 480px)
 
     const options = ingredientes.map(ing => {
       const selected = String(ing.id) === String(ingredienteId) ? ' selected' : '';
@@ -295,10 +294,10 @@
     }).join('');
 
     row.innerHTML = `
-      <select class="input-field" data-ingrediente style="padding-left:14px;">${options}</select>
-      <input type="number" class="input-field" data-quantidade min="0.001" step="0.001"
+      <select class="input-field" data-ingrediente aria-label="Insumo">${options}</select>
+      <input type="number" class="input-field" data-quantidade min="0.001" step="0.001" aria-label="Quantidade por porção"
              placeholder="Qtd." value="${quantidade !== '' ? escapeHtml(String(quantidade)) : ''}" required>
-      <button type="button" class="btn btn-danger" style="padding:6px;min-height:36px;" title="Remover">
+      <button type="button" class="btn btn-danger btn-icon" title="Remover insumo" aria-label="Remover insumo da receita">
         <span class="material-symbols-outlined" style="font-size:16px;">close</span>
       </button>`;
 

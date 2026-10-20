@@ -68,8 +68,11 @@
       chamados.forEach(c => knownCallIds.add(c.id));
       primeiraCarga = false;
 
+      // O polling redesenha os cards: preserva o foco do teclado no mesmo botão
+      const foco = chaveDoFoco();
       renderChamados();
       renderPedidos();
+      restaurarFoco(foco);
     } catch (err) {
       console.error('Erro ao carregar painel:', err);
       if (err.code === '28000' || /sess[aã]o/i.test(err.message || '')) {
@@ -79,6 +82,22 @@
       }
       if (!silencioso) NeoUI.toast(err.message || 'Não foi possível atualizar o painel.', 'error');
     }
+  }
+
+  function chaveDoFoco() {
+    const el = document.activeElement;
+    if (!el || !el.closest || el === document.body) return null;
+    const esc = v => (window.CSS && CSS.escape ? CSS.escape(String(v)) : String(v));
+    if (el.dataset && el.dataset.resolve) return `[data-resolve="${esc(el.dataset.resolve)}"]`;
+    const card = el.closest('[data-pedido]');
+    if (card) return `[data-pedido="${esc(card.dataset.pedido)}"] ${el.hasAttribute('data-cancel') ? '[data-cancel]' : '[data-status]'}`;
+    return null;
+  }
+
+  function restaurarFoco(seletor) {
+    if (!seletor) return;
+    const alvo = document.querySelector(seletor);
+    if (alvo && document.activeElement !== alvo) alvo.focus({ preventScroll: true });
   }
 
   // ---------------------------------------------------------------------------
@@ -110,7 +129,7 @@
         </div>
         <div class="call-card-reason">${escapeHtml(chamado.justificativa || '')}</div>
         <div class="order-card-actions" style="justify-content:flex-end;">
-          <button type="button" class="btn btn-primary" data-resolve="${chamado.id}">
+          <button type="button" class="btn btn-primary" data-resolve="${chamado.id}" aria-label="Marcar chamado da ${escapeHtml(chamado.mesa_nome || 'mesa')} como atendido">
             <span class="material-symbols-outlined" style="font-size:16px;">task_alt</span>
             <span>Marcar como atendido</span>
           </button>
@@ -171,6 +190,7 @@
       grupos[status].forEach(pedido => {
         const card = document.createElement('div');
         card.className = 'order-card';
+        card.dataset.pedido = pedido.id;
         const itens = (pedido.itens || [])
           .map(i => `<span>${i.quantidade}× ${escapeHtml(i.nome)}</span>`)
           .join('');
@@ -202,7 +222,7 @@
           <div class="order-card-items">${itens || '<span class="order-card-meta">Sem itens</span>'}</div>
           <div class="order-card-total">${NeoUI.money(pedido.valor_total)}</div>
           <div class="order-card-actions">
-            <button type="button" class="btn btn-danger" data-cancel>
+            <button type="button" class="btn btn-danger" data-cancel aria-label="Cancelar pedido da ${escapeHtml(pedido.mesa_nome || 'mesa')}">
               <span class="material-symbols-outlined" style="font-size:16px;">cancel</span>
               <span>Cancelar</span>
             </button>

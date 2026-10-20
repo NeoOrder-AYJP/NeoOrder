@@ -5,9 +5,16 @@
   "description": "Sistema de gerenciamento de pedidos de restaurante (HTML/CSS/JS + Supabase)",
   "scripts": {
     "start": "python3 -m http.server 8080",
-    "test": "node tests/smoke.js"
+    "test": "node tests/smoke.js && node tests/qr.test.js",
+    "test:responsive": "node tests/responsive.mjs",
+    "test:qr-browser": "node tests/qr-browser.mjs"
   },
   "devDependencies": {
-    "jsdom": "^30.0.0"
+    "@fontsource/poppins": "^5.3.0",
+    "@fortawesome/fontawesome-free": "^7.3.1",
+    "jsdom": "^30.0.0",
+    "jsqr": "^1.4.0",
+    "material-symbols": "^0.48.0",
+    "puppeteer-core": "^25.14.0"
   }
 }

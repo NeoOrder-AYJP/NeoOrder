@@ -77,6 +77,7 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 a {
@@ -93,7 +94,7 @@ a {
 
 /* Header & Navigation */
 .header {
-  height: 64px;
+  min-height: 64px;
   background-color: var(--bg-main);
   border-bottom: 1px solid var(--border-subtle);
   position: sticky;
@@ -107,7 +108,9 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--space-sm);
   width: 100%;
+  min-height: 64px;
 }
 
 .logo-brand {
@@ -118,6 +121,8 @@ a {
   font-weight: 600;
   color: var(--primary);
   letter-spacing: -0.5px;
+  min-height: 44px;
+  flex-shrink: 0;
 }
 
 .nav-actions {
@@ -300,21 +305,34 @@ a {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: var(--space-sm);
+  gap: 0;
   z-index: 10;
 }
 
 .indicator {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+}
+
+.indicator::before {
+  content: '';
   width: 10px;
   height: 10px;
   border-radius: var(--radius-full);
   background-color: var(--text-muted);
   opacity: 0.5;
-  cursor: pointer;
   transition: all 200ms ease-in-out;
 }
 
-.indicator.active {
+.indicator.active::before {
   background-color: var(--primary);
   opacity: 1;
   width: 24px;
@@ -442,6 +460,7 @@ a {
   align-items: center;
   justify-content: center;
   min-height: calc(100vh - 120px);
+  min-height: calc(100dvh - 120px);
   padding: var(--space-md);
 }
 
@@ -493,8 +512,7 @@ a {
 
 /* Segmented Control / Tabs */
 .segmented-control {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
   background-color: var(--surface-container);
   padding: 4px;
   border-radius: var(--radius-md);
@@ -502,6 +520,10 @@ a {
 }
 
 .tab-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  text-align: center;
   padding: 10px 12px;
   border-radius: var(--radius-md);
   font-size: 14px;
@@ -566,6 +588,7 @@ a {
 .input-field:focus {
   outline: none;
   border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
 }
 
 .input-field.uppercase {
@@ -611,7 +634,9 @@ a {
   background-color: var(--surface-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   box-shadow: var(--shadow-sm);
   margin-bottom: var(--space-2xl);
 }
@@ -662,6 +687,10 @@ a {
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 500px;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-lg);
   box-shadow: var(--shadow-lg);
   position: relative;
@@ -671,6 +700,7 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--space-sm);
   margin-bottom: var(--space-md);
 }
 
@@ -685,7 +715,17 @@ a {
   font-size: 20px;
   color: var(--text-muted);
   cursor: pointer;
+  width: 44px;
+  height: 44px;
+  margin: -8px -10px -8px 0;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
+
+.modal-close:hover { color: var(--primary); }
 
 /* Footer */
 .footer {
@@ -741,6 +781,7 @@ a {
 .nav-link {
   display: inline-flex;
   align-items: center;
+  min-height: 44px;
   padding: 8px 12px;
   border-radius: var(--radius-full);
   font-size: 14px;
@@ -931,9 +972,9 @@ a {
 }
 
 .order-card-actions .btn {
-  padding: 7px 12px;
+  padding: 8px 12px;
   font-size: 13px;
-  min-height: 34px;
+  min-height: 44px;
 }
 
 /* Badges de status de pedido */
@@ -1007,8 +1048,8 @@ a {
 }
 
 .qty-control button {
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1px solid var(--border-subtle);
   background: var(--surface-container-low);
@@ -1095,26 +1136,13 @@ a {
 .w-full { width: 100%; }
 
 
-@media (max-width: 1100px) {
-  .nav-links {
-    order: 3;
-    width: 100%;
-    justify-content: flex-start;
-    padding-bottom: 4px;
-    overflow-x: auto;
-  }
-
-  .header-container {
-    flex-wrap: wrap;
-    row-gap: var(--space-sm);
-  }
-}
 
 /* Botão flutuante de chamado (RF-26) */
 .fab {
   position: fixed;
   right: 20px;
-  bottom: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  min-height: 48px;
   z-index: 1500;
   display: inline-flex;
   align-items: center;
@@ -1144,8 +1172,684 @@ a {
 @media (max-width: 767px) {
   .fab {
     right: 14px;
-    bottom: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
     padding: 12px 14px;
     font-size: 13px;
   }
 }
+
+/* ==========================================================================
+   Responsividade e acessibilidade (v2.5)
+   Breakpoints do agents.md §7: mobile ≤ 767px · tablet 768–1023px · desktop ≥ 1024px
+   Nenhuma cor nova: apenas tokens já existentes.
+   ========================================================================== */
+
+/* Texto acessível apenas para leitores de tela */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0);
+  white-space: nowrap; border: 0;
+}
+
+/* Foco visível por teclado (agents.md §8) */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.modal-card:focus { outline: none; }
+
+body.modal-open { overflow: hidden; }
+
+/* Botões compactos com área de toque mínima de 44×44 */
+.btn-icon {
+  padding: 0;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+.btn-icon .material-symbols-outlined { font-size: 20px; }
+
+.btn-compact {
+  padding: 8px 14px;
+  min-height: 44px;
+}
+
+.btn .material-symbols-outlined { font-size: 18px; }
+
+/* Pílula de identificação (mesa / usuário) */
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: var(--surface-container-low);
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-chip .material-symbols-outlined { font-size: 18px; color: var(--primary); }
+
+/* --------------------------------------------------------------------------
+   Layout das páginas (substitui grades com largura mínima fixa)
+   -------------------------------------------------------------------------- */
+.page-main {
+  margin-top: var(--space-xl);
+  margin-bottom: var(--space-2xl);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.page-header > * { min-width: 0; }
+
+.page-actions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.section-header-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.kpi-grid--4 { margin-bottom: var(--space-2xl); }
+
+.calls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: var(--space-md);
+}
+
+.kanban-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.kanban-col {
+  background: var(--surface-container-low);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  min-height: 480px;
+}
+
+.dishes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: var(--space-lg);
+}
+
+.toolbar {
+  display: flex;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.toolbar .input-wrapper { flex: 1 1 280px; max-width: 400px; width: auto; }
+.toolbar .segmented-control { flex: 1 1 240px; max-width: 320px; }
+
+/* Formulários dos modais */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.form-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-lg);
+  margin-top: var(--space-xs);
+}
+
+.check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.check-label input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.recipe-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.recipe-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 44px;
+  gap: 8px;
+  align-items: center;
+}
+
+.recipe-row .input-field { padding-left: 14px; }
+
+/* Tabelas: legibilidade e ações dentro do contêiner rolável */
+.table-container:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.data-table th { white-space: nowrap; }
+
+.data-table td.cell-actions,
+.data-table th.cell-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cell-actions .btn + .btn { margin-left: 4px; }
+
+/* Coluna de ações fixa à direita sempre que a tabela rolar (mobile e tablet);
+   sem efeito visual quando a tabela cabe no contêiner. */
+.data-table--scroll th.cell-actions,
+.data-table--scroll td.cell-actions {
+  position: sticky;
+  right: 0;
+  background-color: var(--surface-card);
+}
+
+.data-table--scroll tr:nth-child(even) td.cell-actions { background-color: var(--row-alt); }
+.data-table--scroll th.cell-actions { background-color: var(--bg-main); }
+
+/* Sombra só quando há conteúdo rolando por baixo (ver .table-container.is-scrollable) */
+.table-container.is-scrollable .data-table--scroll .cell-actions { box-shadow: -8px 0 8px -8px rgba(0, 0, 0, 0.25); }
+
+/* Item do carrinho em grade (cabe em 320px com botões de 44px) */
+.cart-item {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "thumb info total"
+    "thumb qty  qty";
+  column-gap: var(--space-sm);
+  row-gap: 4px;
+  align-items: center;
+}
+
+.cart-item .dish-thumb { grid-area: thumb; align-self: start; }
+.cart-item .cart-item-info { grid-area: info; }
+.cart-item .qty-control { grid-area: qty; justify-self: end; }
+.cart-item-total { grid-area: total; font-size: 14px; text-align: right; white-space: nowrap; }
+
+/* Gaveta do carrinho */
+.modal-overlay.modal-overlay--drawer {
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 0;
+}
+
+.modal-card.modal-card--drawer {
+  max-width: 420px;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: calc(var(--space-lg) + env(safe-area-inset-bottom, 0px));
+}
+
+.cart-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md) 0;
+}
+
+.cart-summary {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-md);
+  margin-top: auto;
+}
+
+.cart-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+/* --------------------------------------------------------------------------
+   Navegação de gestão: menu hambúrguer abaixo de 1024px
+   -------------------------------------------------------------------------- */
+.nav-toggle { display: none; }
+
+@media (min-width: 1024px) {
+  /* Desktop: navegação superior atual, em uma linha a partir de 1280px */
+  .header--admin .nav-panel { display: contents; }
+  .header--admin .header-container { flex-wrap: wrap; column-gap: var(--space-md); }
+  .header--admin .nav-links { flex-wrap: nowrap; }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  /* Sem espaço para tudo em uma linha: os links vão para a 2ª linha do cabeçalho */
+  .header--admin .header-container { padding-bottom: var(--space-sm); }
+  .header--admin .logo-brand { margin-right: auto; }
+  .header--admin .nav-links { order: 3; width: 100%; }
+}
+
+@media (max-width: 1023px) {
+  .header--admin .nav-toggle {
+    display: inline-flex;
+    margin-left: auto;
+  }
+
+  .header--admin .nav-panel {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 110;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background-color: var(--bg-main);
+    border-bottom: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-md);
+    max-height: calc(100vh - 64px);
+    max-height: calc(100dvh - 64px);
+    overflow-y: auto;
+  }
+
+  .header--admin .nav-panel.is-open {
+    display: flex;
+    animation: neo-fade-in 150ms ease-in-out;
+  }
+
+  .header--admin .nav-links {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .header--admin .nav-link {
+    min-height: 48px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    color: var(--text-main);
+    font-size: 15px;
+    white-space: normal;
+  }
+
+  .header--admin .nav-link.active {
+    color: var(--text-main);
+    font-weight: 600;
+    box-shadow: inset 4px 0 0 var(--primary);
+  }
+
+  .header--admin .nav-actions {
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+@keyframes neo-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* --------------------------------------------------------------------------
+   Interface da mesa: barra inferior até 767px (agents.md §6)
+   -------------------------------------------------------------------------- */
+.bottom-nav { display: none; }
+
+.cart-count {
+  background: var(--danger);
+  color: #FFFFFF;
+  border-radius: var(--radius-full);
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  min-width: 20px;
+  text-align: center;
+}
+
+#menuTop { scroll-margin-top: 80px; }
+
+@media (max-width: 767px) {
+  .bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 900;
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background-color: var(--surface-card);
+    border-top: 1px solid var(--border-subtle);
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  .bottom-nav-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 6px 4px;
+    border: none;
+    background: transparent;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .bottom-nav-item .material-symbols-outlined {
+    font-size: 22px;
+    color: var(--text-muted);
+  }
+
+  .bottom-nav-item:hover .material-symbols-outlined,
+  .bottom-nav-item.is-active .material-symbols-outlined { color: var(--primary); }
+
+  .bottom-nav-item.is-active { font-weight: 600; }
+
+  .bottom-nav-item.is-active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 25%;
+    right: 25%;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--primary);
+  }
+
+  .bottom-nav-item:focus-visible { outline-offset: -2px; }
+
+  .bottom-nav-icon { position: relative; display: inline-flex; }
+
+  .bottom-nav-icon .cart-count {
+    position: absolute;
+    top: -6px;
+    left: 14px;
+  }
+
+  /* Espaço para a barra não cobrir o conteúdo nem o rodapé */
+  body.has-bottom-nav { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Evita menus duplicados: as ações da barra saem do cabeçalho */
+  .header--mesa .mesa-header-action { display: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Ajustes por faixa de largura
+   -------------------------------------------------------------------------- */
+
+/* Tablet e mobile */
+@media (max-width: 1023px) {
+  .data-table th { padding: 12px; }
+  .data-table td { padding: 12px; }
+}
+
+/* Mesa em tablet: cabeçalho em uma linha */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .header--mesa .nav-actions { gap: var(--space-xs); }
+  .header--mesa .logo-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  .header--mesa .btn-compact { padding: 8px 10px; white-space: nowrap; }
+  /* Rótulos curtos no tablet (iguais aos da barra inferior); nome completo via aria-label */
+  .label-tablet-hidden { display: none; }
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+  .page-main { margin-top: var(--space-lg); }
+
+  .page-header { margin-bottom: var(--space-lg); }
+
+  .page-actions { width: 100%; }
+
+  .page-actions > .btn,
+  .page-actions > .segmented-control { flex: 1 1 auto; }
+
+  .segmented-control { max-width: none !important; width: 100%; }
+
+  .kanban-col { min-height: 0; }
+
+  .modal-overlay { padding: var(--space-sm); }
+
+  .modal-card { padding: var(--space-md); }
+
+  .modal-actions .btn { flex: 1 1 auto; }
+
+  /* Tabelas: rolagem horizontal dentro do contêiner, ações sempre visíveis */
+  .data-table--scroll { min-width: 600px; }
+
+
+  /* Landing: cabeçalho em duas linhas, sem fixar (economiza altura útil) */
+  .header--landing { position: relative; }
+  .header--landing .header-container { flex-wrap: wrap; padding-top: var(--space-sm); padding-bottom: var(--space-sm); }
+  .header--landing .nav-actions { display: contents; }
+  .header--landing .logo-brand { margin-right: auto; }
+  .header--landing .nav-cta { flex: 1 1 calc(50% - var(--space-sm)); padding: 8px 10px; line-height: 1.25; text-align: center; }
+
+  /* Carrossel: controles abaixo do conteúdo para não sobrepor o botão */
+  .carousel-container { align-items: stretch; }
+  .carousel-slide { padding: var(--space-md) var(--space-md) 72px; }
+  .carousel-btn { top: auto; bottom: 10px; transform: none; }
+  .carousel-indicators { bottom: 10px; }
+
+  /* Mesa: rótulo do logotipo só para leitores de tela em telas estreitas */
+  .header--mesa .nav-actions { gap: var(--space-xs); }
+
+}
+
+/* Telas muito estreitas */
+@media (max-width: 479px) {
+  .form-grid-2 { grid-template-columns: minmax(0, 1fr); }
+
+  .recipe-row { grid-template-columns: minmax(0, 1fr) 44px; }
+  .recipe-row [data-ingrediente] { grid-column: 1 / -1; }
+
+  .modal-card.modal-card--drawer { max-width: none; }
+}
+
+@media (max-width: 419px) {
+  .label-sm-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
+  .segmented-control .tab-btn { flex-direction: column; gap: 2px; padding: 6px 4px; font-size: 13px; line-height: 1.2; }
+}
+
+/* Movimento reduzido (agents.md §10) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Ajustes v2.5 encontrados pelo teste de responsividade (tests/responsive.mjs) */
+
+/* FAB "Chamar": largura pelo conteúdo (sem colapsar quando ancorado só à direita) */
+.fab { left: auto; width: max-content; max-width: calc(100vw - 28px); white-space: nowrap; }
+body.has-fab { padding-bottom: 88px; }
+
+/* Nome do usuário longo: reticências no chip (nome completo no title, via js/supabase.js) */
+.user-chip > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Gestão ≥ 1024px: ações mais compactas para manter a navegação atual
+   (uma linha a partir de 1280px; links em 2ª linha entre 1024 e 1279px) */
+@media (min-width: 1024px) {
+  .header--admin .header-container { column-gap: var(--space-sm); }
+  .header--admin .nav-actions { gap: var(--space-xs); }
+  .header--admin .nav-link { padding: 8px 10px; }
+  .header--admin .user-chip { max-width: 190px; }
+}
+
+/* Logo como alvo de toque ≥ 44px mesmo quando o texto fica oculto */
+.logo-brand { min-width: 44px; }
+
+/* Cabeçalho fixo (sticky): foco por teclado e âncoras não ficam escondidos sob ele */
+html { scroll-padding-top: 80px; }
+
+/* Toasts abaixo do cabeçalho: não cobrem Carrinho/Sair logo após uma ação */
+.toast-host { top: 76px; pointer-events: none; } /* avisos não bloqueiam toques nos botões por baixo */
+
+@media (max-width: 767px) {
+  /* Barra inferior fixa: o elemento focado não fica escondido sob ela */
+  html:has(> body.has-bottom-nav) { scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ==========================================================================
+   v2.5 — QR Code da mesa (login e gestão). Somente tokens de cor existentes.
+   ========================================================================== */
+
+/* Atributo hidden vence o display das classes usadas nestes blocos */
+.qr-login-panel[hidden], #passwordLoginArea[hidden], .qr-login-actions[hidden],
+.qr-login-actions .btn[hidden], .qr-login-icon[hidden], .qr-login-status .spinner[hidden],
+.qr-manage [hidden], .qr-manage .btn[hidden] { display: none !important; }
+
+.qr-login-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.qr-login-status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-container-low);
+  color: var(--text-main);
+}
+.qr-login-status .spinner { width: 24px; height: 24px; flex-shrink: 0; margin-top: 2px; color: var(--primary); }
+.qr-login-icon { color: var(--danger); font-size: 28px; flex-shrink: 0; }
+.qr-login-panel.is-error .qr-login-status { border-color: var(--danger); }
+.qr-login-title { font-weight: 600; font-size: 16px; line-height: 1.35; margin: 0; overflow-wrap: anywhere; }
+.qr-login-message { font-size: 14px; line-height: 1.45; margin: 4px 0 0; color: var(--text-main); overflow-wrap: anywhere; }
+.qr-login-actions { display: flex; flex-direction: column; gap: var(--space-sm); }
+.qr-login-actions .btn { min-height: 44px; white-space: normal; text-align: center; }
+
+/* Gestão do QR Code (contas.html) */
+.qr-badge { margin-left: var(--space-xs); }
+.qr-manage { display: flex; flex-direction: column; gap: var(--space-md); }
+.qr-manage-status { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; font-size: 14px; }
+.qr-manage-note {
+  font-size: 13px;
+  line-height: 1.45;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--primary);
+  background: var(--surface-container-low);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+}
+.qr-print-area { display: flex; flex-direction: column; align-items: center; gap: var(--space-sm); text-align: center; }
+.qr-figure {
+  width: min(240px, 100%);
+  aspect-ratio: 1 / 1;
+  background: #FFFFFF;
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+.qr-figure svg { display: block; width: 100%; height: 100%; }
+.qr-print-title { font-weight: 600; font-size: 18px; margin: 0; overflow-wrap: anywhere; }
+.qr-print-hint { font-size: 13px; color: var(--text-main); margin: 0; }
+.qr-link { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); width: 100%; justify-content: center; }
+.qr-link code { font-size: 12px; overflow-wrap: anywhere; word-break: break-all; max-width: 100%; }
+.qr-manage .modal-actions { flex-wrap: wrap; }
+.qr-manage .modal-actions .btn { min-height: 44px; }
+
+/* Impressão: somente o QR Code da mesa */
+@media print {
+  body.printing-qr > *:not(#qrModal) { display: none !important; }
+  body.printing-qr #qrModal { position: static !important; display: block !important; background: none !important; padding: 0 !important; }
+  body.printing-qr #qrModal .modal-card { box-shadow: none !important; border: none !important; max-height: none !important; overflow: visible !important; width: 100% !important; max-width: none !important; }
+  body.printing-qr #qrModal .modal-header,
+  body.printing-qr #qrModal .qr-manage > :not(.qr-result),
+  body.printing-qr #qrModal .qr-result > :not(.qr-print-area),
+  body.printing-qr #qrModal .qr-link { display: none !important; }
+  body.printing-qr .qr-figure { width: 8cm; border: none; }
+  body.printing-qr .qr-print-title { font-size: 28pt; color: #000; }
+  body.printing-qr .qr-print-hint { font-size: 14pt; color: #000; }
+}
+
+/* Ícones de ligadura: reservam 1em quadrado mesmo antes da fonte carregar.
+   Sem isso, em rede lenta o nome do ícone ("table_restaurant", "dark_mode"...)
+   ocupa a largura do texto e gera rolagem horizontal nos cabeçalhos estreitos. */
+.material-symbols-outlined { display: inline-block; width: 1em; overflow: hidden; flex-shrink: 0; }

@@ -57,6 +57,10 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 18/10/2026 | 2.3 | Refatoracao | Front-end/Geral | Substituição do `safeSupabaseQuery` (timeout de 2,5 s que engolia erros) por um cliente RPC único (`js/supabase.js`) com timeout de 20 s, tradução de SQLSTATE, `toasts`, spinner em botões e estados vazios. Zero chamadas `.from()` em todo o projeto. Remoção de todos os dados mock. `spec.md` permaneceu congelado. | Arena Agent | Concluido |
 | 18/10/2026 | 2.3 | Documentacao | Docs | `README.md` reescrito (execução, banco, credenciais de demonstração, segurança e roteiro de testes); `supabase-schema.md` regenerado a partir do banco real (11 tabelas, 24 RPCs, códigos de erro, RLS); `backlog.md` atualizado com o diagnóstico completo dos erros 400/409/401. | Arena Agent | Concluido |
 | 19/10/2026 | 2.4 | Adicionado | Atendimento/Mesas, Pagamentos, Fidelidade e Estoque | Inclusão das especificações de atendimento por QR Code, sincronização em tempo real, identificação de mesa e cliente, Pix, divisão de conta, encerramento seguro de sessões, importação de NF-e, fichas técnicas, QR Codes de equipe e programa de fidelidade. Implementação e validação pendentes. | Stakeholder | Pendente |
+| 20/10/2026 | 2.5 | Correcao | Front-end/Responsividade | Responsividade de todas as telas (320–1440 px): cabeçalho sem altura fixa; gestão com menu hambúrguer abaixo de 1024 px e navegação atual acima; mesa com barra inferior (Cardápio, Carrinho, Pedidos, Chamar) até 767 px; tabelas de Contas/Estoque/Faturamento com rolagem interna e coluna de ações fixa; modais e gaveta do carrinho dentro da tela; FAB e controles do carrossel sem sobreposição. Sem novas rotas, sem mudança de banco/RLS/RPC (detalhes na seção 7). | Arena Agent | Em revisão |
+| 20/10/2026 | 2.5 | Correcao | Front-end/Acessibilidade | Alvos de toque ≥ 44 px, `:focus-visible`, modais com `role="dialog"`/`aria-modal`, foco preso, Esc e retorno do foco (`NeoModal`), ícones decorativos com `aria-hidden`, indicadores do carrossel como botões, setas do teclado restritas ao carrossel, pausa da rotação no hover/foco e sem rotação com `prefers-reduced-motion`, botão "Importar Backup" acessível por teclado. | Arena Agent | Em revisão |
+| 20/10/2026 | 2.5 | Adicionado | Testes | `tests/smoke.js` ampliado (menu, barra inferior, modais, tabelas, ARIA) e novo `tests/responsive.mjs` (Chromium via `CHROME_PATH`, Supabase simulado, 6 larguras × 2 temas, verificação de carga antes do layout). | Arena Agent | Em revisão |
+| 20/10/2026 | 2.5 | Documentacao | Design/Contraste | Pendência registrada (seção 7.3): contrastes abaixo de 4,5:1 da paleta atual, mantida sem alteração por decisão do stakeholder. | Arena Agent | Pendente |
 
 
 ---
@@ -360,12 +364,63 @@ Backup, migração e scripts foram validados por SQL; o sandbox de desenvolvimen
 ### 5.11 Pendências conhecidas em 18/10/2026 (registro histórico; escopo atualizado na seção 1.15)
 
 1. **Programa de fidelidade:** na data deste registro, a tabela `clientes` existia, mas o login do cliente ainda não estava definido e a interface foi removida. A implementação passa a ser requisito atual na seção 1.15.11.
-2. **QR Code das mesas:** na data deste registro, as colunas `qr_code_ativo`/`qr_token_hash` estavam reservadas, sem fluxo implementado. O fluxo completo passa a ser requisito atual na seção 1.15.3 e 1.15.7.
+2. **QR Code das mesas:** na data deste registro, as colunas `qr_code_ativo`/`qr_token_hash` estavam reservadas, sem fluxo implementado. O fluxo completo passa a ser requisito atual na seção 1.15.3 e 1.15.7. *Atualização 20/10/2026:* login por QR e gestão de QR implementados no front-end sobre as funções já existentes no banco; renovação automática por atendimento ainda pendente — ver seção 8.
 3. **Backup de contas:** `backup_importar` não restaura `usuarios` de propósito (evita sobrescrever senhas e permitir escalada). Contas devem ser recriadas pelo painel.
 4. **Tempo real:** na data deste registro, o painel usava polling de 8 s. A sincronização em tempo real passa a ser requisito atual na seção 1.15.1, sem reabrir leitura direta insegura das tabelas.
 5. **Testes automatizados:** existe um smoke test de interface (`tests/smoke.js`, `npm test`) que valida as 8 telas contra o contrato das RPCs. Faltam testes de integração com o banco real e E2E em navegador (Playwright + Supabase local).
 
 ---
+
+## 7. Responsividade e Acessibilidade — 20/10/2026 (v2.5)
+
+### 7.1 Escopo e decisões
+- Classificação das telas: **mesa** = `cardapio.html`; **gestão** = `atendimento.html`, `estoque.html`, `contas.html`, `faturamento.html`; **públicas** = `index.html` (FAB "Chamar" só com sessão de mesa) e `login.html`.
+- Gestão: menu hambúrguer (botão "Menu", `aria-expanded`/`aria-controls`) abaixo de 1024 px; de 1024 a 1279 px os links ficam numa 2ª linha do cabeçalho; a partir de 1280 px, uma linha só (navegação atual).
+- Mesa: barra inferior até 767 px com ícone + rótulo (Cardápio, Carrinho, Pedidos, Chamar). Ela reaproveita as ações já existentes (carrinho, histórico, chamado); as mesmas ações do cabeçalho ficam ocultas nessa faixa para não duplicar. Sem novas rotas.
+- Tabelas de Contas e Estoque continuam como tabelas: abaixo de 600 px rolam dentro do contêiner (largura mínima de 600 px), sem rolagem da página; a coluna "Ações" fica fixa à direita enquanto a tabela rola.
+- Nenhuma cor nova: apenas tokens já existentes. Banco, migrações, RLS, autenticação, RPC e Realtime não foram alterados.
+
+### 7.2 Divergência registrada do `agents.md` §6
+O §6 define **barra inferior no mobile** para a navegação. A barra inferior foi aplicada à interface da **mesa**; nas telas de **gestão** foi adotado o **menu hambúrguer** por decisão explícita do stakeholder (20/10/2026), pois são 4 destinos com rótulos longos mais as ações de sessão. Logo à esquerda e ações à direita foram mantidas. **Altura:** o §6 fixa 64 px; a barra mede 65 px na maior parte das telas, mas a gestão entre 1024 e 1279 px tem 105 px (links na 2ª linha) e o cabeçalho público (`index.html`) tem 113–122 px entre 320 e 390 px, onde deixa de ser fixo (`position: relative`, abaixo de 768 px) para não ocupar a tela. Divergência aceita para não cortar nem sobrepor itens; não bloqueia uso.
+
+### 7.3 Pendência separada — contraste da paleta (não alterado)
+Medido pelo `tests/responsive.mjs` (WCAG 2.x, mínimo 4,5:1 para texto normal). A paleta foi mantida por decisão do stakeholder; correção depende de nova definição de cores.
+- Tema claro: `--text-muted` #8D99AE ≈ 2,7–2,9:1 (subtítulos, descrições, rodapé); texto laranja `--primary` #E85D04 sobre fundo claro ≈ 3,3–3,5:1 (preços, botões secundários — incluindo o novo botão "Menu" e "Início" —, abas ativas); badge "Disponível" ≈ 2,8:1; abas inativas ≈ 2,5:1.
+- Tema escuro: badge pendente (amarelo) ≈ 1,3:1; badge indisponível ≈ 1,9:1; botão `btn-danger`/"Sair" ≈ 2,2:1; contador de chamados pendentes ≈ 2,1:1; KPI de cancelados ≈ 1,9:1.
+- Componentes novos (barra inferior e painel do menu) passam no teste.
+
+### 7.4 Outras observações
+- Carrossel: intervalo atual de 6000 ms versus 5 s do RNF-06 — fora do escopo desta entrega, mantido.
+- Toasts passaram para baixo do cabeçalho e não bloqueiam toques (`pointer-events: none`), mas ainda podem cobrir visualmente parte de um modal por alguns segundos.
+- **Ícones antes da fonte carregar (corrigido em 20/10/2026):** com rede lenta, os spans `material-symbols-outlined` mostram o nome do ícone como texto (`table_restaurant`, `dark_mode`…) até a fonte chegar, gerando rolagem horizontal de 12 a 229 px a 320 px em todas as páginas (pior caso: cardápio). Regra global reserva 1em por ícone (`width: 1em; overflow: hidden`). `tests/responsive.mjs` passou a repetir cada página a 320 px **sem** a fonte de ícones.
+- **Foco ao fechar modal após re-render (corrigido em 20/10/2026):** se a lista é redesenhada com o modal aberto (ex.: gerar QR em Contas), o botão que abriu o modal deixa de existir; o `NeoModal` agora devolve o foco ao botão equivalente (mesmo `id` ou mesmo primeiro atributo `data-*`).
+
+## 8. QR Code das mesas — 20/10/2026
+
+### 8.1 O que foi implementado (somente front-end)
+- **Login por QR (`login.html?qr=…`):** `js/auth.js` detecta o parâmetro, retira o token da URL antes de qualquer requisição (`history.replaceState`), chama `iniciar_sessao_mesa` uma única vez (trava contra clique duplo, recarga e eventos repetidos), confere que a sessão devolvida é do tipo `mesa`, encerra uma sessão de equipe que estivesse aberta no aparelho, grava a sessão no formato existente (`neoorder_session`) e vai para `cardapio.html` com `location.replace` (o link com token não fica no histórico). Estados com mensagens amigáveis: carregando, QR inválido/desativado ou mesa indisponível (o banco responde `28000` sem distinguir o motivo, de propósito), falha de rede e erro do servidor, com "Tentar novamente" e "Entrar com usuário e senha". `<meta name="referrer" content="no-referrer">` no login. O token nunca é registrado no console.
+- **Gestão (`contas.html`, só gerente):** badge "QR ativo"/"Sem QR" na coluna de status de cada mesa; modal "QR Code da mesa" com status consultado no servidor (QR ativo, sessão aberta), gerar/renovar (pede confirmação quando já há QR ativo ou sessão aberta, pois renovar encerra a sessão), QR desenhado localmente (`js/vendor/qrcode-generator.js`, MIT — o token não sai para serviços externos), destino com o token mascarado, copiar link, imprimir (só QR + nome da mesa) e desativar. O token fica apenas em memória e é descartado ao fechar o modal; por isso, para reimprimir é preciso gerar um novo.
+- Login por senha e demais perfis inalterados.
+
+### 8.2 Decisões que dependem do negócio (não alteradas — recomendação mais segura)
+O mecanismo atual atende 1.15.3 só em parte: o token é seguro, não previsível e revogável manualmente, mas **não é renovado automaticamente** a cada atendimento (1.15.3/1.15.7) e **não é revogado no fechamento da conta** (1.15.6), porque o fluxo de fechamento (1.15.5) ainda não existe.
+1. **QR estático / foto do QR:** quem fotografa o QR pode abrir a sessão de fora do restaurante enquanto ele não for renovado — e, como só existe uma sessão por mesa, derrubar a sessão de quem está na mesa. *Recomendação:* renovar o QR no fechamento da conta (no servidor) e, enquanto isso não existir, renovar pela gestão a cada troca de cliente.
+2. **Uma sessão por mesa:** cada leitura derruba o celular anterior; impede vários clientes da mesma mesa. *Recomendação:* manter até definir a regra de várias sessões por mesa junto com a divisão da conta (1.15.4).
+3. **Validade:** sessão de 12 h, QR sem expiração. *Recomendação:* expirar o QR no fechamento da conta, não por tempo.
+4. **Token em `?qr=`:** o front já remove o token da URL e do Referer, mas ele ainda chega ao servidor de hospedagem no primeiro acesso (logs de acesso). *Recomendação:* passar a gerar `login.html#qr=…` (fragmento não é enviado ao servidor), exigindo ajuste em `gerar_qr_code_mesa.url_relativa`.
+5. **Limite de tentativas:** `iniciar_sessao_mesa` não tem limite; com 256 bits de entropia, adivinhar um token é inviável — prioridade baixa.
+
+Qualquer um desses itens exige mudança no banco: será apresentada como SQL + impacto para aprovação antes de aplicar.
+
+### 8.3 Divergência banco × repositório (não corrigida)
+- As funções de QR existem no banco, mas não estão em `supabase/migrations/`; o histórico de migrações do projeto está vazio.
+- A migração do repositório revoga `EXECUTE` de `iniciar_sessao_mesa`, mas no banco ela está liberada para `anon` (necessário para o login por QR funcionar).
+- O banco tem 46 funções executáveis por `anon`; o repositório declara 24. Sincronizar às cegas pode quebrar o login por QR ou reabrir funções antigas — requer revisão função a função e aprovação.
+
+### 8.4 Testes
+- `tests/qr.test.js` (jsdom, em `npm test`): 34 cenários com respostas simuladas — sucesso, inválido, desativado/mesa inativa, rede, servidor, cliques repetidos, sessão de mesa sem acesso de equipe, login por senha, token fora da URL e dos logs, gestão por perfil.
+- `tests/qr-browser.mjs` (`npm run test:qr-browser`, Chromium real): gestão gera o QR → a imagem exibida é **decodificada** (jsQR) → o link abre no "celular" em 320–1440 px → cardápio da mesa correta. Usa um simulador em Node que reproduz as regras das funções reais (hash, QR/mesa ativos, sessão única, `_exigir_gerente`). **Não** substitui um teste contra o Supabase real nem a leitura com câmera física.
+- Pendente de validação manual: Supabase real, Safari/iOS, leitores de tela, leitura do QR impresso com câmera.
 
 ## 6. Análise Técnica de 17/10/2026 — Pendências Identificadas
 

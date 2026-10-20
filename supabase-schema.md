@@ -37,8 +37,8 @@ Contas de acesso: mesas (`tipo = 'mesa'`) e funcionários (`tipo = 'funcionario'
 | `login` | varchar(50) | sim | — | Único (índice em `lower(login)`) |
 | `perfil` | varchar(20) | sim | — | `atendente` \| `gerente`; `NULL` para mesas |
 | `ativo` | boolean | não | `true` | Contas inativas não autenticam |
-| `qr_code_ativo` | boolean | não | `false` | Reservado para QR das mesas |
-| `qr_token_hash` | text | sim | — | Reservado |
+| `qr_code_ativo` | boolean | não | `false` | `true` enquanto a mesa tem QR Code emitido e não revogado (seção 3.6) |
+| `qr_token_hash` | text | sim | — | Hash do token do QR Code (`_hash_token`); o token em si não é armazenado. `NULL` após desativar |
 | `criado_em` | timestamptz | não | `now()` | |
 | `senha_hash` | text | sim | — | bcrypt |
 | `senha_atualizada_em` | timestamptz | sim | — | |
@@ -168,6 +168,7 @@ Todas as funções abaixo estão em `public`, são `SECURITY DEFINER` com `searc
 | `criar_gerente_inicial(p_login, p_senha, p_nome)` | text, text, text | `{id, mensagem}` |
 | `autenticar_usuario(p_login, p_senha)` | text, text | `{sucesso, usuario{id,nome,login,tipo,perfil}, tipo_sessao, session_token, expira_em}` ou `{sucesso:false, codigo, mensagem}` |
 | `encerrar_sessao(p_session_token)` | text | `{mensagem}` |
+| `iniciar_sessao_mesa(p_qr_token, p_duracao_horas = 12)` | text, int | `{sucesso, usuario{…tipo:'mesa'}, tipo_sessao:'mesa', session_token, expira_em, via:'qr_code'}`; token desconhecido/curto → `28000` (seção 3.6) |
 
 ### 3.2 Mesa
 
@@ -202,6 +203,9 @@ Todas as funções abaixo estão em `public`, são `SECURITY DEFINER` com `searc
 | `relatorio_faturamento(p_session_token, p_data_inicio, p_data_fim)` | text, timestamptz, timestamptz |
 | `backup_exportar(p_session_token)` | text |
 | `backup_importar(p_session_token, p_payload, p_modo)` | text, jsonb, text (`merge`\|`replace`) |
+| `gerar_qr_code_mesa(p_session_token, p_mesa_id)` | text, uuid → `{mesa_id, mesa_nome, qr_token, url_relativa, gerado_por, gerado_em}` |
+| `status_qr_mesas(p_session_token)` | text → `{mesas:[{mesa_id, mesa_nome, ativo, qr_code_ativo, sessao_aberta}], gerado_em}` |
+| `desativar_qr_mesa(p_session_token, p_mesa_id)` | text, uuid → `{mesa_id, qr_code_ativo:false}` |
 
 ### 3.5 Regras implementadas no banco
 
@@ -210,6 +214,16 @@ Todas as funções abaixo estão em `public`, são `SECURITY DEFINER` com `searc
 - **RN-04:** `atualizar_status_pedido(..., 'Cancelado')` devolve os insumos ao estoque; pedidos `Entregue`/`Cancelado` são imutáveis.
 - **RN-05/RN-06:** apenas `perfil = 'gerente'` executam RPCs de gestão; atendentes operam só pedidos e chamados.
 - **RN-08/RN-09:** faturamento considera exclusivamente pedidos `Entregue` com `entregue_em` no período; ticket médio = receita ÷ pedidos entregues.
+
+### 3.6 QR Code das mesas (verificado no banco em 20/10/2026)
+
+As quatro funções acima existem no banco real (definições lidas com `pg_get_functiondef`), mas **não constam** da migração de referência do repositório — ver `backlog.md` §8.3 (divergência banco × repositório). Regras atuais, sem alteração:
+
+- **Gerar** (`gerar_qr_code_mesa`, só gerente via `_exigir_gerente`): cria `MESA-` + 64 hex (`gen_random_bytes(32)`), grava apenas o hash, marca `qr_code_ativo` e **encerra as sessões da mesa**. Gerar de novo revoga o QR anterior. Mesa inexistente → `P0002`; mesa inativa → `P0001`.
+- **Entrar** (`iniciar_sessao_mesa`, público): exige QR ativo e mesa ativa; abre sessão de 12 h e **encerra as outras sessões da mesa** (uma sessão por mesa). Qualquer falha → `28000`, sem distinguir o motivo.
+- **Status** (`status_qr_mesas`) e **desativar** (`desativar_qr_mesa`, que também encerra as sessões): só gerente.
+- O QR é **estático** até ser gerado de novo ou desativado; fechar/pagar a conta **não** revoga o QR nem a sessão. Inativar/excluir a mesa, importar backup e `encerrar_sessao` encerram as sessões.
+- Sessões de mesa não executam RPCs de equipe: `_exigir_gerente` responde `28000` para token que não é de funcionário e `42501` para funcionário sem perfil gerente.
 
 ---
 
