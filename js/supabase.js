@@ -145,6 +145,12 @@
       return res;
     },
     encerrarSessao: (token) => callRpc('encerrar_sessao', { p_session_token: token }),
+    encerrarSessaoMesaAutorizada: (mesaToken, staffLogin, staffSenha) =>
+      callRpc('encerrar_sessao_mesa_autorizada', {
+        p_session_token_mesa: mesaToken,
+        p_staff_login: staffLogin,
+        p_staff_senha: staffSenha
+      }),
     // QR Code da mesa (assinaturas conferidas no banco em 20/10/2026; ver supabase-schema.md)
     // A duração de 12 h é a mesma da sessão aberta pelo login com senha.
     iniciarSessaoMesaQr: (qrToken) =>
@@ -154,6 +160,14 @@
     statusQrMesas: (token) => callRpc('status_qr_mesas', { p_session_token: token }),
     desativarQrMesa: (token, mesaId) =>
       callRpc('desativar_qr_mesa', { p_session_token: token, p_mesa_id: mesaId }),
+    // QR Codes de equipe (gerente e atendente) — individual por funcionário
+    iniciarSessaoFuncionarioQr: (qrToken) =>
+      callRpc('iniciar_sessao_funcionario_qr', { p_qr_token: qrToken, p_duracao_horas: 12 }),
+    gerarQrCodeFuncionario: (token, funcionarioId) =>
+      callRpc('gerar_qr_code_funcionario', { p_session_token: token, p_funcionario_id: funcionarioId }),
+    statusQrFuncionarios: (token) => callRpc('status_qr_funcionarios', { p_session_token: token }),
+    desativarQrFuncionario: (token, funcionarioId) =>
+      callRpc('desativar_qr_funcionario', { p_session_token: token, p_funcionario_id: funcionarioId }),
     precisaBootstrap: () => callRpc('sistema_precisa_bootstrap'),
     criarGerenteInicial: (login, senha, nome) =>
       callRpc('criar_gerente_inicial', { p_login: login, p_senha: senha, p_nome: nome }),

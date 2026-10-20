@@ -61,6 +61,9 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 20/10/2026 | 2.5 | Correcao | Front-end/Acessibilidade | Alvos de toque ≥ 44 px, `:focus-visible`, modais com `role="dialog"`/`aria-modal`, foco preso, Esc e retorno do foco (`NeoModal`), ícones decorativos com `aria-hidden`, indicadores do carrossel como botões, setas do teclado restritas ao carrossel, pausa da rotação no hover/foco e sem rotação com `prefers-reduced-motion`, botão "Importar Backup" acessível por teclado. | Arena Agent | Em revisão |
 | 20/10/2026 | 2.5 | Adicionado | Testes | `tests/smoke.js` ampliado (menu, barra inferior, modais, tabelas, ARIA) e novo `tests/responsive.mjs` (Chromium via `CHROME_PATH`, Supabase simulado, 6 larguras × 2 temas, verificação de carga antes do layout). | Arena Agent | Em revisão |
 | 20/10/2026 | 2.5 | Documentacao | Design/Contraste | Pendência registrada (seção 7.3): contrastes abaixo de 4,5:1 da paleta atual, mantida sem alteração por decisão do stakeholder. | Arena Agent | Pendente |
+| 20/10/2026 | 2.6 | Correcao | Autenticação/Sessões | Múltiplas sessões simultâneas: `autenticar_usuario` e `iniciar_sessao_mesa` deixaram de invalidar sessões anteriores; cada login gera token independente em `sessoes_mesa`/`sessoes_funcionario` (12 h). `gerar_qr_code_mesa` não encerra mais sessões ativas. Logout de staff continua direto; logout de mesa exige nova RPC. Migração `20261020_neoorder_multisession_qr_staff_logout.sql` criada (pendente de aplicação em produção). | Arena Agent | Em revisão |
+| 20/10/2026 | 2.6 | Adicionado | QR Staff | QR Codes individuais para gerente e atendente: `gerar_qr_code_funcionario`, `iniciar_sessao_funcionario_qr` (FUNC- + 64 hex, hash SHA-256, 12 h), `status_qr_funcionarios`, `desativar_qr_funcionario`. Validação de perfil no backend (gerente só gera), isolamento total entre QR de mesa (MESA-) e de staff (FUNC-). Gestão em `contas.html` (badges, modal unificado, QR local). Login via `login.html?qr=` com detecção de prefixo e redirecionamento por perfil. | Arena Agent | Em revisão |
+| 20/10/2026 | 2.6 | Correcao | Sessão/Mesa | Senha obrigatória para encerrar sessão de mesa: `encerrar_sessao` endurecida para mesa (42501 exige `encerrar_sessao_mesa_autorizada`), nova RPC valida staff (gerente/atendente) com bcrypt + bloqueio 5/15 min, encerra apenas a sessão do token informado, limpa carrinho local e registra auditoria. Modal em `cardapio.html` + fallback dinâmico em `js/auth.js`. | Arena Agent | Em revisão |
 
 
 ---
@@ -421,6 +424,44 @@ Qualquer um desses itens exige mudança no banco: será apresentada como SQL + i
 - `tests/qr.test.js` (jsdom, em `npm test`): 34 cenários com respostas simuladas — sucesso, inválido, desativado/mesa inativa, rede, servidor, cliques repetidos, sessão de mesa sem acesso de equipe, login por senha, token fora da URL e dos logs, gestão por perfil.
 - `tests/qr-browser.mjs` (`npm run test:qr-browser`, Chromium real): gestão gera o QR → a imagem exibida é **decodificada** (jsQR) → o link abre no "celular" em 320–1440 px → cardápio da mesa correta. Usa um simulador em Node que reproduz as regras das funções reais (hash, QR/mesa ativos, sessão única, `_exigir_gerente`). **Não** substitui um teste contra o Supabase real nem a leitura com câmera física.
 - Pendente de validação manual: Supabase real, Safari/iOS, leitores de tela, leitura do QR impresso com câmera.
+
+## 9. Múltiplas Sessões, QR de Equipe e Logout com Senha — 20/10/2026 (v2.6)
+
+### 9.1 Objetivo
+Atender as três prioridades máximas do stakeholder (múltiplos acessos simultâneos, QR de gerente/atendente e senha para encerrar mesa) sem quebrar os fluxos existentes de cardápio, pedidos, estoque e faturamento. Todas as mudanças de banco são propostas como migração pendente de aprovação (não aplicada automaticamente em produção).
+
+### 9.2 Diagnóstico prévio
+- **Sessões:** `autenticar_usuario` fazia `UPDATE sessoes_* SET ativa=false WHERE usuario_id = ...` a cada login, impondo 1 sessão por conta. Dois gerentes com logins diferentes já eram independentes (linhas diferentes), mas o mesmo gerente em dois tablets se desconectava no primeiro ao logar no segundo. `iniciar_sessao_mesa` e `gerar_qr_code_mesa` tinham o mesmo `UPDATE` (uma sessão por mesa), o que impedia vários celulares da mesma mesa — decisão registrada em 8.2 como “manter até definir divisão de conta”, porém incompatível com a nova prioridade de múltiplos dispositivos.
+- **QR staff:** Não existia. As colunas `qr_code_ativo`/`qr_token_hash` em `usuarios` já estavam em produção (ver §8.3) mas só eram usadas para mesa. Não havia RPC para `FUNC-`, nem UI de gestão para staff.
+- **Logout mesa:** `encerrar_sessao` aceitava qualquer token ativo sem validação adicional, permitindo que um cliente encerrasse a própria sessão (ou, com token vazado, a de outra mesa) sem autorização. O botão “Sair” em `cardapio.html` chamava `NeoAuth.logout()` que apenas fazia `encerrar_sessao(token)` + `clear`.
+
+### 9.3 Mudanças aplicadas (código) e propostas (banco)
+
+**Banco (migração `20261020_neoorder_multisession_qr_staff_logout.sql`, idempotente, não aplicada em produção sem aprovação):**
+- `autenticar_usuario` recriada sem os `UPDATE ativa=false`; insere novo token preservando os anteriores.
+- `gerar_qr_code_mesa` e `iniciar_sessao_mesa` recriadas sem `UPDATE sessoes_mesa` (preservam sessões existentes); contrato mantido (MESA- + 64 hex, 12 h).
+- Novas RPCs: `gerar_qr_code_funcionario`, `iniciar_sessao_funcionario_qr`, `status_qr_funcionarios`, `desativar_qr_funcionario` (todas SECURITY DEFINER, EXECUTE para anon/authenticated, gerência via `_exigir_gerente`).
+- Nova RPC `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_staff_login, p_staff_senha)` com validação bcrypt, bloqueio 5/15 min, encerra apenas a sessão do token informado e registra em `login_tentativas`.
+- `encerrar_sessao` endurecida: se token é de mesa ativa, levanta 42501 instruindo a usar a autorizada; sessões de funcionário continuam diretas.
+- Índices e colunas: `ADD COLUMN IF NOT EXISTS qr_code_ativo/qr_token_hash` + índice em `qr_token_hash` (já existiam em produção).
+
+**Frontend:**
+- `js/supabase.js`: novos métodos `encerrarSessaoMesaAutorizada`, `iniciarSessaoFuncionarioQr`, `gerarQrCodeFuncionario`, `statusQrFuncionarios`, `desativarQrFuncionario`.
+- `js/auth.js`: login por QR detecta prefixo `MESA-` vs `FUNC-`; mensagem e redirecionamento por perfil (mesa→cardapio, atendente→atendimento, gerente→faturamento); `NeoAuth.logout()` para mesa abre modal de autorização (cardapio.html tem modal estático, demais páginas criam fallback dinâmico), `logoutMesaComAutorizacao` chama a nova RPC, limpa `neoorder_session` e `neoorder_cart_<mesa_id>` e redireciona.
+- `contas.html` + `js/contas.js`: gestão unificada de QR (mesa e staff) com badges, `status_qr_mesas` + `status_qr_funcionarios`, modal com nota dinâmica, geração local do QR (qrcode-generator.js) e mascaramento do link.
+- `cardapio.html`: modal `logoutMesaModal` com login/senha do staff, acessível por teclado e leitor de tela.
+- `tests/qr.test.js`: mock atualizado para incluir staff, cenários 10b/10j ajustados; 6a preservado (token de mesa que retorna staff deve ser recusado e encerrado).
+
+### 9.4 Testes executados (simulados, sem Supabase real)
+- `npm test` (jsdom): `smoke.js` 8 cenários OK; `qr.test.js` 34 cenários OK (inclui novos cenários de staff QR: geração, status e isolamento; geração inválida, desativado, rede, sessão não-mesa).
+- Teste manual simulado (jsdom, sem rede) para `encerrar_sessao_mesa_autorizada`: staff correto encerra apenas a sessão alvo (42501 bloqueia `encerrar_sessao` direto para mesa), senha incorreta retorna 28000, token já encerrado é idempotente, atendente também autoriza (conforme escolha do stakeholder).
+- Pendente de validação com banco real: login por QR em dispositivo físico, leitura de QR impresso com câmera, Safari/iOS, leitores de tela, múltiplas sessões simultâneas no Supabase de produção e revogação efetiva após geração de novo QR.
+
+### 9.5 Riscos e pendências restantes
+- A migração ainda não foi aplicada em produção; até lá, `encerrar_sessao` direto para mesa ainda funcionará (inseguro) e `status_qr_funcionarios` retornará 42883 (tratado como indisponível, QR de staff oculto).
+- QR estático: quem fotografar o QR de mesa ou staff pode reutilizar enquanto não for regenerado (recomendação: regenerar a cada troca de cliente e expirar no fechamento de conta — fluxo de fechamento ainda pendente §1.15.5).
+- Sessões têm 12 h fixas; não há expiração curta para QR. Fragmento `#qr=` para evitar logs de hospedagem ainda pendente (§8.2 item 4).
+- Acesso público de demonstração por QR (pendência de alta prioridade) permanece pendente, sem tarefa numerada no roadmap, conforme orientação.
 
 ## 6. Análise Técnica de 17/10/2026 — Pendências Identificadas
 

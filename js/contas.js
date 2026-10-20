@@ -11,6 +11,9 @@
   // QR Code das mesas: estado vindo de status_qr_mesas (mesa_id -> { qr_code_ativo, sessao_aberta })
   let qrStatus = new Map();
   let qrDisponivel = false;
+  // QR Code de equipe (gerente/atendente) — status_qr_funcionarios
+  let qrStatusStaff = new Map();
+  let qrStaffDisponivel = false;
 
   document.addEventListener('DOMContentLoaded', async () => {
     const user = window.NeoAuth.requireAuth(['gerente']);
@@ -32,7 +35,7 @@
     }
 
     try {
-      const [data] = await Promise.all([NeoAPI.listarContas(token), carregarStatusQr()]);
+      const [data] = await Promise.all([NeoAPI.listarContas(token), carregarStatusQr(), carregarStatusQrStaff()]);
       contas = Array.isArray(data) ? data : [];
       renderContas();
     } catch (err) {
@@ -53,16 +56,40 @@
     } catch (err) {
       qrDisponivel = false;
       qrStatus = new Map();
-      console.warn('Status dos QR Codes indisponível:', err && err.message);
+      console.warn('Status dos QR Codes de mesa indisponível:', err && err.message);
+    }
+  }
+
+  async function carregarStatusQrStaff() {
+    try {
+      const data = await NeoAPI.statusQrFuncionarios(token);
+      const funcs = data && Array.isArray(data.funcionarios) ? data.funcionarios : [];
+      qrStatusStaff = new Map(funcs.map(f => [f.funcionario_id, { ativo: !!f.qr_code_ativo, sessao: !!f.sessao_aberta, perfil: f.perfil }]));
+      qrStaffDisponivel = true;
+    } catch (err) {
+      qrStaffDisponivel = false;
+      qrStatusStaff = new Map();
+      // Não é erro crítico se o backend ainda não tem a nova RPC
+      if (err && err.code && err.code !== '42883') console.warn('Status dos QR Codes de equipe indisponível:', err && err.message);
     }
   }
 
   function qrBadge(conta) {
-    if (!qrDisponivel || conta.tipo !== 'mesa') return '';
-    const st = qrStatus.get(conta.id);
-    return st && st.ativo
-      ? '<span class="badge badge-available qr-badge">QR ativo</span>'
-      : '<span class="badge badge-unavailable qr-badge">Sem QR</span>';
+    if (conta.tipo === 'mesa') {
+      if (!qrDisponivel) return '';
+      const st = qrStatus.get(conta.id);
+      return st && st.ativo
+        ? '<span class="badge badge-available qr-badge">QR ativo</span>'
+        : '<span class="badge badge-unavailable qr-badge">Sem QR</span>';
+    }
+    if (conta.tipo === 'funcionario') {
+      if (!qrStaffDisponivel) return '';
+      const st = qrStatusStaff.get(conta.id);
+      return st && st.ativo
+        ? '<span class="badge badge-available qr-badge">QR ativo</span>'
+        : '<span class="badge badge-unavailable qr-badge">Sem QR</span>';
+    }
+    return '';
   }
 
   function tipoLabel(conta) {
@@ -102,8 +129,8 @@
         <td>${conta.ativo
           ? '<span class="badge badge-available">Ativo</span>'
           : '<span class="badge badge-unavailable">Inativo</span>'}${qrBadge(conta)}</td>
-        <td class="cell-actions">${qrDisponivel && conta.tipo === 'mesa' ? `
-          <button type="button" class="btn btn-secondary btn-icon" data-qr="${conta.id}" title="QR Code" aria-label="QR Code de ${escapeHtml(conta.nome)}" aria-haspopup="dialog">
+        <td class="cell-actions">${((qrDisponivel && conta.tipo === 'mesa') || (qrStaffDisponivel && conta.tipo === 'funcionario')) ? `
+          <button type="button" class="btn btn-secondary btn-icon" data-qr="${conta.id}" data-qr-tipo="${conta.tipo}" title="QR Code" aria-label="QR Code de ${escapeHtml(conta.nome)}" aria-haspopup="dialog">
             <span class="material-symbols-outlined" style="font-size:16px;">qr_code_2</span>
           </button>` : ''}
           <button type="button" class="btn btn-secondary btn-icon" data-edit="${conta.id}" title="Editar" aria-label="Editar ${escapeHtml(conta.nome)}">
@@ -130,25 +157,44 @@
   }
 
   // ---------------------------------------------------------------------------
-  // QR Code da mesa (RPCs gerar_qr_code_mesa / status_qr_mesas / desativar_qr_mesa,
-  // todas exigem sessão de gerente no servidor via _exigir_gerente)
+  // QR Codes (mesa e equipe) — todas exigem sessão de gerente via _exigir_gerente
   // ---------------------------------------------------------------------------
 
-  let qrMesaId = null;      // mesa aberta no modal
+  let qrAlvoId = null;      // id da conta (mesa ou funcionário) aberta no modal
+  let qrAlvoTipo = null;    // 'mesa' | 'funcionario'
   let qrUrlAtual = null;    // link completo, apenas em memória enquanto o modal está aberto
   let qrOcupado = false;    // evita gerar/desativar em duplicidade
+  // Compatibilidade: antigo qrMesaId
+  let qrMesaId = null;
 
+  function contaAlvo() {
+    if (!qrAlvoId) return null;
+    return contas.find(c => c.id === qrAlvoId) || null;
+  }
   function mesaAtual() {
+    // compatibilidade para código legado
+    if (qrAlvoTipo === 'mesa') return contaAlvo();
     return contas.find(c => c.id === qrMesaId && c.tipo === 'mesa') || null;
   }
 
   function abrirQr(id) {
-    const conta = contas.find(c => c.id === id && c.tipo === 'mesa');
+    const conta = contas.find(c => c.id === id);
     if (!conta) return;
-    qrMesaId = id;
+    qrAlvoId = id;
+    qrAlvoTipo = conta.tipo;
+    qrMesaId = conta.tipo === 'mesa' ? id : null;
     limparQrGerado();
     const titulo = document.getElementById('qrModalTitle');
-    if (titulo) titulo.textContent = `QR Code — ${conta.nome}`;
+    if (titulo) titulo.textContent = `QR Code — ${conta.nome}` + (conta.tipo === 'funcionario' ? ` (${(conta.perfil || 'atendente')})` : '');
+    // Ajusta nota do modal conforme tipo
+    const nota = document.getElementById('qrNote');
+    if (nota) {
+      if (conta.tipo === 'funcionario') {
+        nota.textContent = 'Por segurança, o sistema guarda apenas uma assinatura do QR Code: a imagem aparece somente no momento em que é gerada. Para reimprimir, gere um novo — o anterior deixa de funcionar. Cada funcionário tem seu QR individual.';
+      } else {
+        nota.textContent = 'Por segurança, o sistema guarda apenas uma assinatura do QR Code: a imagem aparece somente no momento em que é gerada. Para reimprimir, gere um novo — o anterior deixa de funcionar e a sessão aberta nesta mesa é encerrada.';
+      }
+    }
     renderQrStatus();
     const modal = document.getElementById('qrModal');
     if (modal) modal.style.display = 'flex';
@@ -157,11 +203,20 @@
 
   // Consulta o estado atual no servidor (sessão pode ter sido aberta/fechada depois do carregamento).
   async function atualizarStatusQr(id) {
+    const conta = contas.find(c => c.id === id);
+    if (!conta) return;
     try {
-      const data = await NeoAPI.statusQrMesas(token);
-      const mesas = data && Array.isArray(data.mesas) ? data.mesas : [];
-      qrStatus = new Map(mesas.map(m => [m.mesa_id, { ativo: !!m.qr_code_ativo, sessao: !!m.sessao_aberta }]));
-      if (qrMesaId === id && !qrOcupado && !qrUrlAtual) renderQrStatus();
+      if (conta.tipo === 'mesa') {
+        const data = await NeoAPI.statusQrMesas(token);
+        const mesas = data && Array.isArray(data.mesas) ? data.mesas : [];
+        qrStatus = new Map(mesas.map(m => [m.mesa_id, { ativo: !!m.qr_code_ativo, sessao: !!m.sessao_aberta }]));
+        if (qrAlvoId === id && !qrOcupado && !qrUrlAtual) renderQrStatus();
+      } else if (conta.tipo === 'funcionario') {
+        const data = await NeoAPI.statusQrFuncionarios(token);
+        const funcs = data && Array.isArray(data.funcionarios) ? data.funcionarios : [];
+        qrStatusStaff = new Map(funcs.map(f => [f.funcionario_id, { ativo: !!f.qr_code_ativo, sessao: !!f.sessao_aberta, perfil: f.perfil }]));
+        if (qrAlvoId === id && !qrOcupado && !qrUrlAtual) renderQrStatus();
+      }
       renderContas();
     } catch (err) {
       console.warn('Não foi possível atualizar o status do QR Code:', err && err.message);
@@ -170,6 +225,8 @@
 
   function fecharQr() {
     limparQrGerado();
+    qrAlvoId = null;
+    qrAlvoTipo = null;
     qrMesaId = null;
     fecharModal('qrModal');
   }
@@ -187,15 +244,16 @@
   }
 
   function renderQrStatus(extra) {
-    const conta = mesaAtual();
+    const conta = contaAlvo();
     const el = document.getElementById('qrStatus');
     if (!conta || !el) return;
-    const st = qrStatus.get(conta.id) || { ativo: false, sessao: false };
+    const isMesa = conta.tipo === 'mesa';
+    const st = isMesa ? (qrStatus.get(conta.id) || { ativo: false, sessao: false }) : (qrStatusStaff.get(conta.id) || { ativo: false, sessao: false });
     const partes = [
       st.ativo ? '<span class="badge badge-available">QR Code ativo</span>' : '<span class="badge badge-unavailable">Sem QR Code ativo</span>',
       st.sessao ? '<span class="badge badge-pending">Sessão aberta agora</span>' : '<span class="badge badge-ready">Nenhuma sessão aberta</span>'
     ];
-    if (!conta.ativo) partes.push('<span>Mesa inativa: ative a conta para gerar um QR Code.</span>');
+    if (!conta.ativo) partes.push(`<span>${isMesa ? 'Mesa inativa' : 'Funcionário inativo'}: ative a conta para gerar um QR Code.</span>`);
     if (extra) partes.push(`<span>${escapeHtml(extra)}</span>`);
     el.innerHTML = partes.join(' ');
 
@@ -215,15 +273,18 @@
   }
 
   async function gerarQr() {
-    const conta = mesaAtual();
+    const conta = contaAlvo();
     if (!conta || qrOcupado) return;
     if (typeof window.qrcode !== 'function') {
       NeoUI.toast('Gerador de QR Code indisponível. Recarregue a página.', 'error', 6000);
       return;
     }
-    const st = qrStatus.get(conta.id) || {};
-    if ((st.ativo || st.sessao) && !window.confirm(
-      `Gerar um novo QR Code para "${conta.nome}"?\n\nO QR Code anterior deixará de funcionar e a sessão aberta nesta mesa será encerrada.`)) {
+    const isMesa = conta.tipo === 'mesa';
+    const st = isMesa ? (qrStatus.get(conta.id) || {}) : (qrStatusStaff.get(conta.id) || {});
+    const msgEncerramento = isMesa
+      ? `Gerar um novo QR Code para "${conta.nome}"?\n\nO QR Code anterior deixará de funcionar e a sessão aberta nesta mesa será encerrada.`
+      : `Gerar um novo QR Code para "${conta.nome}" (${conta.perfil || 'atendente'})?\n\nO QR Code anterior deixará de funcionar.`;
+    if ((st.ativo || st.sessao) && !window.confirm(msgEncerramento)) {
       return;
     }
 
@@ -231,9 +292,17 @@
     qrOcupado = true;
     NeoUI.setBusy(botao, true, 'Gerando...');
     try {
-      const data = await NeoAPI.gerarQrCodeMesa(token, conta.id);
-      if (!data || data.mesa_id !== conta.id || !data.qr_token) {
-        throw new Error('Resposta inesperada do servidor ao gerar o QR Code.');
+      let data;
+      if (isMesa) {
+        data = await NeoAPI.gerarQrCodeMesa(token, conta.id);
+        if (!data || data.mesa_id !== conta.id || !data.qr_token) {
+          throw new Error('Resposta inesperada do servidor ao gerar o QR Code.');
+        }
+      } else {
+        data = await NeoAPI.gerarQrCodeFuncionario(token, conta.id);
+        if (!data || data.funcionario_id !== conta.id || !data.qr_token) {
+          throw new Error('Resposta inesperada do servidor ao gerar o QR Code.');
+        }
       }
       const relativa = typeof data.url_relativa === 'string' && data.url_relativa.indexOf('login.html?qr=') === 0
         ? data.url_relativa
@@ -245,12 +314,14 @@
       qr.make();
       document.getElementById('qrFigure').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
       document.getElementById('qrFigure').setAttribute('aria-label', `QR Code de acesso da ${conta.nome}`);
-      document.getElementById('qrPrintTitle').textContent = data.mesa_nome || conta.nome;
+      document.getElementById('qrPrintTitle').textContent = (data.mesa_nome || data.funcionario_nome || conta.nome);
       document.getElementById('qrLinkPreview').textContent = mascararLink(qrUrlAtual);
       document.getElementById('qrResult').hidden = false;
       document.getElementById('btnQrPrint').hidden = false;
 
-      qrStatus.set(conta.id, { ativo: true, sessao: false });
+      if (isMesa) qrStatus.set(conta.id, { ativo: true, sessao: false });
+      else qrStatusStaff.set(conta.id, { ativo: true, sessao: false, perfil: conta.perfil });
+
       qrOcupado = false;
       NeoUI.setBusy(botao, false);
       renderQrStatus(`Gerado agora${data.gerado_por ? ` por ${data.gerado_por}` : ''}.`);
@@ -268,16 +339,22 @@
   }
 
   async function desativarQr() {
-    const conta = mesaAtual();
+    const conta = contaAlvo();
     if (!conta || qrOcupado) return;
-    if (!window.confirm(`Desativar o QR Code de "${conta.nome}"?\n\nEle deixará de funcionar e a sessão aberta nesta mesa será encerrada.`)) return;
+    const isMesa = conta.tipo === 'mesa';
+    const msgDesat = isMesa
+      ? `Desativar o QR Code de "${conta.nome}"?\n\nEle deixará de funcionar e a sessão aberta nesta mesa será encerrada.`
+      : `Desativar o QR Code de "${conta.nome}" (${conta.perfil || 'atendente'})?\n\nEle deixará de funcionar.`;
+    if (!window.confirm(msgDesat)) return;
 
     const botao = document.getElementById('btnQrDeactivate');
     qrOcupado = true;
     NeoUI.setBusy(botao, true, 'Desativando...');
     try {
-      await NeoAPI.desativarQrMesa(token, conta.id);
-      qrStatus.set(conta.id, { ativo: false, sessao: false });
+      if (isMesa) await NeoAPI.desativarQrMesa(token, conta.id);
+      else await NeoAPI.desativarQrFuncionario(token, conta.id);
+      if (isMesa) qrStatus.set(conta.id, { ativo: false, sessao: false });
+      else qrStatusStaff.set(conta.id, { ativo: false, sessao: false });
       limparQrGerado();
       NeoUI.toast('QR Code desativado.', 'success');
     } catch (err) {
