@@ -1,7 +1,7 @@
 # Backlog — Registro de Alteracoes e Tarefas de Desenvolvimento
 
 Projeto: Sistema de Gerenciamento de Pedidos de Restaurante (NeoOrder)
-Data de atualizacao: 18/10/2026
+Data de atualizacao: 19/10/2026
 
 ---
 
@@ -56,6 +56,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 18/10/2026 | 2.3 | Correcao | Faturamento/Backup | Relatório passou a considerar somente pedidos `Entregue` por `entregue_em` (antes `faturamento.js` contava `Pronto` como receita). Backup exporta 8 tabelas + metadados; importação `merge`/`replace` transacional, com mensagens de erro de integridade. A importação não restaura `usuarios` (senhas) por decisão de segurança. | Arena Agent | Concluido |
 | 18/10/2026 | 2.3 | Refatoracao | Front-end/Geral | Substituição do `safeSupabaseQuery` (timeout de 2,5 s que engolia erros) por um cliente RPC único (`js/supabase.js`) com timeout de 20 s, tradução de SQLSTATE, `toasts`, spinner em botões e estados vazios. Zero chamadas `.from()` em todo o projeto. Remoção de todos os dados mock. `spec.md` permaneceu congelado. | Arena Agent | Concluido |
 | 18/10/2026 | 2.3 | Documentacao | Docs | `README.md` reescrito (execução, banco, credenciais de demonstração, segurança e roteiro de testes); `supabase-schema.md` regenerado a partir do banco real (11 tabelas, 24 RPCs, códigos de erro, RLS); `backlog.md` atualizado com o diagnóstico completo dos erros 400/409/401. | Arena Agent | Concluido |
+| 19/10/2026 | 2.4 | Adicionado | Atendimento/Mesas, Pagamentos, Fidelidade e Estoque | Inclusão das especificações de atendimento por QR Code, sincronização em tempo real, identificação de mesa e cliente, Pix, divisão de conta, encerramento seguro de sessões, importação de NF-e, fichas técnicas, QR Codes de equipe e programa de fidelidade. Implementação e validação pendentes. | Stakeholder | Pendente |
 
 
 ---
@@ -135,6 +136,108 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - **Correção na Gestão de Utilizadores (`js/contas.js` - Erro 400 Bad Request em `POST /usuarios`):**
   - **Problema:** Tentativa de inserção da propriedade `senha` na tabela `usuarios`, campo inexistente no esquema do banco de dados.
   - **Solução:** Remoção da propriedade `senha` das operações de `.insert()` e `.update()` no `js/contas.js`.
+
+
+#### 1.15. Sistema de Atendimento Inteligente e Gestão de Mesas
+
+**Status geral: Pendente de implementação e validação.** Os itens abaixo são requisitos atuais do NeoOrder, não funcionalidades futuras. Antes de desenvolver, comparar o código, `spec.md`, `agents.md`, `supabase-schema.md`, migrações, RPCs e o banco Supabase real. Não marcar como concluído sem testes verificáveis.
+
+##### 1.15.1. Sincronização em Tempo Real
+- Implementar sincronização em tempo real entre celulares dos clientes, tablet fixo da mesa, painel de atendimento e tela da cozinha.
+- Inclusões de itens, alterações de status, cancelamentos, pagamentos, chamados e mudanças de disponibilidade devem ser propagados aos dispositivos autorizados sem depender de recarregamento manual.
+- Avaliar Supabase Realtime/WebSocket de forma compatível com o modelo de segurança atual. Não reabrir leitura direta de tabelas protegidas nem criar policies RLS permissivas apenas para fazer o Realtime funcionar.
+- Se necessário, implementar eventos por canais privados ou RPCs seguras, com autorização por sessão, reconexão, tratamento de eventos duplicados e atualização de estado após perda de conexão.
+- A interface deve indicar estados de conexão e recuperar os dados atuais do servidor ao reconectar.
+
+##### 1.15.2. Identificação Separada de Mesa, Sessão e Cliente
+- Separar a identidade física da mesa da sessão temporária de atendimento e da identidade opcional do cliente.
+- Todo pedido deve registrar de forma consistente a mesa de origem, a sessão de atendimento e, quando houver, o cliente associado, independentemente de o pedido ter sido iniciado no celular ou no tablet fixo.
+- Não presumir que uma mesa corresponde a uma única pessoa ou a uma única conta de cliente. Permitir que várias pessoas participem da mesma conta, preservando a origem de cada item para pagamento dividido.
+- Validar no servidor que a sessão está ativa e pertence à mesa correta antes de aceitar pedidos, chamados, pagamentos ou consultas.
+
+##### 1.15.3. Acesso por QR Code Dinâmico e Interface Responsiva
+- Criar um fluxo de acesso por QR Code dinâmico da mesa, escaneável pela câmera do celular, sem exigir instalação de aplicativo.
+- O QR Code deve apontar para uma sessão/token seguro, revogável e não previsível; não usar apenas o número da mesa como credencial.
+- Implementar geração, exibição, renovação e invalidação dos QR Codes conforme o ciclo de vida da mesa.
+- Garantir que o cardápio, carrinho, pedidos, chamados e pagamento funcionem em celulares, tablets e computadores, em diferentes larguras de tela.
+- Corrigir quebras de layout, rolagem horizontal indevida, controles inacessíveis e elementos que não se ajustam a telas pequenas.
+
+##### 1.15.4. Pagamento por Pix e Divisão da Conta
+- Integrar um provedor de pagamento Pix apropriado, com criação de cobrança, QR Code Pix dinâmico e valor exato calculado no servidor.
+- Exibir o estado do pagamento e confirmar a quitação somente após validação confiável do provedor, por webhook autenticado ou mecanismo oficial equivalente. Não considerar pagamento confirmado apenas porque o cliente retornou à página.
+- Permitir pagar a conta inteira, dividir o valor igualmente entre participantes ou selecionar itens específicos para cada pagante.
+- Impedir que itens sejam cobrados duas vezes ou atribuídos simultaneamente a pagamentos incompatíveis. Tratar idempotência, tentativas repetidas, falhas, expiração e divergências de valor.
+- Registrar transações, valores, método, estado, identificadores do provedor e horários necessários para auditoria, sem armazenar dados sensíveis desnecessários.
+- Não simular confirmação de Pix nem incluir chaves ou segredos do provedor no frontend. Documentar credenciais e configuração segura necessárias à implantação.
+
+##### 1.15.5. Pagamento Tradicional e Chamada de Funcionário
+- Disponibilizar ao cliente um botão para solicitar o fechamento da conta com pagamento tradicional no estabelecimento.
+- Registrar o pedido de fechamento e informar a equipe responsável, evitando solicitações duplicadas ou estados contraditórios.
+- Permitir que um funcionário autorizado confirme o recebimento pelo sistema ou por fluxo de QR Code de equipe validado.
+- Somente após a confirmação confiável do pagamento tradicional ou a confirmação do Pix pelo provedor, concluir o fechamento da conta e iniciar a invalidação da sessão de atendimento.
+- Manter trilha de auditoria de quem confirmou, quando confirmou e qual foi o método de pagamento.
+
+##### 1.15.6. Encerramento Seguro de Sessões e Privacidade
+- Após o pagamento confirmado e o encerramento da conta, invalidar imediatamente todas as sessões temporárias de clientes associadas àquela sessão de mesa, revogando tokens no servidor.
+- Bloquear novas consultas e operações com tokens expirados, revogados ou pertencentes a uma sessão encerrada, mesmo se uma página antiga continuar aberta.
+- Limpar do dispositivo do cliente os dados temporários da mesa, incluindo histórico, carrinho e dados de pagamento que não precisem ser mantidos localmente.
+- Se o cliente tiver entrado em sua conta pessoal de fidelidade, encerrar a associação daquela conta com a sessão da mesa e limpar os dados pessoais exibidos no dispositivo compartilhado; não encerrar indevidamente a conta pessoal em outros dispositivos sem uma regra explícita.
+- Garantir que o próximo cliente não consiga ver pedidos, informações pessoais, pontos, descontos ou pagamentos do cliente anterior.
+
+##### 1.15.7. Reinicialização e Liberação da Mesa
+- Após o fechamento confirmado, permitir que o tablet fixo da mesa limpe a interface e o histórico visível da sessão anterior sem encerrar a autenticação permanente do próprio dispositivo, quando aplicável.
+- Encerrar a sessão temporária anterior, revogar o QR Code/token antigo e gerar um novo QR Code para o próximo atendimento.
+- Garantir que celulares que ainda estejam abertos na sessão anterior percam acesso aos dados e às operações daquela mesa.
+- Implementar estados explícitos para mesa livre, sessão ativa, conta aguardando pagamento e conta encerrada, com transições validadas no servidor.
+- Proteger contra reinicialização acidental de mesa com pedido ou conta ainda em aberto; exigir autorização e confirmação apropriadas para operações administrativas excepcionais.
+
+##### 1.15.8. Entrada de Estoque por XML de NF-e
+- Implementar importação de arquivo XML de NF-e para extrair dados da nota, fornecedor, produtos, unidades, quantidades, valores e informações de identificação disponíveis.
+- Exibir uma prévia para conferência antes de registrar a entrada no estoque e permitir mapear produtos da nota aos insumos já cadastrados.
+- Validar o XML, campos obrigatórios, unidades de medida e conversões, valores e quantidades; informar claramente os itens que não puderem ser associados.
+- Prevenir a importação duplicada da mesma nota usando identificadores fiscais confiáveis e registrar o histórico da operação.
+- Registrar fornecedor, número/chave da nota, data, itens, quantidades e usuário responsável, conforme o modelo de dados definido.
+- Executar o lançamento de forma transacional: se houver falha, não deixar a nota parcialmente aplicada ao estoque.
+- Não confiar exclusivamente nos dados enviados pelo frontend; validar novamente no servidor e não tratar o XML como prova de autenticidade fiscal além do que o sistema efetivamente verificar.
+
+##### 1.15.9. Fichas Técnicas, Baixa de Insumos e Disponibilidade Automática
+- Cada prato deve possuir uma ficha técnica que relacione os ingredientes e as quantidades necessárias por porção, incluindo unidades e conversões consistentes.
+- Ao aceitar um pedido, calcular e debitar os insumos no servidor dentro da mesma transação que registra o pedido, com bloqueio/concorrência apropriados para impedir estoque negativo e vendas simultâneas acima do disponível.
+- Ao cancelar um pedido, aplicar estorno de estoque de forma controlada e idempotente, conforme o estado do pedido e as regras operacionais; não estornar duas vezes.
+- Recalcular a disponibilidade dos pratos afetados sempre que o estoque mudar por compra, pedido, cancelamento, ajuste manual ou importação de NF-e.
+- Quando qualquer ingrediente obrigatório não tiver quantidade suficiente, desabilitar automaticamente o prato em todos os dispositivos e impedir sua compra no servidor, não apenas ocultar o botão no frontend.
+- Propagar alterações de estoque e disponibilidade em tempo real para o cardápio do celular, tablet e telas operacionais.
+- Exibir mensagens claras sobre indisponibilidade sem expor informações internas ou quantidades sensíveis de estoque ao cliente.
+
+##### 1.15.10. QR Codes de Equipe e Permissões Administrativas
+- Criar QR Codes de equipe para funções autorizadas, como atendente e gerente, para agilizar operações no salão sem digitar senhas repetidamente.
+- Cada QR Code deve identificar um funcionário ou uma credencial de uso controlado, ter validade/revogação, ser verificável no servidor e respeitar o perfil e as permissões associados.
+- O QR Code não pode ser uma chave mestra estática e irrestrita: proteger contra cópia, reutilização indevida e escalada de privilégios. Usar expiração, rotação ou confirmação adicional conforme o risco da operação.
+- Permitir somente a funcionários autorizados as operações de gerente, estornos, encerramento de sessão, liberação/reset de mesa e demais ações administrativas.
+- Registrar auditoria das ações críticas, incluindo identidade/perfil, ação, alvo, data e resultado.
+- Não expor segredos de assinatura ou credenciais administrativas no frontend nem em QR Codes permanentes sem proteção.
+
+##### 1.15.11. Login Opcional por CPF e Programa de Fidelidade
+- Implementar login opcional do cliente por CPF, com validação e proteção dos dados pessoais. O cliente deve conseguir pedir sem criar conta, quando isso for compatível com a política definida.
+- Associar a conta pessoal do cliente à sessão da mesa apenas enquanto autorizado, mantendo a identidade do cliente separada da identidade física da mesa.
+- Implementar cadastro/perfil de cliente, consulta de saldo de pontos, histórico de movimentações, acúmulo por consumo elegível já pago e resgate de recompensas/descontos conforme regras explícitas.
+- Definir e documentar a regra de cálculo de pontos, validade, arredondamento, itens elegíveis, cancelamentos, estornos, limites e resgates. Não inventar taxas de conversão ou benefícios sem especificação aprovada; identificar essas decisões como configuração necessária.
+- Creditar pontos apenas após confirmação do pagamento e impedir créditos duplicados por reprocessamento de eventos ou pagamentos.
+- Validar saldo e resgates no servidor, de forma transacional, impedindo saldo negativo, reutilização de recompensa e manipulação pelo cliente.
+- Garantir que os pontos e dados de um cliente nunca sejam expostos a outro cliente ou à sessão seguinte da mesa. Registrar auditoria dos créditos, estornos e resgates.
+- Tratar CPF como dado pessoal: coletar apenas o necessário, limitar acesso, não exibi-lo integralmente sem necessidade e não gravá-lo em logs públicos ou mensagens de erro.
+
+##### 1.15.12. Compatibilidade, Segurança e Validação Geral
+- Inspecionar todos os arquivos do projeto, `spec.md`, `agents.md`, `supabase-schema.md`, migrações, funções RPC, políticas RLS, configuração Supabase e fluxo atual de autenticação antes de modificar a arquitetura.
+- Conferir a compatibilidade entre frontend, schema real, funções RPC, constraints, índices, permissões e migrações. Criar migrações novas e seguras quando necessárias; não presumir que tabelas, colunas ou integrações já existem.
+- Preservar a regra atual de acesso ao banco via camada RPC segura; não introduzir chamadas diretas às tabelas protegidas ou permissões públicas amplas como atalho.
+- Validar erros HTTP 400, 401 e 409, além de falhas de concorrência, desconexão, pagamentos repetidos, tokens antigos, pedidos simultâneos e estoque insuficiente.
+- Criar ou atualizar testes unitários, de integração e de ponta a ponta para os fluxos de QR Code, pedido, cozinha, estoque, pagamento, divisão de conta, fidelidade, fechamento, reset e reabertura da mesa.
+- Atualizar `supabase-schema.md`, documentação operacional e histórico deste `backlog.md` após as alterações efetivamente realizadas.
+- Não declarar uma funcionalidade concluída apenas por compilar ou por passar em testes simulados. Identificar claramente o que foi testado com banco real, sandbox de pagamento, navegador e dispositivos.
+- Não alterar `spec.md` silenciosamente: se os novos requisitos ainda não estiverem documentados nele, registrar a divergência e alinhar a especificação de forma explícita antes de considerar a documentação consistente.
+
+---
 
 ---
 
@@ -254,12 +357,12 @@ Backup, migração e scripts foram validados por SQL; o sandbox de desenvolvimen
 - Ficou **um** pedido de demonstração — Mesa 05, 1× Pizza de 4 Queijos, R$ 70,00, status `Entregue` — justamente o que foi criado pela validação executada com o papel `anon` (o mesmo usado pelo navegador). Ele serve de evidência do fluxo completo e deixa a tela de faturamento com dados reais.
 - Pasta `image-search/` (rascunhos de banco de imagens, não utilizados e com marcas d'água) removida. As imagens oficiais ficam em `assets/pratos/`.
 
-### 5.11 Pendências conhecidas (fora do escopo desta correção)
+### 5.11 Pendências conhecidas em 18/10/2026 (registro histórico; escopo atualizado na seção 1.15)
 
-1. **Programa de fidelidade:** a tabela `clientes` existe, mas `spec.md` não define login de cliente; a interface de fidelidade foi removida para não prometer algo inexistente.
-2. **QR Code das mesas:** colunas `qr_code_ativo`/`qr_token_hash` reservadas, sem fluxo implementado.
+1. **Programa de fidelidade:** na data deste registro, a tabela `clientes` existia, mas o login do cliente ainda não estava definido e a interface foi removida. A implementação passa a ser requisito atual na seção 1.15.11.
+2. **QR Code das mesas:** na data deste registro, as colunas `qr_code_ativo`/`qr_token_hash` estavam reservadas, sem fluxo implementado. O fluxo completo passa a ser requisito atual na seção 1.15.3 e 1.15.7.
 3. **Backup de contas:** `backup_importar` não restaura `usuarios` de propósito (evita sobrescrever senhas e permitir escalada). Contas devem ser recriadas pelo painel.
-4. **Tempo real:** substituído por polling de 8 s. Habilitar `postgres_changes` exigiria policy de `SELECT` em `pedidos`/`chamados`, reabrindo o acesso direto que esta versão fechou.
+4. **Tempo real:** na data deste registro, o painel usava polling de 8 s. A sincronização em tempo real passa a ser requisito atual na seção 1.15.1, sem reabrir leitura direta insegura das tabelas.
 5. **Testes automatizados:** existe um smoke test de interface (`tests/smoke.js`, `npm test`) que valida as 8 telas contra o contrato das RPCs. Faltam testes de integração com o banco real e E2E em navegador (Playwright + Supabase local).
 
 ---
