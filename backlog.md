@@ -1,7 +1,7 @@
 # Backlog — Registro de Alteracoes e Tarefas de Desenvolvimento
 
 Projeto: Sistema de Gerenciamento de Pedidos de Restaurante (NeoOrder)
-Data de atualizacao: 19/10/2026
+Data de atualizacao: 23/10/2026
 
 ---
 
@@ -63,8 +63,9 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 20/10/2026 | 2.5 | Documentacao | Design/Contraste | Pendência registrada (seção 7.3): contrastes abaixo de 4,5:1 da paleta atual, mantida sem alteração por decisão do stakeholder. | Arena Agent | Pendente |
 | 20/10/2026 | 2.6 | Correcao | Autenticação/Sessões | Múltiplas sessões simultâneas: `autenticar_usuario` e `iniciar_sessao_mesa` deixaram de invalidar sessões anteriores; cada login gera token independente em `sessoes_mesa`/`sessoes_funcionario` (12 h). `gerar_qr_code_mesa` não encerra mais sessões ativas. Logout de staff continua direto; logout de mesa exige nova RPC. Migração `20261020_neoorder_multisession_qr_staff_logout.sql` criada (pendente de aplicação em produção). | Arena Agent | Em revisão |
 | 20/10/2026 | 2.6 | Adicionado | QR Staff | QR Codes individuais para gerente e atendente: `gerar_qr_code_funcionario`, `iniciar_sessao_funcionario_qr` (FUNC- + 64 hex, hash SHA-256, 12 h), `status_qr_funcionarios`, `desativar_qr_funcionario`. Validação de perfil no backend (gerente só gera), isolamento total entre QR de mesa (MESA-) e de staff (FUNC-). Gestão em `contas.html` (badges, modal unificado, QR local). Login via `login.html?qr=` com detecção de prefixo e redirecionamento por perfil. | Arena Agent | Em revisão |
-| 20/10/2026 | 2.6 | Correcao | Sessão/Mesa | Senha obrigatória para encerrar sessão de mesa: `encerrar_sessao` endurecida para mesa (42501 exige `encerrar_sessao_mesa_autorizada`), nova RPC valida staff (gerente/atendente) com bcrypt + bloqueio 5/15 min, encerra apenas a sessão do token informado, limpa carrinho local e registra auditoria. Modal em `cardapio.html` + fallback dinâmico em `js/auth.js`. | Arena Agent | Em revisão |
-| 21/10/2026 | 2.7 | Auditoria | Geral/Código, Banco e Publicação | Auditoria pós-merge PR #20: código das 3 prioridades presente em `main` (9 arquivos, migração 20261020), frontend com QR staff e logout com senha, mas Supabase ainda sem migração (RPCs `status_qr_funcionarios` etc. retornam PGRST202) e Pages em cache. Correção de UX para exibir QR pendente desabilitado + fallback de logout para funcionar com banco antigo (aviso de migração pendente). Testes 34+10 OK. Migração continua pendente de autorização explícita para produção. | Arena Agent | Em revisão |
+| 20/10/2026 | 2.6 | Correcao | Sessão/Mesa | Registro histórico da implementação inicial de logout por senha de funcionário; requisito atualizado em 23/10/2026 para PIN individual de gerente/atendente autorizado. A RPC anterior, o modal e os testes precisam ser adaptados para o novo requisito. | Arena Agent | Em revisão |
+| 21/10/2026 | 2.7 | Auditoria | Geral/Código, Banco e Publicação | Auditoria pós-merge PR #20: código das prioridades presente em `main`, mas o Supabase ainda não tinha a migração necessária. O fluxo de logout descrito nessa auditoria era baseado em senha e foi supersedido em 23/10/2026 pelo requisito de PIN individual. A migração existente precisa ser revisada antes de qualquer aplicação. | Arena Agent | Em revisão |
+| 23/10/2026 | 2.8 | Alteracao de Requisito | Sessão/Mesa | Substituição da autorização de logout de mesa por senha/login de funcionário por PIN individual de 6 dígitos de gerente ou atendente autorizado. O PIN deve ser validado no backend, armazenado somente como hash, ter limitação de tentativas, identificar o funcionário autorizador e encerrar apenas a sessão da mesa solicitada. Código e migração ainda precisam ser adequados e testados; esta alteração documental não significa que a funcionalidade esteja implementada. | Stakeholder | Pendente |
 
 
 ---
@@ -426,10 +427,10 @@ Qualquer um desses itens exige mudança no banco: será apresentada como SQL + i
 - `tests/qr-browser.mjs` (`npm run test:qr-browser`, Chromium real): gestão gera o QR → a imagem exibida é **decodificada** (jsQR) → o link abre no "celular" em 320–1440 px → cardápio da mesa correta. Usa um simulador em Node que reproduz as regras das funções reais (hash, QR/mesa ativos, sessão única, `_exigir_gerente`). **Não** substitui um teste contra o Supabase real nem a leitura com câmera física.
 - Pendente de validação manual: Supabase real, Safari/iOS, leitores de tela, leitura do QR impresso com câmera.
 
-## 9. Múltiplas Sessões, QR de Equipe e Logout com Senha — 20/10/2026 (v2.6)
+## 9. Múltiplas Sessões, QR de Equipe e Logout de Mesa por PIN — 20/10/2026 (v2.6; requisito atualizado em 23/10/2026)
 
 ### 9.1 Objetivo
-Atender as três prioridades máximas do stakeholder (múltiplos acessos simultâneos, QR de gerente/atendente e senha para encerrar mesa) sem quebrar os fluxos existentes de cardápio, pedidos, estoque e faturamento. Todas as mudanças de banco são propostas como migração pendente de aprovação (não aplicada automaticamente em produção).
+Atender as prioridades máximas do stakeholder (múltiplos acessos simultâneos, QR de gerente/atendente e autorização segura para encerrar a sessão de uma mesa) sem quebrar os fluxos existentes de cardápio, pedidos, estoque e faturamento. **Requisito atualizado em 23/10/2026:** o logout de mesa deve ser autorizado por PIN individual de 6 dígitos de um gerente ou atendente autorizado, em vez de pedir login e senha. A implementação antiga baseada em senha está supersedida e precisa ser atualizada no código e na migração. Todas as mudanças de banco são propostas como migração pendente de aprovação (não aplicada automaticamente em produção).
 
 ### 9.2 Diagnóstico prévio
 - **Sessões:** `autenticar_usuario` fazia `UPDATE sessoes_* SET ativa=false WHERE usuario_id = ...` a cada login, impondo 1 sessão por conta. Dois gerentes com logins diferentes já eram independentes (linhas diferentes), mas o mesmo gerente em dois tablets se desconectava no primeiro ao logar no segundo. `iniciar_sessao_mesa` e `gerar_qr_code_mesa` tinham o mesmo `UPDATE` (uma sessão por mesa), o que impedia vários celulares da mesma mesa — decisão registrada em 8.2 como “manter até definir divisão de conta”, porém incompatível com a nova prioridade de múltiplos dispositivos.
@@ -442,7 +443,7 @@ Atender as três prioridades máximas do stakeholder (múltiplos acessos simult�
 - `autenticar_usuario` recriada sem os `UPDATE ativa=false`; insere novo token preservando os anteriores.
 - `gerar_qr_code_mesa` e `iniciar_sessao_mesa` recriadas sem `UPDATE sessoes_mesa` (preservam sessões existentes); contrato mantido (MESA- + 64 hex, 12 h).
 - Novas RPCs: `gerar_qr_code_funcionario`, `iniciar_sessao_funcionario_qr`, `status_qr_funcionarios`, `desativar_qr_funcionario` (todas SECURITY DEFINER, EXECUTE para anon/authenticated, gerência via `_exigir_gerente`).
-- Nova RPC `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_staff_login, p_staff_senha)` com validação bcrypt, bloqueio 5/15 min, encerra apenas a sessão do token informado e registra em `login_tentativas`.
+- **Implementação anterior, baseada em senha (não é mais o requisito desejado):** a migração v2.6 propôs `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_staff_login, p_staff_senha)` com validação bcrypt e bloqueio 5/15 min. Essa assinatura precisa ser substituída/adequada em uma nova migração revisada para o fluxo por PIN; não presumir que o banco já aceita PIN.
 - `encerrar_sessao` endurecida: se token é de mesa ativa, levanta 42501 instruindo a usar a autorizada; sessões de funcionário continuam diretas.
 - Índices e colunas: `ADD COLUMN IF NOT EXISTS qr_code_ativo/qr_token_hash` + índice em `qr_token_hash` (já existiam em produção).
 
@@ -450,12 +451,12 @@ Atender as três prioridades máximas do stakeholder (múltiplos acessos simult�
 - `js/supabase.js`: novos métodos `encerrarSessaoMesaAutorizada`, `iniciarSessaoFuncionarioQr`, `gerarQrCodeFuncionario`, `statusQrFuncionarios`, `desativarQrFuncionario`.
 - `js/auth.js`: login por QR detecta prefixo `MESA-` vs `FUNC-`; mensagem e redirecionamento por perfil (mesa→cardapio, atendente→atendimento, gerente→faturamento); `NeoAuth.logout()` para mesa abre modal de autorização (cardapio.html tem modal estático, demais páginas criam fallback dinâmico), `logoutMesaComAutorizacao` chama a nova RPC, limpa `neoorder_session` e `neoorder_cart_<mesa_id>` e redireciona.
 - `contas.html` + `js/contas.js`: gestão unificada de QR (mesa e staff) com badges, `status_qr_mesas` + `status_qr_funcionarios`, modal com nota dinâmica, geração local do QR (qrcode-generator.js) e mascaramento do link.
-- `cardapio.html`: modal `logoutMesaModal` com login/senha do staff, acessível por teclado e leitor de tela.
+- `cardapio.html`: o modal `logoutMesaModal` atual foi projetado para login/senha do funcionário. Atualizar para solicitar apenas o PIN individual, com acessibilidade por teclado e leitor de tela.
 - `tests/qr.test.js`: mock atualizado para incluir staff, cenários 10b/10j ajustados; 6a preservado (token de mesa que retorna staff deve ser recusado e encerrado).
 
 ### 9.4 Testes executados (simulados, sem Supabase real)
 - `npm test` (jsdom): `smoke.js` 8 cenários OK; `qr.test.js` 34 cenários OK (inclui novos cenários de staff QR: geração, status e isolamento; geração inválida, desativado, rede, sessão não-mesa).
-- Teste manual simulado (jsdom, sem rede) para `encerrar_sessao_mesa_autorizada`: staff correto encerra apenas a sessão alvo (42501 bloqueia `encerrar_sessao` direto para mesa), senha incorreta retorna 28000, token já encerrado é idempotente, atendente também autoriza (conforme escolha do stakeholder).
+- Teste manual simulado histórico (jsdom, sem rede) para a versão anterior por senha: funcionário correto encerrava apenas a sessão alvo, senha incorreta retornava 28000 e atendente também autorizava. Esses testes não validam o requisito novo de PIN e devem ser atualizados para cobrir PIN válido/inválido, funcionário identificado, tentativas excedidas e bloqueio de bypass.
 - Pendente de validação com banco real: login por QR em dispositivo físico, leitura de QR impresso com câmera, Safari/iOS, leitores de tela, múltiplas sessões simultâneas no Supabase de produção e revogação efetiva após geração de novo QR.
 
 ### 9.5 Riscos e pendências restantes
@@ -479,19 +480,19 @@ Após o merge do PR #20 (8eaf3fe) verificou-se:
 
 ### 10.2 Correções desta PR (sem alterar banco de produção sem autorização)
 - **UX resiliente:** `js/contas.js` agora exibe QR de mesa e staff sempre (mesmo quando `status_qr_*` falha), com badge `QR pendente` e botão desabilitado + tooltip “QR requer atualização do banco” e `console.warn` com código do erro, em vez de ocultar. Teste `10j` atualizado para validar esse comportamento.
-- **Logout fallback:** `js/auth.js` `logoutMesaComAutorizacao` detecta `PGRST202/42883` (função não encontrada) e faz fallback para `encerrar_sessao` legado com `toast` informativo “validação de senha ainda não ativa no banco (migração pendente)”, garantindo que mesa ainda consiga sair mesmo antes da migração (com aviso de segurança pendente).
+- **Logout fallback (histórico):** `js/auth.js` `logoutMesaComAutorizacao` detecta `PGRST202/42883` e faz fallback para `encerrar_sessao` legado com aviso de que a validação de autorização ainda não está ativa no banco. Esse fallback não satisfaz o requisito de PIN e não deve ser tratado como logout seguro; revisar o comportamento para não apresentar uma autorização insegura como válida.
 - **Documentação:** nova seção 10, histórico 2.7, e `supabase-schema.md` mantido v2.6 com nota de pendência. A migração continua **não aplicada**; seu conteúdo (idempotente) está em `supabase/migrations/20261020_*.sql` para revisão e aplicação manual via SQL Editor quando autorizada.
 
 ### 10.3 Validação pós-correção
 - `npm test` → smoke 8 OK, qr 34 OK (com nova UX).
-- `node tests/prioridades.test.js` → 10 OK (P1 multi-sessão simulado, P2 isolamento, P3 senha correta/incorreta e bloqueio de bypass).
-- Teste manual simulado (jsdom, sem rede): QR de mesa válido → cardápio, QR de staff gerente → faturamento, atendente → atendimento; QR inválido/revogado → 28000 sem distinguir; encerrar mesa com senha errada → 28000, sem senha → 42501, com senha correta → sessão encerrada + carrinho limpo.
+- `node tests/prioridades.test.js` → 10 OK nos testes simulados históricos (P1 multi-sessão, P2 isolamento e P3 validação por senha na versão anterior). **Não comprova o novo requisito de PIN**; os testes precisam ser adaptados e executados novamente.
+- Teste manual simulado histórico (jsdom, sem rede): QR de mesa válido → cardápio, QR de staff gerente → faturamento, atendente → atendimento; QR inválido/revogado → 28000 sem distinguir. A parte de logout desse teste usava senha e **não valida o requisito atual de PIN**; precisa ser refeita após a implementação.
 - **Pendente com banco real:** aplicar migração em staging/produção, testar leitura de QR impresso com câmera, Safari/iOS, múltiplos dispositivos reais e expiração.
 
 ### 10.4 Próximos passos (requer autorização)
-1. Revisar `supabase/migrations/20261020_neoorder_multisession_qr_staff_logout.sql` (15 seções, sem `DROP` destrutivo) e aplicar no projeto `nurnxrtxdcasrjcwxvky` via SQL Editor.
+1. Revisar e adaptar `supabase/migrations/20261020_neoorder_multisession_qr_staff_logout.sql` para suportar PIN individual, sem aplicar a versão antiga. Apresentar o SQL e os riscos para aprovação antes de qualquer alteração no projeto `nurnxrtxdcasrjcwxvky`.
 2. Verificar no Supabase Dashboard: `SELECT proname FROM pg_proc WHERE proname LIKE '%qr%';` deve listar 8 funções (4 mesa + 4 staff).
-3. Testar em produção: gerar QR de gerente/atendente em `contas.html`, escanear com celular, verificar permissões e isolamento; testar logout de mesa com senha correta/incorreta e tentativa direta via `curl` às RPCs.
+3. Após autorização e atualização da migração, testar em ambiente autorizado: gerar QR de gerente/atendente em `contas.html`, escanear com celular, verificar permissões e isolamento; testar logout de mesa com PIN correto/incorreto, PIN sem permissão, limite de tentativas e tentativa direta via `curl` às RPCs.
 4. Após validação, marcar P1-P3 como concluído em `backlog.md` e publicar nova tag de release.
 
 ## 6. Análise Técnica de 17/10/2026 — Pendências Identificadas
@@ -563,6 +564,42 @@ Não realizar alterações no banco de produção, nas políticas RLS, nas funç
 Documentação:
 
 Atualizar o histórico de alterações e o backlog com as mudanças realizadas, os testes executados, os problemas encontrados e as pendências restantes.
+## 11. Requisito Atual — PIN Individual para Encerrar Sessão de Mesa (23/10/2026)
+
+**Status: Pendente de implementação e validação real.** Esta seção prevalece sobre qualquer descrição anterior de logout de mesa por senha.
+
+### Comportamento esperado
+
+- Ao solicitar logout de uma mesa, pedir **somente o PIN individual de 6 dígitos** do funcionário autorizador; não pedir o login e a senha da conta do funcionário nesse fluxo.
+- O PIN deve pertencer a um gerente ou atendente ativo e autorizado. Cada funcionário deve ter seu próprio PIN; não utilizar um PIN compartilhado entre toda a equipe.
+- O backend deve identificar o funcionário correspondente ao PIN, validar sua situação e suas permissões e encerrar somente a sessão da mesa especificada.
+- O PIN deve ser armazenado apenas como hash apropriado para segredo de baixa entropia, nunca em texto puro, localStorage, logs ou respostas de API. Nunca enviar o PIN para o frontend além do campo de entrada nem retorná-lo pelo backend.
+- Aplicar limite de tentativas, atraso/bloqueio progressivo e auditoria sem registrar o PIN. Tratar colisões de PIN: impedir PIN duplicado entre funcionários ativos ou adotar um mecanismo seguro que identifique inequivocamente o funcionário sem pedir a senha/login nesse fluxo.
+- Validar a autorização no backend/RPC; não confiar em validações do navegador. A chamada deve ser atômica e impedir que o identificador/token da mesa seja trocado para encerrar outra sessão.
+- Se o PIN for inválido, estiver duplicado/ambíguo, pertencer a funcionário inativo ou não autorizado, negar a operação sem revelar qual funcionário ou PIN existe.
+- Não usar o PIN de logout como senha de login normal. Senhas de login de funcionários continuam sendo credenciais separadas e não devem ser substituídas globalmente por PIN.
+
+### Alterações técnicas necessárias
+
+- Auditar `js/auth.js`, `js/supabase.js`, `cardapio.html`, `supabase/migrations/20261020_neoorder_multisession_qr_staff_logout.sql`, RPCs relacionadas, esquema e documentação.
+- Substituir o fluxo anterior `p_staff_login`/`p_staff_senha` por um contrato de PIN adequado, com hash e identificação inequívoca do funcionário. O nome final da RPC e os parâmetros devem ser definidos após inspecionar o esquema real; não alterar migrações já aplicadas em lugar sem criar uma migração corretiva revisada.
+- Criar ou adaptar a gestão segura de PINs individuais, incluindo definição/alteração pelo funcionário ou gerente conforme a política do sistema, sem expor PINs existentes. Se não houver regra para criação e recuperação do PIN, apresentar a proposta antes de implementar.
+- Atualizar mensagens da interface, documentação, testes automatizados e testes de integração para falar em PIN, não em senha, nesse fluxo específico.
+- Não aplicar alterações ao banco de produção, políticas RLS, RPCs críticas ou migrações aplicadas sem apresentar o plano e obter autorização explícita.
+
+### Critérios de aceitação
+
+1. PIN correto de gerente autorizado encerra apenas a sessão de mesa escolhida.
+2. PIN correto de atendente autorizado encerra apenas a sessão de mesa escolhida.
+3. PIN incorreto, ambíguo, inativo ou sem permissão é recusado.
+4. Limite de tentativas funciona e os logs não contêm PINs.
+5. Chamadas diretas às RPCs não contornam a validação nem permitem encerrar outra mesa.
+6. Encerrar uma sessão de mesa não afeta sessões de outros dispositivos ou mesas.
+7. Testes simulados são identificados como simulados; o requisito só é concluído após teste com Supabase real em ambiente autorizado.
+8. Backlog e histórico de alterações refletem o progresso real, sem declarar a funcionalidade pronta antes da validação.
+
+---
+
 Pendência de Alta Prioridade — Acesso Público de Demonstração por QR Code
 
 Prioridade: Alta
