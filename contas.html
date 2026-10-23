@@ -226,34 +226,9 @@
     </div>
   </div>
 
-  <!-- PIN individual de 6 dígitos para encerramento de mesa (gerente) — v2.8 -->
-  <div id="pinModal" class="modal-overlay" style="display: none;">
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="pinModalTitle" style="max-width: 480px;">
-      <div class="modal-header">
-        <h3 class="modal-title" id="pinModalTitle">PIN — Funcionário</h3>
-        <button type="button" class="modal-close" id="btnClosePinModal" aria-label="Fechar"><span class="material-symbols-outlined">close</span></button>
-      </div>
-      <div id="pinStatus" role="status" aria-live="polite" style="margin-bottom: var(--space-md);"></div>
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:var(--space-md);">O PIN tem 6 dígitos numéricos e substitui a senha no encerramento de mesa. É armazenado só como hash bcrypt e nunca aparece em logs. Defina um PIN exclusivo por funcionário.</p>
-      <form id="pinForm" class="flex-col">
-        <div class="form-group">
-          <label for="pinInput" class="form-label">Novo PIN (6 dígitos)</label>
-          <div class="input-wrapper">
-            <span class="material-symbols-outlined input-icon">pin</span>
-            <input type="password" id="pinInput" class="input-field" placeholder="000000" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-danger" id="btnPinRemove">Remover PIN</button>
-          <button type="submit" class="btn btn-primary" id="btnPinSave"><span class="material-symbols-outlined">save</span><span>Salvar PIN</span></button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <footer class="footer">
     <div class="container">
-      <p><small style="opacity:0.7">v2.8 — 22/10/2026 — PIN 6 dígitos</small><br>© 2026 NeoOrder — Módulo de Gerenciamento de Contas</p>
+      <p><small style="opacity:0.7">v2.7 — 21/10/2026</small><br>© 2026 NeoOrder — Módulo de Gerenciamento de Contas</p>
     </div>
   </footer>
 
