@@ -1,7 +1,7 @@
 # Backlog — Registro de Alteracoes e Tarefas de Desenvolvimento
 
 Projeto: Sistema de Gerenciamento de Pedidos de Restaurante (NeoOrder)
-Data de atualização: 23/10/2026 (revisão técnica do PIN e da migração pendente)
+Data de atualização: 23/10/2026 (revisão da corretiva PIN-only, segurança, testes e limpeza de referências internas na interface)
 
 ---
 
@@ -17,13 +17,13 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | **TASK-04** | **Pedidos e Carrinho (Mesa)** | Seleção de pratos disponíveis, controle de quantidades, carrinho de compras, finalização de pedido com débito automático no estoque e visualização do histórico de pedidos da mesa. | RF-12, RF-13, RF-14, RF-15, RF-16, RF-17, RF-18, RN-01, RN-03, RN-07 | Alta | **Concluído** |
 | **TASK-05** | **Atendimento e Chamados** | Botão "Chamar Funcionário" com justificativa (Mesa), dashboard de chamados com alerta sonoro e controle de autoplay (Atendente/Gerente), e acompanhamento/atualização de status dos pedidos em tempo real (com estorno em cancelamento). | RF-19, RF-20, RF-26, RF-27, RF-28, RF-29, RF-30, RF-31, RN-04, RN-06 | Alta | **Concluído** |
 | **TASK-06** | **Faturamento (Gerente)** | Dashboard financeira exclusiva para Gerentes, filtro por período (dia, semana, mês), cálculo de total faturado, quantidade de pedidos, ticket médio e pratos mais vendidos. | RF-32, RF-33, RF-34, RF-35, RF-36, RN-04, RN-08, RN-09 | Alta | **Concluído** |
-| **TASK-07** | **Backup e Polimento Final** | Funcionalidade de exportação e importação do estado do sistema em JSON, validação total de RLS, responsividade mobile e acessibilidade. | RF-41, RF-42, RNF-02, RNF-05, RNF-06, RNF-07 | Média | **Concluído** |
+| **TASK-07** | **Backup e Polimento Final** | Exportação/importação JSON, validação de RLS, responsividade, acessibilidade e remoção de referências internas à especificação que apareçam indevidamente na interface, especialmente identificadores numéricos na área de faturamento. | RF-41, RF-42, RNF-02, RNF-05, RNF-06, RNF-07 | Média | **Base concluída; varredura de referências internas pendente** |
 | **TASK-08** | **Múltiplas Sessões Simultâneas** | Auditar e validar sessões independentes em dispositivos/navegadores diferentes, incluindo login, expiração, revogação e encerramento isolado. | Requisitos atuais de autenticação e sessões | **Máxima** | **Pendente de validação real** |
 | **TASK-09** | **QR Codes de Gerente e Atendente** | Corrigir geração, leitura, expiração, revogação e autorização dos QR Codes de equipe, com validação real no Supabase. | Requisitos atuais de QR de equipe e permissões | **Máxima** | **Pendente de validação real** |
-| **TASK-10** | **Encerramento de Mesa por PIN** | Auditar integralmente a migração pendente e substituir o fluxo legado de login/senha por PIN individual de 6 dígitos, validado no backend, com proteção contra tentativas, auditoria segura e validação em banco isolado. | Requisito vigente de PIN individual e segurança de sessões | **Máxima** | **Pendente de auditoria/implementação/validação real** |
+| **TASK-10** | **Encerramento de Mesa por PIN** | Implementar PIN individual de 6 dígitos sem login/senha, HMAC com segredo backend + bcrypt, detecção de colisões, bloqueio de tentativas e auditoria; validar migração corretiva e integração em banco isolado. | Requisito vigente de PIN individual e segurança de sessões | **Máxima** | **Implementado na branch; integração real pendente** |
 | **TASK-11** | **Acesso Público de Demonstração por QR** | Criar acesso de demonstração somente leitura, isolado de perfis operacionais e protegido também no backend/RLS/RPCs. | Requisito de demonstração pública por QR | Alta | **Pendente** |
 
-> **Nota sobre status:** TASK-01 a TASK-07 representam módulos-base/histórico de entregas anteriores; suas marcações não comprovam as prioridades atuais TASK-08 a TASK-11. As prioridades atuais permanecem pendentes até serem validadas de ponta a ponta no ambiente apropriado. Testes simulados, código presente na branch ou uma migração existente no repositório não comprovam que a funcionalidade está ativa no Supabase real.
+> **Nota sobre status:** TASK-01 a TASK-07 representam módulos-base/histórico de entregas anteriores; suas marcações não comprovam as prioridades atuais TASK-08 a TASK-11. A implementação PIN-only foi reportada no commit `ad00246` da branch `arena/bc7a1516-neoorder`, mas a integração PostgreSQL/Supabase real permanece pendente. Testes simulados, código presente na branch ou uma migração existente no repositório não comprovam que a funcionalidade está ativa no Supabase real. A varredura e remoção de referências internas à especificação visíveis na interface também permanece pendente até ser verificada.
 
 ---
 
@@ -73,6 +73,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 23/10/2026 | 2.9 | Revisão de Requisito | Sessão/Mesa | Revisão textual integral do backlog para que o encerramento da sessão de mesa seja descrito consistentemente como autorizado por PIN individual de 6 dígitos. Referências ao método anterior permanecem apenas quando necessárias para identificar trabalho legado a substituir; não representam o requisito vigente. | Stakeholder | Pendente |
 | 23/10/2026 | 3.0 | Correção pós-auditoria | Roadmap/Sessão/Mesa/Supabase | Inclusão de TASK-08 a TASK-11 para rastrear multi-sessão, QR de equipe, PIN de encerramento e QR público de demonstração; esclarecimento de que o contrato legado `p_staff_login/p_staff_senha` está supersedido; inclusão de plano para revisar `supabase-schema.md` e preparar migração corretiva proposta, sem aplicação em produção; distinção explícita entre testes simulados e validação real. | Stakeholder | Pendente |
 | 23/10/2026 | 3.1 | Auditoria de Segurança | Sessão/Mesa/Supabase/Migração | Inclusão dos pontos obrigatórios de revisão da migração `20261022_neoorder_pin_encerramento_mesa.sql`: compatibilidade de assinaturas PostgreSQL/PostgREST, persistência transacional das tentativas, concorrência e bloqueio, unicidade/identificação do PIN, `SECURITY DEFINER`/`search_path`, permissões efetivas, idempotência e compatibilidade com migrações anteriores. Exige evidências SQL e testes em ambiente isolado; não autoriza merge nem aplicação em produção. | Stakeholder | Pendente |
+| 23/10/2026 | 3.2 | Correção e requisito de interface | PIN/Supabase/Interface/Faturamento | Registra a corretiva PIN-only HMAC+bcrypt reportada no commit `ad00246`, com migração `20261023_neoorder_pin_only_hmac_correcao.sql` ainda não aplicada em produção; diferencia testes simulados aprovados de integração real pendente; adiciona à TASK-07 a varredura e remoção de referências internas à especificação exibidas na interface, especialmente códigos/números de recursos visíveis no faturamento. Sem merge, publicação ou alterações em produção. | Arena Agent / Stakeholder | Em revisão |
 
 
 ---
@@ -575,7 +576,7 @@ Após o merge do PR #20 (8eaf3fe) verificou-se:
 
 ## 11. Requisito Atual — PIN Individual para Encerrar Sessão de Mesa (23/10/2026)
 
-**Status: Pendente de implementação e validação real.** Esta seção prevalece sobre qualquer descrição anterior de autorização para encerramento de mesa por outro método.
+**Status em 23/10/2026: implementação reportada na branch `arena/bc7a1516-neoorder`, commit `ad00246`; validação real pendente.** A migração `20261023_neoorder_pin_only_hmac_correcao.sql` é a corretiva proposta para o fluxo PIN-only; não foi aplicada em produção. Esta seção prevalece sobre qualquer descrição anterior de autorização para encerramento de mesa por outro método.
 
 ### Comportamento esperado
 
@@ -592,7 +593,7 @@ Após o merge do PR #20 (8eaf3fe) verificou-se:
 
 **Estado do banco:** a migração e as alterações em `supabase-schema.md` abaixo são trabalho proposto. Este backlog não comprova que qualquer migração foi aplicada, e nenhuma mudança em produção está autorizada por este documento.
 
-- Auditar `js/auth.js`, `js/supabase.js`, `cardapio.html`, todas as RPCs relacionadas, `supabase-schema.md`, as migrações anteriores e, em especial, `supabase/migrations/20261022_neoorder_pin_encerramento_mesa.sql` (migração pendente). Inspecionar o arquivo SQL inteiro e suas dependências; não concluir a revisão apenas por snippets, testes de frontend ou resumo de agente.
+- Auditar `js/auth.js`, `js/supabase.js`, `cardapio.html`, todas as RPCs relacionadas, `supabase-schema.md`, as migrações anteriores, `supabase/migrations/20261022_neoorder_pin_encerramento_mesa.sql` (versão superseded) e `supabase/migrations/20261023_neoorder_pin_only_hmac_correcao.sql` (corretiva proposta, não aplicada em produção). Inspecionar os arquivos SQL completos e suas dependências; não concluir a revisão apenas por snippets, testes de frontend ou resumo de agente.
 - Substituir o contrato legado de autorização por um contrato de PIN adequado, com identificação inequívoca do funcionário. O nome final da RPC e seus parâmetros devem ser definidos após inspecionar o esquema real. Não modificar retroativamente migrações que já tenham sido aplicadas; se houver incompatibilidade, propor uma nova migração corretiva revisada.
 - **Compatibilidade de assinatura PostgreSQL/PostgREST:** verificar se alguma função existente é alterada com `CREATE OR REPLACE FUNCTION` e mudança de nome de parâmetro de entrada (por exemplo, `p_staff_senha` para `p_pin`). Confirmar o comportamento na versão PostgreSQL utilizada; se a alteração não for permitida ou quebrar chamadas nomeadas do PostgREST, propor uma estratégia compatível e documentada, sem assumir que a migração executará.
 - **Persistência de tentativas e transações:** comprovar que tentativas inválidas ficam gravadas mesmo quando a RPC retorna erro; uma exceção não pode provocar rollback do próprio registro de falha. Verificar todos os ramos de erro e sucesso, e se alguma exceção posterior desfaz o registro. Testar isso no PostgreSQL isolado.
@@ -650,3 +651,56 @@ Critérios de validação:
 * Os demais fluxos do sistema continuam funcionando.
 
 Observações técnicas: Antes de implementar, analisar a autenticação, as sessões, as RPCs, as políticas RLS e o esquema atual do Supabase. Não alterar o banco de produção, políticas RLS, RPCs críticas ou migrações já aplicadas sem apresentar o plano e obter autorização explícita. Registrar as mudanças no histórico de alterações e não considerar a pendência concluída sem testes reais.
+
+
+## 12. Corretiva PIN-only, validação pendente e limpeza de referências internas na interface — 23/10/2026
+
+### 12.1 Estado informado pela branch `arena/bc7a1516-neoorder`
+
+O relatório da Arena IA informa que o commit `ad00246` contém a implementação corretiva PIN-only, além de atualizações no backlog, schema, frontend e testes. Este registro documenta o estado reportado, não substitui revisão independente do código nem prova que a migração foi aplicada ao banco.
+
+- Migração corretiva proposta: `supabase/migrations/20261023_neoorder_pin_only_hmac_correcao.sql`.
+- Migração anterior `20261022_neoorder_pin_encerramento_mesa.sql`: manter como histórico/superseded; não editar retroativamente se já tiver sido aplicada em algum ambiente.
+- Armazenamento descrito: HMAC-SHA-256 com `pin_pepper` mantido no backend e bcrypt (`bf`, custo 11) como verificador armazenado. Nunca armazenar PIN em texto puro.
+- Contrato do frontend reportado: encerramento por PIN-only, com dois parâmetros (`p_session_token_mesa`, `p_pin`), sem login ou senha normal.
+- Colisões: a configuração do PIN deve impedir duplicidade entre funcionários ativos; a operação de encerramento deve recusar resultado ambíguo sem revelar a identidade ou a existência de contas.
+- Tentativas: o bloqueio reportado é de cinco falhas em quinze minutos, com controle de concorrência no backend. A persistência e a concorrência ainda precisam de teste real PostgreSQL/Supabase.
+- Fallback: não voltar a usar `encerrar_sessao` com senha normal como substituto do PIN. Se a RPC PIN-only não estiver disponível, informar que o recurso ainda não está disponível e não apresentar o encerramento como autorizado.
+- Schema/backlog: manter `supabase-schema.md` e este backlog alinhados ao código e distinguir migração proposta, migração aplicada e comportamento comprovado.
+
+### 12.2 Resultados de teste relatados e limites
+
+Segundo o relatório da Arena IA:
+
+- `npm test`: smoke tests — 8 cenários aprovados; testes de QR Code — 34 cenários aprovados.
+- `node tests/prioridades.test.js`: 13/13 cenários simulados aprovados.
+- Os testes de prioridades usam simulações/mocks e não comprovam execução das funções SQL no Supabase real.
+- Integração PostgreSQL/Supabase real, testes manuais em dispositivos, carga concorrente real e teste do plano de reversão continuam pendentes.
+- O relatório informa que nenhuma migração foi aplicada em produção, nenhum merge foi feito e nenhuma publicação foi realizada. Manter essa distinção até haver evidência atualizada.
+
+### 12.3 Verificações obrigatórias antes do merge
+
+1. Executar a migração corretiva em um banco isolado compatível com as migrações anteriores; testar primeira e segunda execução, dependências, idempotência e rollback.
+2. Verificar assinaturas exatas das RPCs, argumentos nomeados usados pelo PostgREST, privilégios efetivos, `SECURITY DEFINER`, `search_path`, `GRANT`/`REVOKE` e acesso a `pin_pepper`.
+3. Provar no banco isolado que as tentativas falhas persistem, que o limite de cinco falhas em quinze minutos é resistente a concorrência e que erros não revelam existência de PIN/funcionário.
+4. Testar PIN correto, incorreto, duplicado/ambíguo, funcionário inativo ou não autorizado, acesso direto às RPCs, revogação/reset de PIN e encerramento apenas da sessão solicitada.
+5. Revalidar regressões de login, múltiplas sessões, QR de equipe, QR público somente leitura, cardápio, disponibilidade, imagens, pedidos à cozinha, atendimento, estoque e faturamento.
+6. Rever o plano de reversão para preservar dados e PINs já cadastrados; não remover colunas, hashes ou segredos sem avaliar dependências e backup.
+7. Não marcar as prioridades como concluídas até haver evidência de testes reais no ambiente autorizado. Não aplicar migrações em produção, alterar RLS/dados de produção, fazer merge ou publicar sem autorização explícita.
+
+### 12.4 Remover referências internas à especificação visíveis na aplicação
+
+**Status: Pendente de varredura, correção e verificação.** Foi relatado que a tela de faturamento exibe um número/identificador de recurso da especificação técnica. Referências desse tipo são internas ao desenvolvimento e não devem aparecer indevidamente para usuários da aplicação.
+
+- Fazer uma busca completa pelo repositório por referências à especificação, incluindo `spec`, `SPEC`, números de recursos/requisitos, identificadores e frases que revelem a origem interna de uma funcionalidade.
+- Inspecionar todas as páginas e componentes visíveis: faturamento, cardápio, atendimento, contas, modais, títulos, descrições, tooltips, mensagens de erro, notificações e estados vazios. Priorizar o local de faturamento onde o problema foi observado, sem limitar a busca a ele.
+- Remover referências internas à especificação dos textos apresentados ao usuário. Quando necessário, substituí-las por descrições claras e naturais da função, sem perder informação operacional importante.
+- Verificar se comentários, configurações, logs ou mensagens auxiliares podem ser expostos pela interface. Corrigir as ocorrências que possam chegar ao usuário.
+- Preservar identificadores necessários ao código, nomes de funções, migrações e documentação técnica interna. Não apagar documentação técnica nem remover funcionalidades apenas para eliminar referências visíveis.
+- Executar uma segunda busca após as correções e registrar as ocorrências encontradas, os arquivos modificados e os resultados dos testes.
+- Verificar visualmente a tela de faturamento e as demais telas afetadas em desktop e em tamanhos menores. Executar testes de regressão para confirmar que textos, cálculos e funcionalidades permanecem corretos.
+- Atualizar a descrição e o status da TASK-07 existente; não criar uma nova tarefa apenas para essa correção. Não marcar como concluído até a interface ser verificada.
+
+### 12.5 Critério de conclusão
+
+O PIN-only só pode ser considerado validado após testes de integração real em ambiente autorizado. A limpeza de referências internas só pode ser considerada concluída após busca no repositório, inspeção visual das páginas afetadas e testes de regressão. As duas atividades devem ter evidências separadas. Nenhuma instrução deste backlog autoriza alterações em produção, merge ou publicação.
