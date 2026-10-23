@@ -118,10 +118,40 @@
     try {
       const raw = sessionStorage.getItem(cartKey());
       const data = raw ? JSON.parse(raw) : [];
-      return Array.isArray(data) ? data : [];
+      if (!Array.isArray(data)) return [];
+      // Migração: garantir campo observacao existente (compatibilidade retroativa)
+      data.forEach(i => { if (typeof i.observacao !== 'string') i.observacao = ''; });
+      return data;
     } catch (err) {
       return [];
     }
+  }
+
+  function observacaoGeral() {
+    const el = document.getElementById('orderObservacao');
+    return el ? el.value : '';
+  }
+
+  function definirObservacaoGeral(valor) {
+    const el = document.getElementById('orderObservacao');
+    if (el) { el.value = valor || ''; atualizarContadorObservacao(); }
+  }
+
+  function atualizarContadorObservacao() {
+    const el = document.getElementById('orderObservacao');
+    const counter = document.getElementById('orderObservacaoCount');
+    if (!el || !counter) return;
+    const len = (el.value || '').length;
+    counter.textContent = len + '/500';
+    counter.style.color = len > 500 ? 'var(--danger)' : 'var(--text-muted)';
+  }
+
+  function validarObservacoes(geral, itens) {
+    if (geral && geral.length > 500) return 'Observação do pedido deve ter no máximo 500 caracteres.';
+    for (const it of itens) {
+      if (it.observacao && it.observacao.length > 200) return 'Observação de ' + it.nome + ' deve ter no máximo 200 caracteres.';
+    }
+    return null;
   }
 
   function salvarCarrinho() {
@@ -150,7 +180,8 @@
         nome: prato.nome,
         preco: Number(prato.preco),
         imagem: prato.imagem || PLACEHOLDER,
-        quantidade: 1
+        quantidade: 1,
+        observacao: ''
       });
     }
 
@@ -173,6 +204,13 @@
     salvarCarrinho();
     renderCarrinho();
     renderPratos();
+  }
+
+  function atualizarObservacaoItem(id, valor) {
+    const item = carrinho.find(i => String(i.id) === String(id));
+    if (!item) return;
+    item.observacao = String(valor || '').slice(0, 200);
+    salvarCarrinho();
   }
 
   function totalCarrinho() {
@@ -211,6 +249,7 @@
     carrinho.forEach(item => {
       const row = document.createElement('div');
       row.className = 'cart-item';
+      // Observação por prato (opcional, 0..200)
       row.innerHTML = `
         <img src="${escapeHtml(item.imagem)}" class="dish-thumb" alt="${escapeHtml(item.nome)}"
              onerror="this.onerror=null;this.src='${PLACEHOLDER}'">
@@ -225,12 +264,31 @@
         </div>
         <strong class="cart-item-total">${NeoUI.money(item.preco * item.quantidade)}</strong>`;
       container.appendChild(row);
+      // Linha de observação por item
+      const obsRow = document.createElement('div');
+      obsRow.className = 'cart-item-obs';
+      obsRow.style.cssText = 'grid-column: 1 / -1; margin-top: 6px;';
+      obsRow.innerHTML = `
+        <label for="obs-${item.id}" class="sr-only">Observação para ${escapeHtml(item.nome)}</label>
+        <input type="text" id="obs-${item.id}" class="input-field" placeholder="Obs. deste prato (opcional)" maxlength="200" value="${escapeHtml(item.observacao || '')}" style="font-size:12px; padding:6px 10px;">
+        <div style="font-size:11px; color:var(--text-muted); text-align:right;">${(item.observacao||'').length}/200</div>`;
+      // Ajuste visual: cart-item já é flex/grid; inserimos obsRow como irmão
+      container.appendChild(obsRow);
     });
 
     container.querySelectorAll('[data-dec]').forEach(btn =>
       btn.addEventListener('click', () => alterarQuantidade(btn.dataset.dec, -1)));
     container.querySelectorAll('[data-inc]').forEach(btn =>
       btn.addEventListener('click', () => alterarQuantidade(btn.dataset.inc, 1)));
+    // Observação por item: atualiza modelo e contador
+    container.querySelectorAll('[id^="obs-"]').forEach(inp => {
+      const id = inp.id.replace('obs-','');
+      inp.addEventListener('input', () => {
+        atualizarObservacaoItem(id, inp.value);
+        const counter = inp.nextElementSibling;
+        if (counter) counter.textContent = (inp.value||'').length + '/200';
+      });
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -243,13 +301,22 @@
     const button = document.getElementById('btnConfirmOrder');
     NeoUI.setBusy(button, true, 'Enviando...');
 
-    const itens = carrinho.map(i => ({ prato_id: i.id, quantidade: i.quantidade }));
+    const obsGeral = (observacaoGeral() || '').trim();
+    const itens = carrinho.map(i => {
+      const o = { prato_id: i.id, quantidade: i.quantidade };
+      const obsItem = (i.observacao || '').trim();
+      if (obsItem) o.observacao = obsItem;
+      return o;
+    });
+    const falhaValid = validarObservacoes(obsGeral, carrinho);
+    if (falhaValid) { NeoUI.toast(falhaValid, 'error'); NeoUI.setBusy(button, false); return; }
 
     try {
-      const resultado = await NeoAPI.criarPedido(token, itens);
+      const resultado = await NeoAPI.criarPedido(token, itens, obsGeral || null);
 
       carrinho = [];
       salvarCarrinho();
+      definirObservacaoGeral('');
       renderCarrinho();
       fecharModal('cartModal');
       await carregarPratos();
@@ -310,8 +377,12 @@
       const el = document.createElement('div');
       el.className = 'history-order';
       const itens = (pedido.itens || [])
-        .map(i => `${i.quantidade}× ${escapeHtml(i.nome)}`)
+        .map(i => {
+          const obs = i.observacao ? ` <em style="color:var(--text-muted);font-size:12px;">— ${escapeHtml(i.observacao)}</em>` : '';
+          return `${i.quantidade}× ${escapeHtml(i.nome)}${obs}`;
+        })
         .join(' · ');
+      const obsGeral = pedido.observacao ? `<div style="margin-top:6px; font-size:13px; background:var(--surface-container-low); padding:6px 8px; border-radius:6px;"><strong style="color:var(--primary);">Obs.:</strong> ${escapeHtml(pedido.observacao)}</div>` : '';
 
       el.innerHTML = `
         <div class="history-order-header">
@@ -325,6 +396,7 @@
           </div>
         </div>
         <div class="history-order-items">${itens || 'Sem itens'}</div>
+        ${obsGeral}
         ${progresso(pedido.status)}`;
       container.appendChild(el);
     });
@@ -447,6 +519,12 @@
     if (btnHistory) btnHistory.addEventListener('click', abrirHistorico);
     const btnCloseHistory = document.getElementById('btnCloseHistoryModal');
     if (btnCloseHistory) btnCloseHistory.addEventListener('click', () => fecharModal('historyModal'));
+
+    const obsGeralEl = document.getElementById('orderObservacao');
+    if (obsGeralEl) {
+      obsGeralEl.addEventListener('input', atualizarContadorObservacao);
+      atualizarContadorObservacao();
+    }
 
     // Fechar modais ao clicar fora
     document.querySelectorAll('.modal-overlay').forEach(overlay => {

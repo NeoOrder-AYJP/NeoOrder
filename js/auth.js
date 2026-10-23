@@ -583,7 +583,7 @@
           <label for="logoutStaffLogin" class="form-label">Login do funcionário</label>
           <div class="input-wrapper">
             <span class="material-symbols-outlined input-icon">badge</span>
-            <input type="text" id="logoutStaffLogin" class="input-field" placeholder="Ex: gerente" required autocomplete="username">
+            <input type="text" id="logoutStaffLogin" class="input-field" placeholder="Usuário do funcionário" required autocomplete="username">
           </div>
         </div>
         <div class="form-group">
