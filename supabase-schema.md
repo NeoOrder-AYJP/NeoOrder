@@ -1,8 +1,8 @@
 # NeoOrder — Schema do Banco de Dados (Supabase/PostgreSQL)
 
 Projeto Supabase: `nurnxrtxdcasrjcwxvky`
-Última atualização: **20/10/2026** (v2.6)
-Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql` + `20261020_neoorder_multisession_qr_staff_logout.sql` (base, pendente) + `supabase/migrations/20261024_neoorder_logout_senha_hardening.sql` (corretiva prioritária 24/10, **pendente autorização — não aplicar sem autorização**, PIN 20261022/23 **adiado**)
+Última atualização: **25/10/2026** (v2.7 — logout autorizado ativo)
+Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql` (base aplicada) + `supabase/migrations/20261025_neoorder_logout_senha_ativacao.sql` / `neoorder_logout_senha_ativacao` (20261023164507) **aplicada 25/10/2026** — corrige `encerrar_sessao_mesa_autorizada` + endurece `encerrar_sessao`. Pendentes **não aplicadas**: `20261020_neoorder_multisession_qr_staff_logout.sql` (multi-sessão + QR staff), `20261024_neoorder_logout_senha_hardening.sql` (versão completa com QR — separada para não misturar), PIN `20261022/20261023` **adiado**
 
 > Este documento descreve o estado **real** do banco após a migração de endurecimento.
 > O front-end **não acessa tabelas**: toda operação passa por funções RPC
@@ -215,9 +215,9 @@ Todas as funções abaixo estão em `public`, são `SECURITY DEFINER` com `searc
 - **RN-05/RN-06:** apenas `perfil = 'gerente'` executam RPCs de gestão; atendentes operam só pedidos e chamados.
 - **RN-08/RN-09:** faturamento considera exclusivamente pedidos `Entregue` com `entregue_em` no período; ticket médio = receita ÷ pedidos entregues.
 
-### 3.6 QR Code das mesas (atualizado v2.6 — múltiplas sessões)
+### 3.6 QR Code das mesas (pendente — **não aplicado** ao banco conectado)
 
-Migração `20261020_neoorder_multisession_qr_staff_logout.sql` redefine o comportamento para compatibilidade com múltiplos dispositivos:
+Migração `20261020_neoorder_multisession_qr_staff_logout.sql` (pendente) redefiniria o comportamento para múltiplos dispositivos — **preservado comportamento atual de produção** (gerar QR invalida sessões anteriores com `UPDATE ativa=false`):
 
 - **Gerar** (`gerar_qr_code_mesa`, só gerente via `_exigir_gerente`): cria `MESA-` + 64 hex (`gen_random_bytes(32)`), grava apenas o hash, marca `qr_code_ativo`. **Não encerra mais as sessões ativas** (P1: multi-sessão). Gerar de novo apenas revoga o token anterior. Mesa inexistente → `P0002`; mesa inativa → `P0001`.
 - **Entrar** (`iniciar_sessao_mesa`, público): exige QR ativo e mesa ativa; abre sessão de 12 h **sem encerrar outras sessões da mesma mesa**. Qualquer falha → `28000`, sem distinguir o motivo (preservado para não revelar mesas existentes).
@@ -225,7 +225,7 @@ Migração `20261020_neoorder_multisession_qr_staff_logout.sql` redefine o compo
 - O QR é **estático** até ser gerado de novo ou desativado. Inativar/excluir a mesa e importação com `replace` revogam tokens conforme regra do negócio.
 - Sessões de mesa não executam RPCs de equipe: `_exigir_gerente` responde `28000` para token que não é de funcionário e `42501` para funcionário sem perfil gerente.
 
-### 3.7 QR Codes de equipe — gerente e atendente (novo v2.6)
+### 3.7 QR Codes de equipe — gerente e atendente (pendente — **não aplicado**)
 
 QR individual por funcionário, gerado apenas por gerente, com token `FUNC-` + 64 hex (256 bits), hash SHA-256 e revogação manual:
 
@@ -242,18 +242,22 @@ QR individual por funcionário, gerado apenas por gerente, com token `FUNC-` + 6
 - Tokens expostos apenas no momento da geração (memória do modal, QR desenhado localmente via qrcode-generator.js). Não são logados nem ficam em URL após redirect (history.replaceState).
 - Validade da sessão 12 h; QR sem expiração por tempo, apenas revogação manual ou inativação da conta.
 
-### 3.8 Encerramento de sessão de mesa com autorização (novo v2.6)
+### 3.8 Encerramento de sessão de mesa com autorização (v2.7 — **ativo em produção 25/10/2026**)
 
 | Função | Parâmetros | Retorno |
 |--------|-----------|---------|
-| `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_staff_login, p_staff_senha)` | text, text, text | {mensagem, mesa_id, autorizado_por} |
+| `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_staff_login, p_staff_senha)` | text, text, text | {mensagem, mesa_id, autorizado_por, autorizado_login, autorizado_perfil} ou {sucesso:false, codigo, mensagem} para falhas validadas |
 
-**Regras:**
-- Exige credenciais válidas de staff ativo com perfil gerente ou atendente (conforme escolha do stakeholder). Valida com bcrypt no banco (crypt), registra tentativa em login_tentativas e aplica bloqueio de força bruta (5 falhas/15 min → 42901).
-- Apenas a sessão identificada por p_session_token_mesa é encerrada (ativa=false). Não permite encerrar outras mesas sem possuir o token opaco daquela sessão.
-- Sessão já encerrada/expirada é idempotente (retorna mensagem sem erro).
-- `encerrar_sessao(p_session_token)` foi endurecida: se o token for de mesa ativa, retorna 42501 instruindo a usar a função autorizada. Sessões de funcionário continuam sendo encerradas diretamente.
-- Frontend (cardapio.html) exige autorização via modal: staff informa login/senha, o JS chama encerrar_sessao_mesa_autorizada, limpa neoorder_session e o carrinho (neoorder_cart_<mesa_id>) para não vazar dados ao próximo cliente, e redireciona para login.html.
+**Migração aplicada:** `neoorder_logout_senha_ativacao` (versão DB `20261023164507`, arquivo repo `20261025_neoorder_logout_senha_ativacao.sql`) — substitui a ausência que causava `PGRST202 Validação ainda não ativa`. Verifica: `proname=encerrar_sessao_mesa_autorizada` com 3×text, `SECURITY DEFINER`, `GRANT anon, authenticated`, `postgrest` atualizado.
+
+**Regras ativas:**
+- Exige credenciais válidas de staff ativo com perfil gerente ou atendente. Valida com `extensions.crypt(p_senha, senha_hash)` bcrypt no banco, sem expor hash, sem logar senha.
+- Registra tentativa em `login_tentativas` e aplica bloqueio concorrente com `pg_advisory_xact_lock(hashtext(login))`: 5 falhas/15 min → `42901` (mesmo com senha correta, bloqueia até expirar).
+- Retorna `{sucesso:false}` para falhas de autorização (inexistente/inativo `28000`, sem permissão `42501`, senha incorreta `28000`) — **sem RAISE** para não desfazer o INSERT de tentativas por rollback. Credenciais vazias → `22023` RAISE.
+- Apenas a sessão identificada por `p_session_token_mesa` é encerrada (`ativa=false`). Não permite encerrar outras mesas sem possuir o token opaco daquela sessão (256 bits, hash SHA-256).
+- Sessão já encerrada/expirada é idempotente (retorna `Sessão já encerrada` sem erro).
+- `encerrar_sessao(p_session_token)` **endurecida** e **aplicada**: se o token for de mesa ativa, retorna `42501` instruindo a usar a função autorizada. Sessões de funcionário continuam sendo encerradas diretamente via `encerrar_sessao`.
+- Frontend (cardapio.html + `js/auth.js`/`js/supabase.js`) exige autorização via modal: staff informa login/senha, `NeoAPI.encerrarSessaoMesaAutorizada` chama RPC com `p_session_token_mesa, p_staff_login, p_staff_senha`, trata `sucesso:false` como `ApiError`, **sem fallback** para `encerrar_sessao` (erro `PGRST202/42883` gera toast `Validação ainda não ativa` apenas se houver dessincronia de cache — não deve ocorrer após 25/10). Em sucesso, limpa `neoorder_session` e `neoorder_cart_<mesa_id>` e redireciona para login.html.
 
 ---
 
