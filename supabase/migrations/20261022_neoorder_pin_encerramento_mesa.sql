@@ -96,7 +96,7 @@ BEGIN
   END IF;
 
   -- Hash bcrypt com salt automático (mesmo padrão de senha_hash)
-  v_hash := extensions.crypt(p_pin, extensions.gen_salt('bf'));
+  v_hash := extensions.crypt(p_pin, extensions.gen_salt('bf', 11));
 
   UPDATE public.usuarios
      SET pin_hash = v_hash,
@@ -223,6 +223,8 @@ BEGIN
 
   v_login_norm := public._normalizar_login(p_staff_login);
 
+  PERFORM pg_advisory_xact_lock(hashtext(v_login_norm));
+
   -- Brute-force: 5 falhas / 15 min por login do autorizador (reutiliza login_tentativas)
   SELECT count(*) INTO v_falhas
   FROM public.login_tentativas
@@ -238,35 +240,36 @@ BEGIN
 
   IF v_staff.id IS NULL OR v_staff.ativo IS NOT TRUE THEN
     INSERT INTO public.login_tentativas (login, sucesso) VALUES (v_login_norm, false);
-    RAISE EXCEPTION 'Funcionário autorizador não encontrado ou inativo.' USING ERRCODE = '28000';
+    RETURN jsonb_build_object('sucesso', false, 'codigo', '28000', 'mensagem', 'Funcionário autorizador não encontrado ou inativo.');
   END IF;
 
   IF v_staff.tipo <> 'funcionario' THEN
     INSERT INTO public.login_tentativas (login, sucesso) VALUES (v_login_norm, false);
-    RAISE EXCEPTION 'Apenas funcionários podem autorizar o encerramento.' USING ERRCODE = '42501';
+    RETURN jsonb_build_object('sucesso', false, 'codigo', '42501', 'mensagem', 'Apenas funcionários podem autorizar o encerramento.');
   END IF;
 
   IF v_staff.perfil NOT IN ('gerente', 'atendente') THEN
     INSERT INTO public.login_tentativas (login, sucesso) VALUES (v_login_norm, false);
-    RAISE EXCEPTION 'Perfil do autorizador não permitido.' USING ERRCODE = '42501';
+    RETURN jsonb_build_object('sucesso', false, 'codigo', '42501', 'mensagem', 'Perfil do autorizador não permitido.');
   END IF;
 
   -- PIN deve estar configurado e ativo
   IF v_staff.pin_hash IS NULL OR v_staff.pin_ativo IS NOT TRUE THEN
     INSERT INTO public.login_tentativas (login, sucesso) VALUES (v_login_norm, false);
-    RAISE EXCEPTION 'Funcionário sem PIN configurado. Peça ao gerente para definir o PIN em Contas.' USING ERRCODE = '42501';
+    RETURN jsonb_build_object('sucesso', false, 'codigo', '42501', 'mensagem', 'Funcionário sem PIN configurado. Peça ao gerente para definir o PIN em Contas.');
   END IF;
 
   -- Verificar expiração opcional
   IF v_staff.pin_expira_em IS NOT NULL AND v_staff.pin_expira_em < now() THEN
     INSERT INTO public.login_tentativas (login, sucesso) VALUES (v_login_norm, false);
-    RAISE EXCEPTION 'PIN expirado. Solicite renovação ao gerente.' USING ERRCODE = '28000';
+    RETURN jsonb_build_object('sucesso', false, 'codigo', '28000', 'mensagem', 'PIN expirado. Solicite renovação ao gerente.');
   END IF;
 
   -- Validação criptográfica: PIN vs pin_hash (bcrypt)
+  -- Para preservar login_tentativas (RAISE faz rollback), retorna JSON em vez de RAISE
   IF v_staff.pin_hash <> extensions.crypt(p_pin, v_staff.pin_hash) THEN
     INSERT INTO public.login_tentativas (login, sucesso) VALUES (v_login_norm, false);
-    RAISE EXCEPTION 'PIN incorreto.' USING ERRCODE = '28000';
+    RETURN jsonb_build_object('sucesso', false, 'codigo', '28000', 'mensagem', 'PIN incorreto.');
   END IF;
 
   -- Sucesso: limpa falhas e registra
@@ -290,6 +293,7 @@ BEGIN
   UPDATE public.sessoes_mesa SET ativa = false WHERE session_token_hash = v_hash_mesa;
 
   RETURN jsonb_build_object(
+    'sucesso', true,
     'mensagem', 'Sessão da mesa encerrada com PIN.',
     'mesa_id', v_mesa_id,
     'autorizado_por', v_staff.nome,

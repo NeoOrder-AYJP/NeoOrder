@@ -145,12 +145,17 @@
       return res;
     },
     encerrarSessao: (token) => callRpc('encerrar_sessao', { p_session_token: token }),
-    encerrarSessaoMesaAutorizada: (mesaToken, staffLogin, pin) =>
-      callRpc('encerrar_sessao_mesa_autorizada', {
+    encerrarSessaoMesaAutorizada: async (mesaToken, staffLogin, pin) => {
+      const res = await callRpc('encerrar_sessao_mesa_autorizada', {
         p_session_token_mesa: mesaToken,
         p_staff_login: staffLogin,
         p_pin: pin
-      }),
+      });
+      if (res && res.sucesso === false) {
+        throw new ApiError(res.mensagem || 'PIN incorreto.', res.codigo, res);
+      }
+      return res;
+    },
     // PIN individual de 6 dígitos para encerrar mesa (v2.8) — gestão exclusiva gerente
     definirPinFuncionario: (token, funcionarioId, pin) =>
       callRpc('definir_pin_funcionario', { p_session_token: token, p_target_usuario_id: funcionarioId, p_pin: pin }),
