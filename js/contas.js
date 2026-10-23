@@ -14,6 +14,10 @@
   // QR Code de equipe (gerente/atendente) — status_qr_funcionarios
   let qrStatusStaff = new Map();
   let qrStaffDisponivel = false;
+  // PIN individual de 6 dígitos para encerrar mesa (v2.8)
+  let pinStatus = new Map();
+  let pinDisponivel = false;
+  let pinAlvoId = null;
 
   document.addEventListener('DOMContentLoaded', async () => {
     const user = window.NeoAuth.requireAuth(['gerente']);
@@ -35,7 +39,7 @@
     }
 
     try {
-      const [data] = await Promise.all([NeoAPI.listarContas(token), carregarStatusQr(), carregarStatusQrStaff()]);
+      const [data] = await Promise.all([NeoAPI.listarContas(token), carregarStatusQr(), carregarStatusQrStaff(), carregarStatusPin()]);
       contas = Array.isArray(data) ? data : [];
       renderContas();
     } catch (err) {
@@ -74,6 +78,19 @@
     }
   }
 
+  async function carregarStatusPin() {
+    try {
+      const data = await NeoAPI.statusPinFuncionarios(token);
+      const funcs = data && Array.isArray(data.funcionarios) ? data.funcionarios : [];
+      pinStatus = new Map(funcs.map(f => [f.funcionario_id, { ativo: !!f.pin_ativo, atualizado: f.pin_atualizado_em }] ));
+      pinDisponivel = true;
+    } catch (err) {
+      pinDisponivel = false;
+      pinStatus = new Map();
+      if (err && err.code && err.code !== '42883' && err.code !== 'PGRST202') console.warn('Status dos PINs indisponível:', err && err.message);
+    }
+  }
+
   function qrBadge(conta) {
     if (conta.tipo === 'mesa') {
       if (!qrDisponivel) return '<span class="badge badge-pending qr-badge" title="QR de mesa requer atualização do banco (aguarde deploy da migração)">QR pendente</span>';
@@ -90,6 +107,15 @@
         : '<span class="badge badge-unavailable qr-badge">Sem QR</span>';
     }
     return '';
+  }
+
+  function pinBadge(conta) {
+    if (conta.tipo !== 'funcionario') return '';
+    if (!pinDisponivel) return '<span class="badge badge-pending qr-badge" title="PIN requer migração 20261022 pendente">PIN pendente</span>';
+    const st = pinStatus.get(conta.id);
+    return st && st.ativo
+      ? '<span class="badge badge-available qr-badge">PIN ativo</span>'
+      : '<span class="badge badge-unavailable qr-badge">Sem PIN</span>';
   }
 
   function tipoLabel(conta) {
@@ -128,10 +154,13 @@
         <td>${tipoLabel(conta)}</td>
         <td>${conta.ativo
           ? '<span class="badge badge-available">Ativo</span>'
-          : '<span class="badge badge-unavailable">Inativo</span>'}${qrBadge(conta)}</td>
+          : '<span class="badge badge-unavailable">Inativo</span>'}${qrBadge(conta)}${pinBadge(conta)}</td>
         <td class="cell-actions">${(conta.tipo === 'mesa' || conta.tipo === 'funcionario') ? `
           <button type="button" class="btn btn-secondary btn-icon" data-qr="${conta.id}" data-qr-tipo="${conta.tipo}" title="${(conta.tipo==='mesa' && !qrDisponivel) || (conta.tipo==='funcionario' && !qrStaffDisponivel) ? 'QR requer atualização do banco' : 'QR Code'}" aria-label="QR Code de ${escapeHtml(conta.nome)}" aria-haspopup="dialog" ${((conta.tipo==='mesa' && !qrDisponivel) || (conta.tipo==='funcionario' && !qrStaffDisponivel)) ? 'disabled' : ''}>
             <span class="material-symbols-outlined" style="font-size:16px;">qr_code_2</span>
+          </button>` : ''}
+          ${conta.tipo === 'funcionario' ? `<button type="button" class="btn btn-secondary btn-icon" data-pin="${conta.id}" title="${!pinDisponivel ? 'PIN requer atualização do banco' : (pinStatus.get(conta.id)?.ativo ? 'PIN ativo — redefinir' : 'Definir PIN 6 dígitos')}" aria-label="PIN de ${escapeHtml(conta.nome)}" ${!pinDisponivel ? 'disabled' : ''}>
+            <span class="material-symbols-outlined" style="font-size:16px;">pin</span>
           </button>` : ''}
           <button type="button" class="btn btn-secondary btn-icon" data-edit="${conta.id}" title="Editar" aria-label="Editar ${escapeHtml(conta.nome)}">
             <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
@@ -154,6 +183,8 @@
       btn.addEventListener('click', () => excluirConta(btn.dataset.del)));
     body.querySelectorAll('[data-qr]').forEach(btn =>
       btn.addEventListener('click', () => abrirQr(btn.dataset.qr)));
+    body.querySelectorAll('[data-pin]').forEach(btn =>
+      btn.addEventListener('click', () => abrirPin(btn.dataset.pin)));
   }
 
   // ---------------------------------------------------------------------------
@@ -386,7 +417,82 @@
   }
 
   // ---------------------------------------------------------------------------
+  // PIN individual de 6 dígitos — gestão exclusiva gerente
+  // ---------------------------------------------------------------------------
+  function abrirPin(id) {
+    const conta = contas.find(c => c.id === id);
+    if (!conta || conta.tipo !== 'funcionario') return;
+    pinAlvoId = id;
+    const titolo = document.getElementById('pinModalTitle');
+    if (titolo) titolo.textContent = `PIN — ${conta.nome} (${conta.perfil || 'atendente'})`;
+    const input = document.getElementById('pinInput');
+    if (input) { input.value = ''; input.setAttribute('placeholder', '000000'); }
+    const status = document.getElementById('pinStatus');
+    if (status) {
+      const st = pinStatus.get(conta.id);
+      status.innerHTML = st && st.ativo
+        ? `<span class="badge badge-available">PIN ativo</span> desde ${NeoUI.dateTime(st.atualizado)}`
+        : '<span class="badge badge-unavailable">Sem PIN</span> — defina um PIN de 6 dígitos numéricos para autorizar encerramento de mesa.';
+    }
+    const modal = document.getElementById('pinModal');
+    if (modal) modal.style.display = 'flex';
+    if (input) input.focus();
+    // sanitiza
+    if (input && !input.dataset.bound) {
+      input.addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0,6); });
+      input.dataset.bound = '1';
+    }
+  }
+  function fecharPin() {
+    pinAlvoId = null;
+    const el = document.getElementById('pinModal');
+    if (el) el.style.display = 'none';
+  }
+  async function salvarPin(e) {
+    e.preventDefault();
+    const conta = contas.find(c => c.id === pinAlvoId);
+    if (!conta) return;
+    const input = document.getElementById('pinInput');
+    const pin = input ? input.value.trim() : '';
+    if (!/^[0-9]{6}$/.test(pin)) {
+      return NeoUI.toast('PIN deve ter exatamente 6 dígitos numéricos (000000-999999).', 'error');
+    }
+    const btn = document.getElementById('btnPinSave');
+    NeoUI.setBusy(btn, true, 'Salvando...');
+    try {
+      await NeoAPI.definirPinFuncionario(token, conta.id, pin);
+      pinStatus.set(conta.id, { ativo: true, atualizado: new Date().toISOString() });
+      NeoUI.toast('PIN definido com sucesso. Não compartilhe o PIN.', 'success');
+      fecharPin();
+      renderContas();
+    } catch (err) {
+      NeoUI.toast(err.message || 'Não foi possível definir o PIN.', 'error', 7000);
+    } finally {
+      NeoUI.setBusy(btn, false);
+    }
+  }
+  async function removerPin() {
+    const conta = contas.find(c => c.id === pinAlvoId);
+    if (!conta) return;
+    if (!window.confirm(`Remover o PIN de "${conta.nome}"? Ele deixará de autorizar encerramentos.`)) return;
+    const btn = document.getElementById('btnPinRemove');
+    NeoUI.setBusy(btn, true, 'Removendo...');
+    try {
+      await NeoAPI.removerPinFuncionario(token, conta.id);
+      pinStatus.set(conta.id, { ativo: false });
+      NeoUI.toast('PIN removido.', 'success');
+      fecharPin();
+      renderContas();
+    } catch (err) {
+      NeoUI.toast(err.message || 'Não foi possível remover o PIN.', 'error', 7000);
+    } finally {
+      NeoUI.setBusy(btn, false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Modal
+
   // ---------------------------------------------------------------------------
 
   function abrirConta(id) {
@@ -558,6 +664,12 @@
     ligar('btnQrDeactivate', desativarQr);
     ligar('btnQrPrint', imprimirQr);
     ligar('btnCopyQrLink', copiarLinkQr);
+    ligar('btnClosePinModal', fecharPin);
+    ligar('btnPinRemove', removerPin);
+    const pinForm = document.getElementById('pinForm');
+    if (pinForm) pinForm.addEventListener('submit', salvarPin);
+    const pinModal = document.getElementById('pinModal');
+    if (pinModal) pinModal.addEventListener('click', e => { if (e.target === pinModal) fecharPin(); });
     const qrModal = document.getElementById('qrModal');
     if (qrModal) {
       qrModal.addEventListener('click', e => {

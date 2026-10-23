@@ -167,42 +167,50 @@ const sessaoMesa = { usuario:{id:'m1', nome:'Mesa 01', login:'Mesa 01', tipo:'me
     }
   });
 
-  // P3.1 — Encerrar sessão de mesa com senha correta de staff
-  await cenario('P3. Encerrar sessão de mesa com senha correta de gerente/atendente', async()=>{
+  // P3.1 — Encerrar sessão de mesa com PIN correto de staff (v2.8)
+  await cenario('P3. Encerrar sessão de mesa com PIN correto de gerente/atendente', async()=>{
     const ctx = await abrir('cardapio.html', {sessao: sessaoMesa, rpc: (nome, params)=>{
       if(nome==='encerrar_sessao_mesa_autorizada'){
-        if(params.p_staff_login==='gerente' && params.p_staff_senha==='gerente123' && params.p_session_token_mesa===sessaoMesa.token) return {data:{mensagem:'Sessão da mesa encerrada com autorização.', mesa_id:'m1', autorizado_por:'Gerente'}, error:null};
-        return erroPg('28000','Senha do funcionário incorreta.');
+        if(params.p_staff_login==='gerente' && params.p_pin==='123456' && params.p_session_token_mesa===sessaoMesa.token) return {data:{mensagem:'Sessão da mesa encerrada com PIN.', mesa_id:'m1', autorizado_por:'Gerente'}, error:null};
+        return erroPg('28000','PIN incorreto.');
       }
       return {data:null, error:null};
     }});
     // Simula preenchimento do modal e submit
     ctx.doc.getElementById('logoutStaffLogin').value='gerente';
-    ctx.doc.getElementById('logoutStaffSenha').value='gerente123';
+    ctx.doc.getElementById('logoutStaffPin').value='123456';
     let encerrada=false;
     // Mock do NeoAPI para capturar chamada
     const orig = ctx.window.NeoAPI.encerrarSessaoMesaAutorizada;
-    ctx.window.NeoAPI.encerrarSessaoMesaAutorizada = async (tok, login, senha)=> {
-      const r = await orig(tok, login, senha);
+    ctx.window.NeoAPI.encerrarSessaoMesaAutorizada = async (tok, login, pin)=> {
+      const r = await orig(tok, login, pin);
       if(!r.error) encerrada=true;
       return r;
     };
-    await ctx.window.NeoAuth.logoutMesaComAutorizacao('gerente','gerente123', ctx.doc.getElementById('btnConfirmLogoutMesa'));
-    assert(encerrada || ctx.chamadas.some(c=>c.nome==='encerrar_sessao_mesa_autorizada'), 'deveria chamar RPC autorizada com senha correta');
+    await ctx.window.NeoAuth.logoutMesaComAutorizacao('gerente','123456', ctx.doc.getElementById('btnConfirmLogoutMesa'));
+    assert(encerrada || ctx.chamadas.some(c=>c.nome==='encerrar_sessao_mesa_autorizada'), 'deveria chamar RPC autorizada com PIN correto');
     ctx.fechar();
   });
 
-  // P3.2 — Senha incorreta não encerra
-  await cenario('P3. Senha incorreta não encerra sessão de mesa', async()=>{
-    const ctx = await abrir('cardapio.html', {sessao: sessaoMesa, rpc: (nome)=> nome==='encerrar_sessao_mesa_autorizada' ? erroPg('28000','Senha do funcionário incorreta.') : {data:null,error:null}});
+  // P3.2 — PIN incorreto não encerra
+  await cenario('P3. PIN incorreto não encerra sessão de mesa', async()=>{
+    const ctx = await abrir('cardapio.html', {sessao: sessaoMesa, rpc: (nome)=> nome==='encerrar_sessao_mesa_autorizada' ? erroPg('28000','PIN incorreto.') : {data:null,error:null}});
     let falhou=false;
-    try{ await ctx.window.NeoAPI.encerrarSessaoMesaAutorizada(sessaoMesa.token, 'gerente','errada'); } catch(e){ falhou=true; assert(e.code==='28000' || /Senha incorreta/.test(e.message), 'deveria retornar erro de senha incorreta'); }
-    assert(falhou, 'chamada com senha errada deveria falhar');
+    try{ await ctx.window.NeoAPI.encerrarSessaoMesaAutorizada(sessaoMesa.token, 'gerente','000000'); } catch(e){ falhou=true; assert(e.code==='28000' || /PIN incorreto/.test(e.message), 'deveria retornar erro de PIN incorreto'); }
+    assert(falhou, 'chamada com PIN errado deveria falhar');
     assert(ctx.window.sessionStorage.getItem('neoorder_session'), 'sessão não deveria ser limpa com falha');
     ctx.fechar();
   });
+  // P3.2b — Formato inválido de PIN é rejeitado no cliente (22023)
+  await cenario('P3. PIN com formato inválido é rejeitado (22023)', async()=>{
+    const ctx = await abrir('cardapio.html', {sessao: sessaoMesa, rpc: (nome)=> nome==='encerrar_sessao_mesa_autorizada' ? erroPg('22023','PIN deve ter exatamente 6 dígitos.') : {data:null,error:null}});
+    let falhou=false;
+    try{ await ctx.window.NeoAPI.encerrarSessaoMesaAutorizada(sessaoMesa.token, 'gerente','123'); } catch(e){ falhou=true; assert(e.code==='22023' || /6 dígitos/.test(e.message), 'deveria retornar erro de formato'); }
+    assert(falhou, 'PIN com formato inválido deveria falhar');
+    ctx.fechar();
+  });
 
-  // P3.3 — Tentativa de encerrar outra mesa sem token falha; chamada direta sem senha falha
+  // P3.3 — Tentativa de encerrar outra mesa sem token falha; chamada direta sem PIN falha
   await cenario('P3. Chamada direta a encerrar_sessao sem autorização é bloqueada (42501)', async()=>{
     const ctx = await abrir('cardapio.html', {sessao: sessaoMesa, rpc: (nome, params)=>{
       if(nome==='encerrar_sessao' && params.p_session_token===sessaoMesa.token) return erroPg('42501','Encerramento de sessão de mesa requer autorização de funcionário. Use encerrar_sessao_mesa_autorizada.');

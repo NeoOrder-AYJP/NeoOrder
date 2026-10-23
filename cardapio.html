@@ -219,10 +219,10 @@
           </div>
         </div>
         <div class="form-group">
-          <label for="logoutStaffSenha" class="form-label">Senha do funcionário</label>
+          <label for="logoutStaffPin" class="form-label">PIN individual (6 dígitos)</label>
           <div class="input-wrapper">
-            <span class="material-symbols-outlined input-icon">lock</span>
-            <input type="password" id="logoutStaffSenha" class="input-field" placeholder="••••••••" required autocomplete="current-password">
+            <span class="material-symbols-outlined input-icon">pin</span>
+            <input type="password" id="logoutStaffPin" class="input-field" placeholder="••••••" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
           </div>
         </div>
         <div class="modal-actions">
@@ -261,7 +261,7 @@
 
   <footer class="footer">
     <div class="container">
-      <p><small style="opacity:0.7">v2.7 — 21/10/2026</small><br>© 2026 NeoOrder — Módulo de Pedidos da Mesa</p>
+      <p><small style="opacity:0.7">v2.8 — 22/10/2026 — PIN 6 dígitos</small><br>© 2026 NeoOrder — Módulo de Pedidos da Mesa</p>
     </div>
   </footer>
 

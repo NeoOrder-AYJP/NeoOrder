@@ -514,16 +514,20 @@
       }
     },
     // Chamado pelo modal de logout da mesa (staff autoriza)
-    async logoutMesaComAutorizacao(staffLogin, staffSenha, button) {
+    async logoutMesaComAutorizacao(staffLogin, pin, button) {
       const token = this.getToken();
       if (!token) { NeoAPI.Session.clear(); window.location.href = 'login.html'; return; }
-      if (!staffLogin || !staffSenha) {
-        if (typeof NeoUI !== 'undefined') NeoUI.toast('Informe o login e a senha do funcionário.', 'error');
+      if (!staffLogin || !pin) {
+        if (typeof NeoUI !== 'undefined') NeoUI.toast('Informe o login e o PIN do funcionário.', 'error');
+        return;
+      }
+      if (!/^[0-9]{6}$/.test(String(pin).trim())) {
+        if (typeof NeoUI !== 'undefined') NeoUI.toast('PIN deve ter exatamente 6 dígitos numéricos.', 'error');
         return;
       }
       if (button && typeof NeoUI !== 'undefined') NeoUI.setBusy(button, true, 'Validando...');
       try {
-        await NeoAPI.encerrarSessaoMesaAutorizada(token, staffLogin, staffSenha);
+        await NeoAPI.encerrarSessaoMesaAutorizada(token, staffLogin, pin);
         NeoAPI.Session.clear();
         // Limpa carrinho da mesa (sessão encerrada não deve vazar para próximo cliente)
         try {
@@ -538,7 +542,7 @@
         const msg = String(err && err.message || '');
         if (code === 'PGRST202' || code === '42883' || /Could not find.*encerrar_sessao_mesa_autorizada/i.test(msg)) {
           console.warn('Migração de logout com senha ainda não aplicada no Supabase; usando fallback legado (inseguro).', err);
-          if (typeof NeoUI !== 'undefined') NeoUI.toast('Aviso: validação de senha ainda não ativa no banco (migração pendente). Encerrando com método legado.', 'info', 6000);
+          if (typeof NeoUI !== 'undefined') NeoUI.toast('Aviso: validação de PIN ainda não ativa no banco (migração 20261022 pendente). Encerrando com método legado.', 'info', 6000);
           try {
             await NeoAPI.encerrarSessao(token);
             NeoAPI.Session.clear();
@@ -596,10 +600,10 @@
           </div>
         </div>
         <div class="form-group">
-          <label for="logoutStaffSenha" class="form-label">Senha do funcionário</label>
+          <label for="logoutStaffPin" class="form-label">PIN individual (6 dígitos)</label>
           <div class="input-wrapper">
-            <span class="material-symbols-outlined input-icon">lock</span>
-            <input type="password" id="logoutStaffSenha" class="input-field" placeholder="••••••••" required autocomplete="current-password">
+            <span class="material-symbols-outlined input-icon">pin</span>
+            <input type="password" id="logoutStaffPin" class="input-field" placeholder="••••••" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
           </div>
         </div>
         <div class="modal-actions">
@@ -618,11 +622,14 @@
     const form = overlay.querySelector('#logoutMesaForm');
     if (form) form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const login = document.getElementById('logoutStaffLogin').value;
-      const senha = document.getElementById('logoutStaffSenha').value;
+      const login = document.getElementById('logoutStaffLogin').value.trim();
+      const pin = document.getElementById('logoutStaffPin').value.trim();
       const btn = document.getElementById('btnConfirmLogoutMesa');
-      try { await window.NeoAuth.logoutMesaComAutorizacao(login, senha, btn); } catch (err) {}
+      try { await window.NeoAuth.logoutMesaComAutorizacao(login, pin, btn); } catch (err) {}
     });
+    // Sanitiza PIN para apenas dígitos (UX mobile)
+    const pinInput = overlay.querySelector('#logoutStaffPin');
+    if (pinInput) pinInput.addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0,6); });
     const first = overlay.querySelector('#logoutStaffLogin');
     if (first) first.focus();
   }
@@ -644,10 +651,10 @@
       const form = document.getElementById('logoutMesaForm');
       if (form) form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const login = document.getElementById('logoutStaffLogin').value;
-        const senha = document.getElementById('logoutStaffSenha').value;
+        const login = document.getElementById('logoutStaffLogin').value.trim();
+        const pin = document.getElementById('logoutStaffPin').value.trim();
         const btnConfirm = document.getElementById('btnConfirmLogoutMesa');
-        try { await window.NeoAuth.logoutMesaComAutorizacao(login, senha, btnConfirm); } catch (err) {}
+        try { await window.NeoAuth.logoutMesaComAutorizacao(login, pin, btnConfirm); } catch (err) {}
       });
       document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && logoutMesaModal.style.display !== 'none' && logoutMesaModal.style.display !== '') {
@@ -660,6 +667,10 @@
     // Esconde atalhos que o perfil atual não pode executar (ex.: atendente
     // não acessa gestão). O servidor já bloqueia via _exigir_gerente; aqui
     // evitamos apenas o link que levaria a um redirecionamento.
+    // Sanitiza PIN estático (cardapio.html) para 6 dígitos numéricos
+    document.querySelectorAll('#logoutStaffPin').forEach(el => {
+      el.addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0,6); });
+    });
     const perfil = window.NeoAuth.profile();
     document.querySelectorAll('[data-requires]').forEach(el => {
       const exigido = el.getAttribute('data-requires');

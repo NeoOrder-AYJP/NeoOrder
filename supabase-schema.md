@@ -1,8 +1,8 @@
 # NeoOrder — Schema do Banco de Dados (Supabase/PostgreSQL)
 
 Projeto Supabase: `nurnxrtxdcasrjcwxvky`
-Última atualização: **20/10/2026** (v2.6)
-Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql` + `20261020_neoorder_multisession_qr_staff_logout.sql` (pendente de aplicação em produção)
+Última atualização: **22/10/2026** (v2.8)
+Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql` + `20261020_neoorder_multisession_qr_staff_logout.sql` + `20261022_neoorder_pin_encerramento_mesa.sql` (pendentes de aplicação em produção — aguardam autorização)
 
 > Este documento descreve o estado **real** do banco após a migração de endurecimento.
 > O front-end **não acessa tabelas**: toda operação passa por funções RPC
@@ -16,9 +16,9 @@ Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql`
 |--------|-------|
 | Tabelas `public` | RLS **habilitada** em todas as 11 tabelas, **sem nenhuma policy** → `anon` e `authenticated` não leem nem escrevem diretamente. |
 | Privilégios | `REVOKE ALL` de tabelas/sequences para `PUBLIC`, `anon` e `authenticated`. |
-| Funções | 29 RPCs de negócio têm `EXECUTE` para `anon, authenticated` (24 base + 5 novas: `iniciar_sessao_funcionario_qr`, `gerar_qr_code_funcionario`, `status_qr_funcionarios`, `desativar_qr_funcionario`, `encerrar_sessao_mesa_autorizada`). Helpers internos permanecem privados. |
-| Sessão | O login devolve um token opaco de 64 caracteres; o banco guarda apenas o SHA-256. Validade de 12 h. **Múltiplas sessões por usuário** (multi-dispositivo): cada login gera um token independente; `encerrar_sessao` afeta apenas o token informado. Sessões de mesa exigem autorização de staff para encerramento (v2.6). |
-| Senhas | `pgcrypto`/bcrypt (`gen_salt('bf', 11)`) em `usuarios.senha_hash`. Nunca saem do banco. |
+| Funções | 32 RPCs de negócio têm `EXECUTE` para `anon, authenticated` (24 base + 5 QR staff + 3 PIN: `definir_pin_funcionario`, `remover_pin_funcionario`, `status_pin_funcionarios` + `encerrar_sessao_mesa_autorizada` revisada para PIN). Helpers internos (`_hash_token`, `_normalizar_login`, `_validar_pin`) permanecem privados. |
+| Sessão | O login devolve um token opaco de 64 caracteres; o banco guarda apenas o SHA-256. Validade de 12 h. **Múltiplas sessões por usuário** (multi-dispositivo): cada login gera um token independente; `encerrar_sessao` afeta apenas o token informado. Sessões de mesa exigem **PIN individual de 6 dígitos** de staff para encerramento (v2.8 — substitui senha v2.6). |
+| Senhas / PIN | `pgcrypto`/bcrypt (`gen_salt('bf')`) em `usuarios.senha_hash` (login) e `usuarios.pin_hash` (PIN 6 dígitos). Nunca saem do banco; PIN validado por `_validar_pin` (`^[0-9]{6}$`). |
 
 Chaves do cliente (`js/supabase.js`): apenas a URL e a **publishable key** (`sb_publishable_…`), que não concede acesso a tabelas.
 
@@ -39,8 +39,12 @@ Contas de acesso: mesas (`tipo = 'mesa'`) e funcionários (`tipo = 'funcionario'
 | `ativo` | boolean | não | `true` | Contas inativas não autenticam |
 | `qr_code_ativo` | boolean | não | `false` | `true` enquanto a mesa tem QR Code emitido e não revogado (seção 3.6) |
 | `qr_token_hash` | text | sim | — | Hash do token do QR Code (`_hash_token`); o token em si não é armazenado. `NULL` após desativar |
+| `pin_hash` | text | sim | — | Hash bcrypt do PIN individual de 6 dígitos (v2.8); `NULL` = sem PIN configurado; nunca plaintext |
+| `pin_ativo` | boolean | não | `false` | `true` = PIN configurado e habilitado para autorizar encerramento |
+| `pin_atualizado_em` | timestamptz | sim | — | Quando o PIN foi definido/alterado |
+| `pin_expira_em` | timestamptz | sim | — | Opcional: expiração do PIN para rotação; `NULL` = sem expiração |
 | `criado_em` | timestamptz | não | `now()` | |
-| `senha_hash` | text | sim | — | bcrypt |
+| `senha_hash` | text | sim | — | bcrypt (login) |
 | `senha_atualizada_em` | timestamptz | sim | — | |
 | `atualizado_em` | timestamptz | não | `now()` | |
 
@@ -246,14 +250,19 @@ QR individual por funcionário, gerado apenas por gerente, com token `FUNC-` + 6
 
 | Função | Parâmetros | Retorno |
 |--------|-----------|---------|
-| `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_staff_login, p_staff_senha)` | text, text, text | {mensagem, mesa_id, autorizado_por} |
+| `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_staff_login, p_pin)` | text, text, text | {mensagem, mesa_id, autorizado_por, autorizado_login, autorizado_perfil, encerrado_em} |
+| `definir_pin_funcionario(p_session_token, p_target_usuario_id, p_pin)` | text, uuid, text | {funcionario_id, funcionario_nome, pin_ativo, pin_atualizado_em, definido_por} — gerente only |
+| `remover_pin_funcionario(p_session_token, p_target_usuario_id)` | text, uuid | {funcionario_id, pin_ativo:false} — gerente only |
+| `status_pin_funcionarios(p_session_token)` | text | {funcionarios:[{funcionario_id, funcionario_nome, login, perfil, ativo, pin_ativo, pin_atualizado_em, pin_expira_em}], gerado_em} |
 
-**Regras:**
-- Exige credenciais válidas de staff ativo com perfil gerente ou atendente (conforme escolha do stakeholder). Valida com bcrypt no banco (crypt), registra tentativa em login_tentativas e aplica bloqueio de força bruta (5 falhas/15 min → 42901).
-- Apenas a sessão identificada por p_session_token_mesa é encerrada (ativa=false). Não permite encerrar outras mesas sem possuir o token opaco daquela sessão.
-- Sessão já encerrada/expirada é idempotente (retorna mensagem sem erro).
-- `encerrar_sessao(p_session_token)` foi endurecida: se o token for de mesa ativa, retorna 42501 instruindo a usar a função autorizada. Sessões de funcionário continuam sendo encerradas diretamente.
-- Frontend (cardapio.html) exige autorização via modal: staff informa login/senha, o JS chama encerrar_sessao_mesa_autorizada, limpa neoorder_session e o carrinho (neoorder_cart_<mesa_id>) para não vazar dados ao próximo cliente, e redireciona para login.html.
+**Regras (v2.8 — PIN 6 dígitos, substitui senha v2.6):**
+- **Formato:** `p_pin` deve ser exatamente 6 dígitos numéricos (`^[0-9]{6}$` via `_validar_pin`). Qualquer outro formato → `22023`. PIN nunca em plaintext/logs — armazenado só como `pin_hash` bcrypt (`crypt` com `gen_salt('bf')`).
+- **Quem pode autorizar:** staff ativo com `tipo='funcionario'` e `perfil` gerente ou atendente, com `pin_ativo=true` e `pin_hash` configurado. Sem PIN → `42501` (“Funcionário sem PIN configurado”). PIN expirado (`pin_expira_em < now()`) → `28000`.
+- **Validação:** `pin_hash = crypt(p_pin, pin_hash)` no banco; registra tentativa em `login_tentativas` por `lower(login)` com bloqueio 5 falhas/15 min → `42901` (mesmo mecanismo da senha). Sucesso limpa falhas antigas.
+- **Isolamento:** apenas a sessão identificada por `p_session_token_mesa` (hash `_hash_token`) é encerrada (`ativa=false`). Não permite encerrar outra mesa sem possuir o token opaco daquela sessão — token deve vir do dispositivo da mesa.
+- **Idempotência:** sessão já encerrada/expirada retorna `{mensagem: 'Sessão já encerrada.'}` sem erro.
+- **Endurecimento:** `encerrar_sessao(p_session_token)` retorna `42501` para mesa ativa (“Use encerrar_sessao_mesa_autorizada com login e PIN de 6 dígitos”). Sessões de funcionário continuam diretas.
+- **Frontend:** `cardapio.html` modal exige `login + PIN` (`inputmode=numeric`, `pattern=[0-9]{6}`, `maxlength=6`), chama `encerrarSessaoMesaAutorizada(token, login, pin)` via `js/supabase.js`, limpa `neoorder_session` + `neoorder_cart_<mesa_id>` e redireciona para `login.html` (privacidade). Gestão de PINs em `contas.html` (definir/revogar/listar, badges `PIN ativo`/`Sem PIN`, somente gerente).
 
 ---
 

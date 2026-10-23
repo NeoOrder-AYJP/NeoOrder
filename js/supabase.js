@@ -145,12 +145,18 @@
       return res;
     },
     encerrarSessao: (token) => callRpc('encerrar_sessao', { p_session_token: token }),
-    encerrarSessaoMesaAutorizada: (mesaToken, staffLogin, staffSenha) =>
+    encerrarSessaoMesaAutorizada: (mesaToken, staffLogin, pin) =>
       callRpc('encerrar_sessao_mesa_autorizada', {
         p_session_token_mesa: mesaToken,
         p_staff_login: staffLogin,
-        p_staff_senha: staffSenha
+        p_pin: pin
       }),
+    // PIN individual de 6 dígitos para encerrar mesa (v2.8) — gestão exclusiva gerente
+    definirPinFuncionario: (token, funcionarioId, pin) =>
+      callRpc('definir_pin_funcionario', { p_session_token: token, p_target_usuario_id: funcionarioId, p_pin: pin }),
+    removerPinFuncionario: (token, funcionarioId) =>
+      callRpc('remover_pin_funcionario', { p_session_token: token, p_target_usuario_id: funcionarioId }),
+    statusPinFuncionarios: (token) => callRpc('status_pin_funcionarios', { p_session_token: token }),
     // QR Code da mesa (assinaturas conferidas no banco em 20/10/2026; ver supabase-schema.md)
     // A duração de 12 h é a mesma da sessão aberta pelo login com senha.
     iniciarSessaoMesaQr: (qrToken) =>
