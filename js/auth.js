@@ -488,7 +488,7 @@
         const modal = document.getElementById('logoutMesaModal');
         if (modal) {
           modal.style.display = 'flex';
-          const inp = document.getElementById('logoutStaffLogin');
+          const inp = document.getElementById('logoutStaffPin');
           if (inp) inp.focus();
           return;
         }
@@ -514,11 +514,11 @@
       }
     },
     // Chamado pelo modal de logout da mesa (staff autoriza)
-    async logoutMesaComAutorizacao(staffLogin, pin, button) {
+    async logoutMesaComAutorizacao(pin, button) {
       const token = this.getToken();
       if (!token) { NeoAPI.Session.clear(); window.location.href = 'login.html'; return; }
-      if (!staffLogin || !pin) {
-        if (typeof NeoUI !== 'undefined') NeoUI.toast('Informe o login e o PIN do funcionário.', 'error');
+      if (!pin) {
+        if (typeof NeoUI !== 'undefined') NeoUI.toast('Informe o PIN de 6 dígitos.', 'error');
         return;
       }
       if (!/^[0-9]{6}$/.test(String(pin).trim())) {
@@ -527,7 +527,7 @@
       }
       if (button && typeof NeoUI !== 'undefined') NeoUI.setBusy(button, true, 'Validando...');
       try {
-        await NeoAPI.encerrarSessaoMesaAutorizada(token, staffLogin, pin);
+        await NeoAPI.encerrarSessaoMesaAutorizada(token, pin);
         NeoAPI.Session.clear();
         // Limpa carrinho da mesa (sessão encerrada não deve vazar para próximo cliente)
         try {
@@ -536,24 +536,14 @@
         } catch (e) {}
         window.location.href = 'login.html';
       } catch (err) {
-        // Fallback: se a migração ainda não foi aplicada no Supabase (PGRST202 = function not found),
-        // tenta o logout legado (sem validação) apenas para não travar a interface, mas avisa que a segurança está pendente.
+        // Sem fallback inseguro: encerramento sem PIN nunca é apresentado como seguro
         const code = String(err && err.code || '');
-        const msg = String(err && err.message || '');
-        if (code === 'PGRST202' || code === '42883' || /Could not find.*encerrar_sessao_mesa_autorizada/i.test(msg)) {
-          console.warn('Migração de logout com senha ainda não aplicada no Supabase; usando fallback legado (inseguro).', err);
-          if (typeof NeoUI !== 'undefined') NeoUI.toast('Aviso: validação de PIN ainda não ativa no banco (migração 20261022 pendente). Encerrando com método legado.', 'info', 6000);
-          try {
-            await NeoAPI.encerrarSessao(token);
-            NeoAPI.Session.clear();
-            try { const u = this.getUser(); if (u && u.id) sessionStorage.removeItem('neoorder_cart_' + u.id); } catch (e) {}
-            window.location.href = 'login.html';
-            return;
-          } catch (e2) {
-            // fallback também falhou
-          }
+        if (code === 'PGRST202' || code === '42883') {
+          console.warn('RPC encerrar_sessao_mesa_autorizada não encontrada — migração pendente.', err);
+          if (typeof NeoUI !== 'undefined') NeoUI.toast('Encerramento com PIN ainda não disponível no banco. Contate o gerente.', 'error', 6000);
+        } else {
+          if (typeof NeoUI !== 'undefined') NeoUI.toast(err.message || 'Não foi possível encerrar a sessão da mesa.', 'error', 6000);
         }
-        if (typeof NeoUI !== 'undefined') NeoUI.toast(err.message || 'Não foi possível encerrar a sessão da mesa.', 'error', 6000);
         throw err;
       } finally {
         if (button && typeof NeoUI !== 'undefined') NeoUI.setBusy(button, false);
@@ -592,13 +582,7 @@
       </div>
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:var(--space-md);">Esta ação exige autorização de um funcionário. Informe as credenciais de um gerente ou atendente para liberar a mesa.</p>
       <form id="logoutMesaForm" class="flex-col">
-        <div class="form-group">
-          <label for="logoutStaffLogin" class="form-label">Login do funcionário</label>
-          <div class="input-wrapper">
-            <span class="material-symbols-outlined input-icon">badge</span>
-            <input type="text" id="logoutStaffLogin" class="input-field" placeholder="Ex: gerente" required autocomplete="username">
-          </div>
-        </div>
+        <p style="font-size:13px;color:var(--text-muted);">Informe apenas o PIN individual de 6 dígitos de gerente ou atendente autorizado. Não é necessário login.</p>
         <div class="form-group">
           <label for="logoutStaffPin" class="form-label">PIN individual (6 dígitos)</label>
           <div class="input-wrapper">
@@ -622,15 +606,14 @@
     const form = overlay.querySelector('#logoutMesaForm');
     if (form) form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const login = document.getElementById('logoutStaffLogin').value.trim();
       const pin = document.getElementById('logoutStaffPin').value.trim();
       const btn = document.getElementById('btnConfirmLogoutMesa');
-      try { await window.NeoAuth.logoutMesaComAutorizacao(login, pin, btn); } catch (err) {}
+      try { await window.NeoAuth.logoutMesaComAutorizacao(pin, btn); } catch (err) {}
     });
     // Sanitiza PIN para apenas dígitos (UX mobile)
     const pinInput = overlay.querySelector('#logoutStaffPin');
     if (pinInput) pinInput.addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0,6); });
-    const first = overlay.querySelector('#logoutStaffLogin');
+    const first = overlay.querySelector('#logoutStaffPin');
     if (first) first.focus();
   }
 
@@ -651,10 +634,9 @@
       const form = document.getElementById('logoutMesaForm');
       if (form) form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const login = document.getElementById('logoutStaffLogin').value.trim();
         const pin = document.getElementById('logoutStaffPin').value.trim();
         const btnConfirm = document.getElementById('btnConfirmLogoutMesa');
-        try { await window.NeoAuth.logoutMesaComAutorizacao(login, pin, btnConfirm); } catch (err) {}
+        try { await window.NeoAuth.logoutMesaComAutorizacao(pin, btnConfirm); } catch (err) {}
       });
       document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && logoutMesaModal.style.display !== 'none' && logoutMesaModal.style.display !== '') {

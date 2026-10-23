@@ -208,16 +208,10 @@
         </button>
       </div>
       <p style="font-size: 13px; color: var(--text-muted); margin-bottom: var(--space-md);">
-        Esta ação exige autorização de um funcionário. Informe as credenciais de um gerente ou atendente para liberar a mesa.
+        Esta ação exige PIN individual de 6 dígitos de gerente ou atendente. Não é solicitado login.
       </p>
       <form id="logoutMesaForm" class="flex-col">
-        <div class="form-group">
-          <label for="logoutStaffLogin" class="form-label">Login do funcionário</label>
-          <div class="input-wrapper">
-            <span class="material-symbols-outlined input-icon">badge</span>
-            <input type="text" id="logoutStaffLogin" class="input-field" placeholder="Ex: gerente" required autocomplete="username">
-          </div>
-        </div>
+        <p style="font-size:13px;color:var(--text-muted);">Informe apenas o PIN individual de 6 dígitos de gerente ou atendente autorizado.</p>
         <div class="form-group">
           <label for="logoutStaffPin" class="form-label">PIN individual (6 dígitos)</label>
           <div class="input-wrapper">

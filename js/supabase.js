@@ -87,6 +87,9 @@
     const raw = String(error.message || error.error_description || error || '').trim();
     const code = String(error.code || '');
 
+    // PIN tem mensagem específica 28000 que não deve ser mascarada como "sessão expirou"
+    if (/PIN/i.test(raw)) return raw;
+
     if (code === '28000' || /sess[aã]o.*(expir|inv[aá]lid)/i.test(raw)) {
       return 'Sua sessão expirou. Faça login novamente.';
     }
@@ -145,10 +148,9 @@
       return res;
     },
     encerrarSessao: (token) => callRpc('encerrar_sessao', { p_session_token: token }),
-    encerrarSessaoMesaAutorizada: async (mesaToken, staffLogin, pin) => {
+    encerrarSessaoMesaAutorizada: async (mesaToken, pin) => {
       const res = await callRpc('encerrar_sessao_mesa_autorizada', {
         p_session_token_mesa: mesaToken,
-        p_staff_login: staffLogin,
         p_pin: pin
       });
       if (res && res.sucesso === false) {

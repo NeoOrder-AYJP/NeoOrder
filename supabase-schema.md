@@ -1,8 +1,8 @@
 # NeoOrder — Schema do Banco de Dados (Supabase/PostgreSQL)
 
 Projeto Supabase: `nurnxrtxdcasrjcwxvky`
-Última atualização: **22/10/2026** (v2.8)
-Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql` + `20261020_neoorder_multisession_qr_staff_logout.sql` + `20261022_neoorder_pin_encerramento_mesa.sql` (pendentes de aplicação em produção — aguardam autorização)
+Última atualização: **23/10/2026** (v2.9)
+Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql` + `20261020_neoorder_multisession_qr_staff_logout.sql` + `20261022_neoorder_pin_encerramento_mesa.sql` (superseded) + `20261023_neoorder_pin_only_hmac_correcao.sql` (vigente, pendente autorização — não aplicar 20261022 isolada)
 
 > Este documento descreve o estado **real** do banco após a migração de endurecimento.
 > O front-end **não acessa tabelas**: toda operação passa por funções RPC
@@ -16,9 +16,9 @@ Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql`
 |--------|-------|
 | Tabelas `public` | RLS **habilitada** em todas as 11 tabelas, **sem nenhuma policy** → `anon` e `authenticated` não leem nem escrevem diretamente. |
 | Privilégios | `REVOKE ALL` de tabelas/sequences para `PUBLIC`, `anon` e `authenticated`. |
-| Funções | 32 RPCs de negócio têm `EXECUTE` para `anon, authenticated` (24 base + 5 QR staff + 3 PIN: `definir_pin_funcionario`, `remover_pin_funcionario`, `status_pin_funcionarios` + `encerrar_sessao_mesa_autorizada` revisada para PIN). Helpers internos (`_hash_token`, `_normalizar_login`, `_validar_pin`) permanecem privados. |
-| Sessão | O login devolve um token opaco de 64 caracteres; o banco guarda apenas o SHA-256. Validade de 12 h. **Múltiplas sessões por usuário** (multi-dispositivo): cada login gera um token independente; `encerrar_sessao` afeta apenas o token informado. Sessões de mesa exigem **PIN individual de 6 dígitos** de staff para encerramento (v2.8 — substitui senha v2.6). |
-| Senhas / PIN | `pgcrypto`/bcrypt (`gen_salt('bf')`) em `usuarios.senha_hash` (login) e `usuarios.pin_hash` (PIN 6 dígitos). Nunca saem do banco; PIN validado por `_validar_pin` (`^[0-9]{6}$`). |
+| Funções | 33 RPCs de negócio têm `EXECUTE` para `anon, authenticated` (24 base + 5 QR staff + 4 PIN: `definir_pin_funcionario`, `remover_pin_funcionario`, `status_pin_funcionarios`, `encerrar_sessao_mesa_autorizada` PIN-only 2 params + stub 3-params `42883`). Helpers privados: `_hash_token`, `_normalizar_login`, `_validar_pin`, `_pin_pepper`, `_pin_hmac`. Tabela `pin_pepper` (RLS sem policies, `REVOKE ALL`) guarda segredo backend. |
+| Sessão | O login devolve token opaco 64 hex, só `SHA-256` no banco, 12h, **múltiplas sessões por usuário** (multi-dispositivo, `UPDATE ativa=false` removido). `encerrar_sessao` bloqueia mesa `42501`. Sessões de mesa exigem **PIN individual 6 dígitos, sem login** (v2.9 PIN-only): `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_pin)` identifica staff por `HMAC-SHA256(pepper)+bcrypt` (`pin_pepper` secreto backend), verifica colisão, bloqueio `5/15min` por mesa `pg_advisory_xact_lock(hashtext(mesa_id))`, encerra só sessão selecionada. |
+| Senhas / PIN | `pgcrypto` `senha_hash` `crypt(gen_salt bf 11)` (login) e `pin_hash = crypt(hmac(PIN, pepper, sha256), gen_salt bf 11)` (KDF bcrypt custo 11 + HMAC-SHA256 com segredo `pin_pepper` só backend, não SHA-256 simples; justificado: pepper impede offline brute-force se dump vazar; custo 11 ~200ms; residual 1M/5/15min ≈5,7 anos). `_validar_pin` `^[0-9]{6}$`, colisão `23505`, auditoria sem segredos. |
 
 Chaves do cliente (`js/supabase.js`): apenas a URL e a **publishable key** (`sb_publishable_…`), que não concede acesso a tabelas.
 
@@ -50,6 +50,15 @@ Contas de acesso: mesas (`tipo = 'mesa'`) e funcionários (`tipo = 'funcionario'
 
 **Constraints:** `usuarios_tipo_check`, `usuarios_perfil_check`.
 **Índice único:** `usuarios_login_lower_key` em `lower(login)`.
+
+### 2.1.1 `pin_pepper` (segredo backend, não exposto)
+| Coluna | Tipo | Nulo | Observação |
+|--------|------|------|------------|
+| `id` | uuid | não | PK |
+| `secret` | text | não | `encode(gen_random_bytes(32), hex)` — HMAC pepper, RLS sem policies, só `_pin_pepper()` SECURITY DEFINER lê |
+| `created_at` | timestamptz | não | — |
+
+RLS habilitada, `REVOKE ALL FROM anon, authenticated`, acesso só via `_pin_pepper()`/`_pin_hmac()`.
 
 ### 2.2 `sessoes_mesa` / `sessoes_funcionario`
 Token de sessão com hash, expiração e flag `ativa`. Estrutura idêntica:
@@ -250,19 +259,20 @@ QR individual por funcionário, gerado apenas por gerente, com token `FUNC-` + 6
 
 | Função | Parâmetros | Retorno |
 |--------|-----------|---------|
-| `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_staff_login, p_pin)` | text, text, text | {mensagem, mesa_id, autorizado_por, autorizado_login, autorizado_perfil, encerrado_em} |
-| `definir_pin_funcionario(p_session_token, p_target_usuario_id, p_pin)` | text, uuid, text | {funcionario_id, funcionario_nome, pin_ativo, pin_atualizado_em, definido_por} — gerente only |
+| `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_pin)` | text, text | {sucesso, mensagem, mesa_id, autorizado_por, autorizado_login, autorizado_perfil, encerrado_em} — PIN-only, sem login |
+| `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_staff_login, p_pin)` | text, text, text | `42883` stub — DEPRECATED, substituída por 2-params PIN-only |
+| `definir_pin_funcionario(p_session_token, p_target_usuario_id, p_pin)` | text, uuid, text | {funcionario_id, funcionario_nome, pin_ativo, pin_atualizado_em, definido_por} — gerente only, verifica colisão `23505` |
 | `remover_pin_funcionario(p_session_token, p_target_usuario_id)` | text, uuid | {funcionario_id, pin_ativo:false} — gerente only |
 | `status_pin_funcionarios(p_session_token)` | text | {funcionarios:[{funcionario_id, funcionario_nome, login, perfil, ativo, pin_ativo, pin_atualizado_em, pin_expira_em}], gerado_em} |
 
-**Regras (v2.8 — PIN 6 dígitos, substitui senha v2.6):**
-- **Formato:** `p_pin` deve ser exatamente 6 dígitos numéricos (`^[0-9]{6}$` via `_validar_pin`). Qualquer outro formato → `22023`. PIN nunca em plaintext/logs — armazenado só como `pin_hash` bcrypt (`crypt` com `gen_salt('bf')`).
-- **Quem pode autorizar:** staff ativo com `tipo='funcionario'` e `perfil` gerente ou atendente, com `pin_ativo=true` e `pin_hash` configurado. Sem PIN → `42501` (“Funcionário sem PIN configurado”). PIN expirado (`pin_expira_em < now()`) → `28000`.
-- **Validação:** `pin_hash = crypt(p_pin, pin_hash)` no banco; registra tentativa em `login_tentativas` por `lower(login)` com bloqueio 5 falhas/15 min → `42901` (mesmo mecanismo da senha). Sucesso limpa falhas antigas.
-- **Isolamento:** apenas a sessão identificada por `p_session_token_mesa` (hash `_hash_token`) é encerrada (`ativa=false`). Não permite encerrar outra mesa sem possuir o token opaco daquela sessão — token deve vir do dispositivo da mesa.
-- **Idempotência:** sessão já encerrada/expirada retorna `{mensagem: 'Sessão já encerrada.'}` sem erro.
-- **Endurecimento:** `encerrar_sessao(p_session_token)` retorna `42501` para mesa ativa (“Use encerrar_sessao_mesa_autorizada com login e PIN de 6 dígitos”). Sessões de funcionário continuam diretas.
-- **Frontend:** `cardapio.html` modal exige `login + PIN` (`inputmode=numeric`, `pattern=[0-9]{6}`, `maxlength=6`), chama `encerrarSessaoMesaAutorizada(token, login, pin)` via `js/supabase.js`, limpa `neoorder_session` + `neoorder_cart_<mesa_id>` e redireciona para `login.html` (privacidade). Gestão de PINs em `contas.html` (definir/revogar/listar, badges `PIN ativo`/`Sem PIN`, somente gerente).
+**Regras (v2.9 — PIN-only, HMAC+KDF, sem login):**
+- **Formato:** `p_pin` `^[0-9]{6}$` via `_validar_pin` → `22023` se inválido. Nunca plaintext/logs.
+- **Armazenamento:** `pin_hash = crypt(hmac(PIN, pepper, sha256), gen_salt bf 11)` — `pin_pepper.secret` (32 bytes hex, `REVOKE ALL`, só `_pin_pepper()` lê), HMAC-SHA256 com segredo backend + bcrypt custo 11. Justificativa: SHA-256 simples = tabela arco-íris 1M em ms; HMAC+pepper exige segredo (se dump vazar sem pepper, 1M → 5/15min × bcrypt 200ms ≈5,7 anos por mesa). Residual: se pepper vazar, ainda bcrypt custo 11.
+- **Autorização:** varre `usuarios tipo=funcionario ativo pin_ativo` com `crypt(hmac(PIN), pin_hash)=pin_hash`, ignora `pin_expira_em<now`. 0 match → genérico `28000` “PIN incorreto ou não autorizado” (não revela se PIN existe, duplicado, conta), >1 match → `28000` “PIN ambíguo” (definição impede colisão `23505` via varredura `crypt(hmac(new), hash)=hash` antes de `UPDATE`).
+- **Bloqueio:** `pin:mesa:<mesa_id>` em `login_tentativas` (não `login`), `pg_advisory_xact_lock(hashtext(mesa_id))` serializa 5 paralelas, `count sucesso=false >15min` ≥5 → `42901`. Persistente: `INSERT+RETURN {sucesso:false}` ( `RAISE` faria rollback — corrigido, mesmo que `autenticar_usuario`), sucesso `DELETE falsas + INSERT true`.
+- **Isolamento:** `session_token_hash = _hash_token(p_session_token_mesa)` só encerra `sessoes_mesa` da mesa selecionada (preserva outras mesas/dispositivos). Idempotente `mensagem` se já encerrada.
+- **Endurecimento:** `encerrar_sessao` → `42501` “Use encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_pin)”.
+- **Compatibilidade:** `20261022` 3-params agora stub `42883`; frontend `encerrarSessaoMesaAutorizada(mesaToken, pin)` com `p_pin` (2 params) + `js/auth.js` modal PIN-only sem login, `cardapio.html` PIN-only, gestão `contas.html` exclusiva gerente, auditoria `mesa_id, autorizado_por/login/perfil, encerrado_em` sem PIN/token.
 
 ---
 
