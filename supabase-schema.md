@@ -1,8 +1,8 @@
 # NeoOrder — Schema do Banco de Dados (Supabase/PostgreSQL)
 
 Projeto Supabase: `nurnxrtxdcasrjcwxvky`
-Última atualização: **25/10/2026** (v2.7 — logout autorizado ativo)
-Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql` (base aplicada) + `supabase/migrations/20261025_neoorder_logout_senha_ativacao.sql` / `neoorder_logout_senha_ativacao` (20261023164507) **aplicada 25/10/2026** — corrige `encerrar_sessao_mesa_autorizada` + endurece `encerrar_sessao`. Pendentes **não aplicadas**: `20261020_neoorder_multisession_qr_staff_logout.sql` (multi-sessão + QR staff), `20261024_neoorder_logout_senha_hardening.sql` (versão completa com QR — separada para não misturar), PIN `20261022/20261023` **adiado**
+Última atualização: **26/10/2026** (v2.8 — observações nos pedidos)
+Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql` (base aplicada) + `supabase/migrations/20261025_neoorder_logout_senha_ativacao.sql` / `neoorder_logout_senha_ativacao` (20261023164507) **aplicada 25/10/2026** + `supabase/migrations/20261026_neoorder_observacoes_pedido.sql` / `neoorder_observacoes_pedido` **aplicada 26/10/2026** — adiciona `pedidos.observacao` (500) e `pedido_itens.observacao` (200) com validação. Pendentes **não aplicadas**: `20261020_neoorder_multisession_qr_staff_logout.sql` (multi-sessão + QR staff), `20261024_neoorder_logout_senha_hardening.sql` (versão completa com QR — separada para não misturar), PIN `20261022/20261023` **adiado**
 
 > Este documento descreve o estado **real** do banco após a migração de endurecimento.
 > O front-end **não acessa tabelas**: toda operação passa por funções RPC
@@ -115,6 +115,7 @@ Auditoria de tentativas de login, usada pelo bloqueio de força bruta.
 | `criado_em` | timestamptz | não | `now()` |
 | `atualizado_em` | timestamptz | não | `now()` |
 | `entregue_em` | timestamptz | sim | — |
+| `observacao` | text | sim | — (0..500, CHECK `char_length<=500`, btrim) |
 
 **Status canônico (CHECK `pedidos_status_check`):**
 `Pendente` → `Em Preparo` → `Pronto` → `Entregue`, mais `Cancelado`.
@@ -127,6 +128,7 @@ Auditoria de tentativas de login, usada pelo bloqueio de força bruta.
 | `prato_id` | uuid | não | FK `pratos` |
 | `quantidade` | integer | não | CHECK `> 0` |
 | `preco_unitario` | numeric | não | Preço congelado no momento da venda |
+| `observacao` | text | sim | — (0..200, CHECK `char_length<=200`, btrim) |
 
 ### 2.9 `chamados`
 | Coluna | Tipo | Nulo | Default |
@@ -174,7 +176,7 @@ Todas as funções abaixo estão em `public`, são `SECURITY DEFINER` com `searc
 
 | Função | Parâmetros | Retorno |
 |--------|-----------|---------|
-| `criar_pedido_mesa(p_session_token, p_itens)` | text, jsonb `[{prato_id, quantidade}]` | `{pedido_id, valor_total, itens, status}` |
+| `criar_pedido_mesa(p_session_token, p_itens, p_observacao)` | text, jsonb `[{prato_id, quantidade, observacao?}]`, text `p_observacao` (0..500) | `{pedido_id, valor_total, observacao, itens, status}` — `p_itens[].observacao` 0..200, `p_observacao` 0..500 |
 | `meus_pedidos_mesa(p_session_token)` | text | array `{id,status,valor_total,criado_em,entregue_em,itens[]}` |
 | `criar_chamado_mesa(p_session_token, p_justificativa)` | text, text | `{chamado_id, status}` |
 

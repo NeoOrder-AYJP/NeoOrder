@@ -178,7 +178,12 @@
     criarGerenteInicial: (login, senha, nome) =>
       callRpc('criar_gerente_inicial', { p_login: login, p_senha: senha, p_nome: nome }),
     // Mesa
-    criarPedido: (token, itens) => callRpc('criar_pedido_mesa', { p_session_token: token, p_itens: itens }),
+    // Mesa - observacao: comentário geral do pedido (0..500) e itens[].observacao (0..200 por item)
+    criarPedido: (token, itens, observacao) => {
+      const payload = { p_session_token: token, p_itens: itens };
+      if (observacao !== undefined && observacao !== null) payload.p_observacao = observacao;
+      return callRpc('criar_pedido_mesa', payload);
+    },
     meusPedidos: (token) => callRpc('meus_pedidos_mesa', { p_session_token: token }),
     criarChamado: (token, justificativa) =>
       callRpc('criar_chamado_mesa', { p_session_token: token, p_justificativa: justificativa }),

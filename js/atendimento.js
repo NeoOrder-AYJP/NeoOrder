@@ -192,8 +192,12 @@
         card.className = 'order-card';
         card.dataset.pedido = pedido.id;
         const itens = (pedido.itens || [])
-          .map(i => `<span>${i.quantidade}× ${escapeHtml(i.nome)}</span>`)
+          .map(i => {
+            const obs = i.observacao ? ` <em style="color:var(--warning); font-size:11px; font-weight:500;">— ${escapeHtml(i.observacao)}</em>` : '';
+            return `<span>${i.quantidade}× ${escapeHtml(i.nome)}${obs}</span>`;
+          })
           .join('');
+        const obsGeral = pedido.observacao ? `<div style="margin: 8px 0; padding: 8px 10px; background: #fff8e1; border-left: 3px solid var(--warning); border-radius: 6px; font-size: 12px; line-height:1.4;"><strong style="color: var(--warning);">Obs. do pedido:</strong> ${escapeHtml(pedido.observacao)}</div>` : '';
 
         let acao = '';
         if (status === 'Pendente') {
@@ -220,6 +224,7 @@
           </div>
           <div class="order-card-meta">Pedido #${String(pedido.id).slice(0, 8)}</div>
           <div class="order-card-items">${itens || '<span class="order-card-meta">Sem itens</span>'}</div>
+          ${obsGeral}
           <div class="order-card-total">${NeoUI.money(pedido.valor_total)}</div>
           <div class="order-card-actions">
             <button type="button" class="btn btn-danger" data-cancel aria-label="Cancelar pedido da ${escapeHtml(pedido.mesa_nome || 'mesa')}">
