@@ -145,12 +145,18 @@
       return res;
     },
     encerrarSessao: (token) => callRpc('encerrar_sessao', { p_session_token: token }),
-    encerrarSessaoMesaAutorizada: (mesaToken, staffLogin, staffSenha) =>
-      callRpc('encerrar_sessao_mesa_autorizada', {
+    encerrarSessaoMesaAutorizada: async (mesaToken, staffLogin, staffSenha) => {
+      const res = await callRpc('encerrar_sessao_mesa_autorizada', {
         p_session_token_mesa: mesaToken,
         p_staff_login: staffLogin,
         p_staff_senha: staffSenha
-      }),
+      });
+      // Migr 20261024 retorna {sucesso:false,codigo,mensagem} para falhas que precisam persistir tentativas
+      if (res && res.sucesso === false) {
+        throw new ApiError(res.mensagem || 'Não autorizado.', res.codigo, res);
+      }
+      return res;
+    },
     // QR Code da mesa (assinaturas conferidas no banco em 20/10/2026; ver supabase-schema.md)
     // A duração de 12 h é a mesma da sessão aberta pelo login com senha.
     iniciarSessaoMesaQr: (qrToken) =>
