@@ -1,7 +1,7 @@
 # Backlog — Registro de Alteracoes e Tarefas de Desenvolvimento
 
 Projeto: Sistema de Gerenciamento de Pedidos de Restaurante (NeoOrder)
-Data de atualizacao: 23/10/2026
+Data de atualizacao: 23/10/2026 (revisão pós-auditoria)
 
 ---
 
@@ -18,8 +18,12 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | **TASK-05** | **Atendimento e Chamados** | Botão "Chamar Funcionário" com justificativa (Mesa), dashboard de chamados com alerta sonoro e controle de autoplay (Atendente/Gerente), e acompanhamento/atualização de status dos pedidos em tempo real (com estorno em cancelamento). | RF-19, RF-20, RF-26, RF-27, RF-28, RF-29, RF-30, RF-31, RN-04, RN-06 | Alta | **Concluído** |
 | **TASK-06** | **Faturamento (Gerente)** | Dashboard financeira exclusiva para Gerentes, filtro por período (dia, semana, mês), cálculo de total faturado, quantidade de pedidos, ticket médio e pratos mais vendidos. | RF-32, RF-33, RF-34, RF-35, RF-36, RN-04, RN-08, RN-09 | Alta | **Concluído** |
 | **TASK-07** | **Backup e Polimento Final** | Funcionalidade de exportação e importação do estado do sistema em JSON, validação total de RLS, responsividade mobile e acessibilidade. | RF-41, RF-42, RNF-02, RNF-05, RNF-06, RNF-07 | Média | **Concluído** |
+| **TASK-08** | **Múltiplas Sessões Simultâneas** | Auditar e validar sessões independentes em dispositivos/navegadores diferentes, incluindo login, expiração, revogação e encerramento isolado. | Requisitos atuais de autenticação e sessões | **Máxima** | **Pendente de validação real** |
+| **TASK-09** | **QR Codes de Gerente e Atendente** | Corrigir geração, leitura, expiração, revogação e autorização dos QR Codes de equipe, com validação real no Supabase. | Requisitos atuais de QR de equipe e permissões | **Máxima** | **Pendente de validação real** |
+| **TASK-10** | **Encerramento de Mesa por PIN** | Substituir o fluxo legado de login/senha por PIN individual de 6 dígitos, validado no backend, com proteção contra tentativas e auditoria segura. | Requisito vigente de PIN individual | **Máxima** | **Pendente de implementação/validação real** |
+| **TASK-11** | **Acesso Público de Demonstração por QR** | Criar acesso de demonstração somente leitura, isolado de perfis operacionais e protegido também no backend/RLS/RPCs. | Requisito de demonstração pública por QR | Alta | **Pendente** |
 
-> **Nota (18/10/2026):** os status acima foram revalidados um a um contra o banco e o código nesta data. As marcações "Concluído" das versões 1.2 a 2.2 não correspondiam ao comportamento real do sistema (login sem verificação de senha, pedidos sem transação, disponibilidade fixa e imagens quebradas). Após a migração 2.3 e a reescrita do front-end, cada tarefa passou a ter evidência de execução registrada na seção 5 deste documento.
+> **Nota sobre status:** TASK-01 a TASK-07 representam módulos-base/histórico de entregas anteriores; suas marcações não comprovam as prioridades atuais TASK-08 a TASK-11. As prioridades atuais permanecem pendentes até serem validadas de ponta a ponta no ambiente apropriado. Testes simulados, código presente na branch ou uma migração existente no repositório não comprovam que a funcionalidade está ativa no Supabase real.
 
 ---
 
@@ -67,6 +71,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 | 21/10/2026 | 2.7 | Auditoria | Geral/Código, Banco e Publicação | Auditoria pós-merge PR #20: código das prioridades presente em `main`, mas o Supabase ainda não tinha a migração necessária. O fluxo de encerramento de mesa descrito nessa auditoria foi supersedido em 23/10/2026 pelo requisito de PIN individual. A migração existente precisa ser revisada antes de qualquer aplicação. | Arena Agent | Em revisão |
 | 23/10/2026 | 2.8 | Alteração de Requisito | Sessão/Mesa | Definição do PIN individual de 6 dígitos como método obrigatório para autorizar o encerramento da sessão de mesa por gerente ou atendente autorizado. O PIN deve ser validado no backend, armazenado somente como hash, ter limitação de tentativas, identificar o funcionário autorizador e encerrar apenas a sessão da mesa solicitada. Código e migração ainda precisam ser adequados e testados; esta alteração documental não significa que a funcionalidade esteja implementada. | Stakeholder | Pendente |
 | 23/10/2026 | 2.9 | Revisão de Requisito | Sessão/Mesa | Revisão textual integral do backlog para que o encerramento da sessão de mesa seja descrito consistentemente como autorizado por PIN individual de 6 dígitos. Referências ao método anterior permanecem apenas quando necessárias para identificar trabalho legado a substituir; não representam o requisito vigente. | Stakeholder | Pendente |
+| 23/10/2026 | 3.0 | Correção pós-auditoria | Roadmap/Sessão/Mesa/Supabase | Inclusão de TASK-08 a TASK-11 para rastrear multi-sessão, QR de equipe, PIN de encerramento e QR público de demonstração; esclarecimento de que o contrato legado `p_staff_login/p_staff_senha` está supersedido; inclusão de plano para revisar `supabase-schema.md` e preparar migração corretiva proposta, sem aplicação em produção; distinção explícita entre testes simulados e validação real. | Stakeholder | Pendente |
 
 
 ---
@@ -188,6 +193,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - Manter trilha de auditoria de quem confirmou, quando confirmou e qual foi o método de pagamento.
 
 ##### 1.15.6. Encerramento Seguro de Sessões e Privacidade
+- **Autorização do encerramento da sessão de mesa:** exigir PIN individual de 6 dígitos de gerente ou atendente ativo e autorizado. Esse PIN é separado da senha normal de login; o fluxo não pode solicitar `p_staff_login`/`p_staff_senha` nem validar a senha de login. A autorização deve ocorrer no backend, com armazenamento seguro apenas de verificador/hash apropriado, limite de tentativas, auditoria sem PIN e encerramento exclusivo da sessão solicitada.
 - Após o pagamento confirmado e o encerramento da conta, invalidar imediatamente todas as sessões temporárias de clientes associadas àquela sessão de mesa, revogando tokens no servidor.
 - Bloquear novas consultas e operações com tokens expirados, revogados ou pertencentes a uma sessão encerrada, mesmo se uma página antiga continuar aberta.
 - Limpar do dispositivo do cliente os dados temporários da mesa, incluindo histórico, carrinho e dados de pagamento que não precisem ser mantidos localmente.
@@ -220,7 +226,7 @@ Abaixo está a quebra organizada do desenvolvimento do projeto em tarefas sequen
 - Exibir mensagens claras sobre indisponibilidade sem expor informações internas ou quantidades sensíveis de estoque ao cliente.
 
 ##### 1.15.10. QR Codes de Equipe e Permissões Administrativas
-- Criar QR Codes de equipe para funções autorizadas, como atendente e gerente, para agilizar operações no salão sem digitar senhas repetidamente.
+- Criar QR Codes de equipe para funções autorizadas, como atendente e gerente, para agilizar a autenticação conforme a política de acesso. Esse recurso é separado do PIN individual de 6 dígitos exigido para autorizar o encerramento de uma sessão de mesa; não substituir um requisito pelo outro.
 - Cada QR Code deve identificar um funcionário ou uma credencial de uso controlado, ter validade/revogação, ser verificável no servidor e respeitar o perfil e as permissões associados.
 - O QR Code não pode ser uma chave mestra estática e irrestrita: proteger contra cópia, reutilização indevida e escalada de privilégios. Usar expiração, rotação ou confirmação adicional conforme o risco da operação.
 - Permitir somente a funcionários autorizados as operações de gerente, estornos, encerramento de sessão, liberação/reset de mesa e demais ações administrativas.
@@ -377,6 +383,76 @@ Backup, migração e scripts foram validados por SQL; o sandbox de desenvolvimen
 
 ---
 
+## 6. Análise Técnica de 17/10/2026 — Pendências Identificadas
+
+> Registro histórico da análise entregue pelo stakeholder junto com o backlog v2.3 (status "Pendente").
+> **Nota histórica:** a versão anterior do documento registrava esses itens como executados em 18/10/2026, com resultados descritos na **seção 5**. Esse registro histórico não substitui uma nova validação do estado atual do código e do Supabase; as prioridades atuais devem seguir os status das TASK-08 a TASK-11 e os critérios de teste real.
+
+
+### 6.1. Prioridade Alta — Integridade e Funcionamento do Sistema
+
+- **Consistência dos Status dos Pedidos:** Revisar os status utilizados no frontend e no banco de dados, garantindo compatibilidade com as restrições existentes e evitando falhas nas atualizações.
+- **Correção do Registro de Chamados:** Verificar a utilização dos campos da tabela `chamados`, especialmente a correspondência entre `motivo` e `justificativa`.
+- **Autenticação e Perfis de Acesso:** Revisar a validação dos perfis de Gerente, Atendente, Mesa e Cliente, garantindo compatibilidade com o esquema real do banco de dados e evitando verificações baseadas em campos inexistentes.
+- **Segurança das Operações:** Revisar as políticas RLS das tabelas utilizadas pelos módulos do sistema, garantindo que cada perfil tenha somente as permissões necessárias.
+- **Operações no Banco de Dados:** Avaliar a utilização das funções RPC existentes ou necessárias para operações críticas, como criação de pedidos, atualização de status, consulta de pedidos da mesa, faturamento e criação de chamados.
+- **Tratamento de Erros:** Eliminar mensagens de sucesso falsas e garantir que falhas de gravação ou consulta sejam informadas corretamente ao usuário.
+- **Dados Iniciais:** Verificar a existência e a consistência dos dados necessários para o funcionamento do sistema, incluindo mesas, pratos, ingredientes, estoque e fichas técnicas.
+
+### 6.2. Prioridade Média — Funcionalidades e Experiência de Uso
+
+- **Atualização em Tempo Real:** Verificar a configuração do Supabase Realtime e garantir a atualização dos pedidos e chamados nos módulos correspondentes.
+- **Chamados de Atendimento:** Garantir que a solicitação de atendimento funcione corretamente nas telas aplicáveis e que os chamados sejam registrados e exibidos aos funcionários.
+- **Faturamento:** Validar os cálculos financeiros, os filtros por período, a quantidade de pedidos, o ticket médio e os pratos mais vendidos.
+- **Estoque e Cancelamentos:** Verificar a baixa de ingredientes na criação de pedidos e o estorno correspondente em cancelamentos, evitando inconsistências no estoque.
+- **Navegação e Interface:** Revisar os links entre módulos, os menus e a adaptação das telas para dispositivos móveis.
+
+### 6.3. Prioridade Baixa — Documentação e Qualidade
+
+- **Testes de Regressão:** Criar ou atualizar testes para os principais fluxos do sistema, incluindo autenticação, disponibilidade, imagens, pedidos, chamados, estoque e faturamento.
+- **Documentação Técnica:** Conferir se o `backlog.md` e o `supabase-schema.md` correspondem ao comportamento real do sistema e ao esquema atual do banco de dados.
+- **Validação Final:** Executar os fluxos principais antes de registrar tarefas como concluídas, documentando os erros encontrados e as correções efetivamente validadas.
+Autenticação por QR Code para gerente e atendente e suporte a múltiplas sessões simultâneas
+
+Prioridade: Alta
+
+Status: Pendente
+
+Descrição:
+
+Revisar e adequar o sistema de autenticação do NeoOrder para permitir acessos simultâneos de vários funcionários em diferentes dispositivos, com login por QR Code para os cargos de gerente e atendente. Garantir que as sessões sejam independentes e que as permissões de cada cargo sejam respeitadas no frontend e no backend.
+
+Requisitos:
+
+* Implementar login por QR Code para gerente e atendente, com permissões específicas para cada cargo.
+* Permitir múltiplos logins simultâneos, sem desconectar automaticamente outras sessões ativas.
+* Garantir que cada dispositivo possua uma sessão independente, com expiração, encerramento e revogação próprios.
+* Utilizar QR Codes seguros, preferencialmente individuais por funcionário, com tokens protegidos, possibilidade de revogação e política de expiração.
+* Manter separados os QR Codes de autenticação dos funcionários e os QR Codes das mesas dos clientes.
+* Validar cargos e permissões no backend, sem depender exclusivamente das verificações do frontend.
+* Preservar o funcionamento do login convencional, dos pedidos, do cardápio e das sessões das mesas.
+* Auditar o esquema do Supabase, as tabelas, as funções RPC, as políticas RLS e as migrações para identificar incompatibilidades com a implementação atual.
+* Documentar as alterações de código e as eventuais mudanças necessárias no banco de dados.
+
+Critérios de validação:
+
+* Gerente e atendente conseguem autenticar-se pelos respectivos QR Codes.
+* As permissões administrativas são exclusivas dos usuários autorizados.
+* Dois ou mais funcionários conseguem permanecer conectados em dispositivos diferentes ao mesmo tempo.
+* Encerrar uma sessão não encerra as demais.
+* QR Codes inválidos, expirados ou revogados são rejeitados corretamente.
+* Um QR Code de mesa não concede acesso às funcionalidades administrativas.
+* O login convencional continua funcionando.
+* Os testes automatizados e os testes de integração são documentados, distinguindo simulações de testes realizados com o Supabase real.
+
+Restrições e segurança:
+
+Não realizar alterações no banco de produção, nas políticas RLS, nas funções RPC ou nas migrações aplicadas sem autorização explícita. Antes de qualquer alteração no banco, apresentar o diagnóstico de compatibilidade, o SQL proposto e os riscos para revisão. Não realizar merge da PR até a revisão e a validação dos requisitos.
+
+Documentação:
+
+Atualizar o histórico de alterações e o backlog com as mudanças realizadas, os testes executados, os problemas encontrados e as pendências restantes.
+
 ## 7. Responsividade e Acessibilidade — 20/10/2026 (v2.5)
 
 ### 7.1 Escopo e decisões
@@ -444,7 +520,7 @@ Atender as prioridades máximas do stakeholder (múltiplos acessos simultâneos,
 - `autenticar_usuario` recriada sem os `UPDATE ativa=false`; insere novo token preservando os anteriores.
 - `gerar_qr_code_mesa` e `iniciar_sessao_mesa` recriadas sem `UPDATE sessoes_mesa` (preservam sessões existentes); contrato mantido (MESA- + 64 hex, 12 h).
 - Novas RPCs: `gerar_qr_code_funcionario`, `iniciar_sessao_funcionario_qr`, `status_qr_funcionarios`, `desativar_qr_funcionario` (todas SECURITY DEFINER, EXECUTE para anon/authenticated, gerência via `_exigir_gerente`).
-- **Contrato legado a substituir:** a migração v2.6 propôs a autorização por credenciais de funcionário. Esse contrato não atende ao requisito vigente e precisa ser substituído/adequado em uma nova migração revisada para validação de PIN individual; não presumir que o banco já aceita PIN.
+- **Contrato legado supersedido (não é requisito vigente):** a implementação anterior usava `encerrar_sessao_mesa_autorizada(p_session_token_mesa, p_staff_login, p_staff_senha)` e validava a senha de login do funcionário. Esse contrato não deve ser apresentado nem implantado como solução final. O contrato atual deve receber o token/identificador da sessão da mesa e o PIN de 6 dígitos (por exemplo, `p_session_token_mesa, p_pin`), ou outro contrato tecnicamente justificado após auditoria do esquema real; não exigir login/senha nesse fluxo e não presumir que o banco já aceita PIN.
 - `encerrar_sessao` endurecida: se token é de mesa ativa, levanta 42501 instruindo a usar a autorizada; sessões de funcionário continuam diretas.
 - Índices e colunas: `ADD COLUMN IF NOT EXISTS qr_code_ativo/qr_token_hash` + índice em `qr_token_hash` (já existiam em produção).
 
@@ -487,84 +563,15 @@ Após o merge do PR #20 (8eaf3fe) verificou-se:
 ### 10.3 Validação pós-correção
 - `npm test` → smoke 8 OK, qr 34 OK (com nova UX).
 - `node tests/prioridades.test.js` → 10 OK nos testes simulados históricos (P1 multi-sessão, P2 isolamento e P3 encerramento autorizado na versão legada). **Não comprova o requisito vigente de PIN**; os testes precisam ser adaptados e executados novamente.
-- Teste manual simulado histórico (jsdom, sem rede): QR de mesa válido → cardápio, QR de staff gerente → faturamento, atendente → atendimento; QR inválido/revogado → 28000 sem distinguir. A parte de encerramento desse teste pertence ao fluxo legado e **não valida o requisito atual de PIN**; precisa ser refeita após a implementação.
+- Teste manual simulado histórico (jsdom, sem rede): QR de mesa válido → cardápio, QR de staff gerente → faturamento, atendente → atendimento; QR inválido/revogado → 28000 sem distinguir. A parte de encerramento desse teste pertence ao fluxo legado e **não valida o requisito atual de PIN**; precisa ser refeita após a implementação. Nenhum teste que valide apenas senha de login pode contar como teste de aceitação do logout por PIN.
 - **Pendente com banco real:** aplicar migração em staging/produção, testar leitura de QR impresso com câmera, Safari/iOS, múltiplos dispositivos reais e expiração.
 
 ### 10.4 Próximos passos (requer autorização)
-1. Revisar e adaptar `supabase/migrations/20261020_neoorder_multisession_qr_staff_logout.sql` para suportar PIN individual, sem aplicar a versão antiga. Apresentar o SQL e os riscos para aprovação antes de qualquer alteração no projeto `nurnxrtxdcasrjcwxvky`.
+1. Auditar a assinatura real da RPC e o estado de aplicação das migrações. Tratar `20261020_neoorder_multisession_qr_staff_logout.sql` como artefato legado a revisar; não editar seu histórico se já tiver sido aplicado em algum ambiente. Preparar uma nova migração corretiva proposta para PIN individual, atualizar `supabase-schema.md` com o desenho aprovado e apresentar SQL, compatibilidade, riscos e plano de rollback para aprovação. Não aplicar em produção.
 2. Verificar no Supabase Dashboard: `SELECT proname FROM pg_proc WHERE proname LIKE '%qr%';` deve listar 8 funções (4 mesa + 4 staff).
 3. Após autorização e atualização da migração, testar em ambiente autorizado: gerar QR de gerente/atendente em `contas.html`, escanear com celular, verificar permissões e isolamento; testar logout de mesa com PIN correto/incorreto, PIN sem permissão, limite de tentativas e tentativa direta via `curl` às RPCs.
-4. Após validação, marcar P1-P3 como concluído em `backlog.md` e publicar nova tag de release.
+4. Somente após testes de integração com Supabase real e aprovação dos critérios, atualizar TASK-08 a TASK-10 para Concluído; publicar nova tag apenas depois da revisão/merge autorizado. Não usar os testes simulados históricos como evidência de conclusão.
 
-## 6. Análise Técnica de 17/10/2026 — Pendências Identificadas
-
-> Registro histórico da análise entregue pelo stakeholder junto com o backlog v2.3 (status "Pendente").
-> Todos os itens foram executados e validados em 18/10/2026; o resultado está na **seção 5**.
-
-
-### 6.1. Prioridade Alta — Integridade e Funcionamento do Sistema
-
-- **Consistência dos Status dos Pedidos:** Revisar os status utilizados no frontend e no banco de dados, garantindo compatibilidade com as restrições existentes e evitando falhas nas atualizações.
-- **Correção do Registro de Chamados:** Verificar a utilização dos campos da tabela `chamados`, especialmente a correspondência entre `motivo` e `justificativa`.
-- **Autenticação e Perfis de Acesso:** Revisar a validação dos perfis de Gerente, Atendente, Mesa e Cliente, garantindo compatibilidade com o esquema real do banco de dados e evitando verificações baseadas em campos inexistentes.
-- **Segurança das Operações:** Revisar as políticas RLS das tabelas utilizadas pelos módulos do sistema, garantindo que cada perfil tenha somente as permissões necessárias.
-- **Operações no Banco de Dados:** Avaliar a utilização das funções RPC existentes ou necessárias para operações críticas, como criação de pedidos, atualização de status, consulta de pedidos da mesa, faturamento e criação de chamados.
-- **Tratamento de Erros:** Eliminar mensagens de sucesso falsas e garantir que falhas de gravação ou consulta sejam informadas corretamente ao usuário.
-- **Dados Iniciais:** Verificar a existência e a consistência dos dados necessários para o funcionamento do sistema, incluindo mesas, pratos, ingredientes, estoque e fichas técnicas.
-
-### 6.2. Prioridade Média — Funcionalidades e Experiência de Uso
-
-- **Atualização em Tempo Real:** Verificar a configuração do Supabase Realtime e garantir a atualização dos pedidos e chamados nos módulos correspondentes.
-- **Chamados de Atendimento:** Garantir que a solicitação de atendimento funcione corretamente nas telas aplicáveis e que os chamados sejam registrados e exibidos aos funcionários.
-- **Faturamento:** Validar os cálculos financeiros, os filtros por período, a quantidade de pedidos, o ticket médio e os pratos mais vendidos.
-- **Estoque e Cancelamentos:** Verificar a baixa de ingredientes na criação de pedidos e o estorno correspondente em cancelamentos, evitando inconsistências no estoque.
-- **Navegação e Interface:** Revisar os links entre módulos, os menus e a adaptação das telas para dispositivos móveis.
-
-### 6.3. Prioridade Baixa — Documentação e Qualidade
-
-- **Testes de Regressão:** Criar ou atualizar testes para os principais fluxos do sistema, incluindo autenticação, disponibilidade, imagens, pedidos, chamados, estoque e faturamento.
-- **Documentação Técnica:** Conferir se o `backlog.md` e o `supabase-schema.md` correspondem ao comportamento real do sistema e ao esquema atual do banco de dados.
-- **Validação Final:** Executar os fluxos principais antes de registrar tarefas como concluídas, documentando os erros encontrados e as correções efetivamente validadas.
-Autenticação por QR Code para gerente e atendente e suporte a múltiplas sessões simultâneas
-
-Prioridade: Alta
-
-Status: Pendente
-
-Descrição:
-
-Revisar e adequar o sistema de autenticação do NeoOrder para permitir acessos simultâneos de vários funcionários em diferentes dispositivos, com login por QR Code para os cargos de gerente e atendente. Garantir que as sessões sejam independentes e que as permissões de cada cargo sejam respeitadas no frontend e no backend.
-
-Requisitos:
-
-* Implementar login por QR Code para gerente e atendente, com permissões específicas para cada cargo.
-* Permitir múltiplos logins simultâneos, sem desconectar automaticamente outras sessões ativas.
-* Garantir que cada dispositivo possua uma sessão independente, com expiração, encerramento e revogação próprios.
-* Utilizar QR Codes seguros, preferencialmente individuais por funcionário, com tokens protegidos, possibilidade de revogação e política de expiração.
-* Manter separados os QR Codes de autenticação dos funcionários e os QR Codes das mesas dos clientes.
-* Validar cargos e permissões no backend, sem depender exclusivamente das verificações do frontend.
-* Preservar o funcionamento do login convencional, dos pedidos, do cardápio e das sessões das mesas.
-* Auditar o esquema do Supabase, as tabelas, as funções RPC, as políticas RLS e as migrações para identificar incompatibilidades com a implementação atual.
-* Documentar as alterações de código e as eventuais mudanças necessárias no banco de dados.
-
-Critérios de validação:
-
-* Gerente e atendente conseguem autenticar-se pelos respectivos QR Codes.
-* As permissões administrativas são exclusivas dos usuários autorizados.
-* Dois ou mais funcionários conseguem permanecer conectados em dispositivos diferentes ao mesmo tempo.
-* Encerrar uma sessão não encerra as demais.
-* QR Codes inválidos, expirados ou revogados são rejeitados corretamente.
-* Um QR Code de mesa não concede acesso às funcionalidades administrativas.
-* O login convencional continua funcionando.
-* Os testes automatizados e os testes de integração são documentados, distinguindo simulações de testes realizados com o Supabase real.
-
-Restrições e segurança:
-
-Não realizar alterações no banco de produção, nas políticas RLS, nas funções RPC ou nas migrações aplicadas sem autorização explícita. Antes de qualquer alteração no banco, apresentar o diagnóstico de compatibilidade, o SQL proposto e os riscos para revisão. Não realizar merge da PR até a revisão e a validação dos requisitos.
-
-Documentação:
-
-Atualizar o histórico de alterações e o backlog com as mudanças realizadas, os testes executados, os problemas encontrados e as pendências restantes.
 ## 11. Requisito Atual — PIN Individual para Encerrar Sessão de Mesa (23/10/2026)
 
 **Status: Pendente de implementação e validação real.** Esta seção prevalece sobre qualquer descrição anterior de autorização para encerramento de mesa por outro método.
@@ -574,7 +581,7 @@ Atualizar o histórico de alterações e o backlog com as mudanças realizadas, 
 - Ao solicitar o encerramento da sessão de uma mesa, pedir **somente o PIN individual de 6 dígitos** do funcionário autorizador. Não solicitar nome de usuário, login nem credenciais de acesso da conta nesse fluxo.
 - O PIN deve pertencer a um gerente ou atendente ativo e autorizado. Cada funcionário deve ter seu próprio PIN; não utilizar um PIN compartilhado entre toda a equipe.
 - O backend deve identificar o funcionário correspondente ao PIN, validar sua situação e suas permissões e encerrar somente a sessão da mesa especificada.
-- O PIN deve ser armazenado apenas como hash apropriado para segredo de baixa entropia, nunca em texto puro, localStorage, logs ou respostas de API. Nunca enviar o PIN para o frontend além do campo de entrada nem retorná-lo pelo backend.
+- O PIN deve ser armazenado somente por meio de um verificador criptográfico adequado a um segredo de baixa entropia, com desenho resistente a tentativa offline e proteção adicional contra tentativas online. Não presumir que SHA-256 simples é suficiente; avaliar KDF apropriada e/ou HMAC com segredo mantido exclusivamente no backend, conforme a arquitetura. Nunca armazenar PIN em texto puro, localStorage, logs ou respostas de API, nem retorná-lo pelo backend.
 - Aplicar limite de tentativas, atraso/bloqueio progressivo e auditoria sem registrar o PIN. Tratar colisões de PIN: impedir PIN duplicado entre funcionários ativos ou adotar um mecanismo seguro que identifique inequivocamente o funcionário sem exigir outras credenciais nesse fluxo.
 - Validar a autorização no backend/RPC; não confiar em validações do navegador. A chamada deve ser atômica e impedir que o identificador/token da mesa seja trocado para encerrar outra sessão.
 - Se o PIN for inválido, estiver duplicado/ambíguo, pertencer a funcionário inativo ou não autorizado, negar a operação sem revelar qual funcionário ou PIN existe.
@@ -582,9 +589,11 @@ Atualizar o histórico de alterações e o backlog com as mudanças realizadas, 
 
 ### Alterações técnicas necessárias
 
+**Estado do banco:** a migração e as alterações em `supabase-schema.md` abaixo são trabalho proposto. Este backlog não comprova que qualquer migração foi aplicada, e nenhuma mudança em produção está autorizada por este documento.
+
 - Auditar `js/auth.js`, `js/supabase.js`, `cardapio.html`, `supabase/migrations/20261020_neoorder_multisession_qr_staff_logout.sql`, RPCs relacionadas, esquema e documentação.
 - Substituir o contrato legado de autorização por um contrato de PIN adequado, com hash e identificação inequívoca do funcionário. O nome final da RPC e os parâmetros devem ser definidos após inspecionar o esquema real; não alterar migrações já aplicadas em lugar sem criar uma migração corretiva revisada.
-- Criar ou adaptar a gestão segura de PINs individuais, incluindo definição/alteração pelo funcionário ou gerente conforme a política do sistema, sem expor PINs existentes. Se não houver regra para criação e recuperação do PIN, apresentar a proposta antes de implementar.
+- Criar ou adaptar a gestão segura de PINs individuais, incluindo definição, alteração, revogação e recuperação/reset conforme política aprovada, sem exibir nem recuperar o PIN existente. Se não houver regra aprovada para configuração e reset, apresentar opções e riscos antes de implementar. Avaliar expiração/rotação e definir o prazo com o stakeholder, sem inventar prazo como requisito já aprovado.
 - Atualizar mensagens da interface, documentação, testes automatizados e testes de integração para deixar explícito que o PIN é o único método de autorização nesse fluxo.
 - Não aplicar alterações ao banco de produção, políticas RLS, RPCs críticas ou migrações aplicadas sem apresentar o plano e obter autorização explícita.
 
@@ -601,7 +610,7 @@ Atualizar o histórico de alterações e o backlog com as mudanças realizadas, 
 
 ---
 
-Pendência de Alta Prioridade — Acesso Público de Demonstração por QR Code
+### TASK-11 — Acesso Público de Demonstração por QR Code
 
 Prioridade: Alta
 Status: Pendente
