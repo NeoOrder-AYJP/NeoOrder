@@ -2,7 +2,7 @@
 
 Projeto Supabase: `nurnxrtxdcasrjcwxvky`
 Última atualização: **20/10/2026** (v2.6)
-Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql` + `20261020_neoorder_multisession_qr_staff_logout.sql` (pendente de aplicação em produção)
+Migração de referência: `supabase/migrations/20261017_neoorder_hardening.sql` + `20261020_neoorder_multisession_qr_staff_logout.sql` (base, pendente) + `supabase/migrations/20261024_neoorder_logout_senha_hardening.sql` (corretiva prioritária 24/10, **pendente autorização — não aplicar sem autorização**, PIN 20261022/23 **adiado**)
 
 > Este documento descreve o estado **real** do banco após a migração de endurecimento.
 > O front-end **não acessa tabelas**: toda operação passa por funções RPC
